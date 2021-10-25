@@ -77,7 +77,7 @@ stop_screen_recording() {
     #kill screenrecord child process
     pkill -f screenrecord
     #TODO: organize smart wait while video is generated
-    sleep 1
+    sleep 3
     ls -la video.mp4
 
     #upload session artifacts
