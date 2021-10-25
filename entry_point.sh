@@ -65,13 +65,9 @@ restart_appium() {
 
 start_screen_recording() {
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
-    #forcibly kill any existing screenrecord process to avoid recordings of previous sessions
-    adb shell "su root pkill -f screenrecord"
-
     #TODO: wait until application or browser started otherwise 5-10 sec of Appium Settings app is recorded as well. Limit waiting by 10 seconds and start with recording anyway!
     # potential line to track valid session startup: "Screen already unlocked, doing nothing"
-    echo "Starting video recording..."
-    adb shell "su root screenrecord /video.mp4" &
+    /root/capture-screen.sh &
   else
     echo "No sense to start screen recording as integration with S3 storage not available!"
   fi
@@ -84,10 +80,7 @@ stop_screen_recording() {
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ] && [ ! -z $sessionId ]; then
     echo "session finished. stopping recorder..."
     #kill screenrecord process
-    adb shell "su root pkill -l 2 -f screenrecord"
-    sleep 1
-    adb shell "su root chmod a+r video.mp4"
-    adb pull /video.mp4 "video$index.mp4"
+    pkill -f capture-screen.sh
 
     #upload session artifacts
     S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
@@ -95,9 +88,9 @@ stop_screen_recording() {
 
     date
     aws s3 cp "${APPIUM_LOG}$index" "${S3_KEY_PATTERN}/session.log"
-    aws s3 cp "video$index.mp4" "${S3_KEY_PATTERN}/video.mp4"
+    aws s3 cp "video.mp4" "${S3_KEY_PATTERN}/video.mp4"
     rm -f "${APPIUM_LOG}$index"
-    rm -f "video$index.mp4"
+    rm -f "video.mp4"
     date
   else
     echo "No sense to stop screen recording as sessionId not detected!"
