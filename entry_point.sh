@@ -11,23 +11,12 @@ upload() {
   export sessionId=$(echo $sessionId)
   echo "sessionId inited: $sessionId"
 
-  stop_screen_recording $sessionId ""
+  stop_screen_recording ""
 }
 
-retain_appium() {
+rstart_appium() {
   index=$1
   #be able to handle next session request using existing appium and device/emulator
-
-  sessionId=
-  while [ -z $sessionId ]; do
-    sleep 0.1
-    # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
-    sessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
-  done
-  export sessionId=$(echo $sessionId)
-  echo "sessionId inited: $sessionId"
-
-  start_screen_recording
 
   #TODO: mode driver quit/close into the embeded function
   isExited=
@@ -37,17 +26,7 @@ retain_appium() {
     isExited=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
 #    echo isExited: $isExited
   done
-
-  restart_appium $index
-  echo "session $sessionId finished. Collecting video and log artifacts..."
-  stop_screen_recording $sessionId $index
-
-  #reset sessionId
-  sessionId=
-}
-
-restart_appium() {
-  index=$1
+  echo "session $sessionId finished."
 
   # kill and restart appium & xvfb-run asap to be ready for the next session
   pkill -x node
@@ -61,10 +40,22 @@ restart_appium() {
   fi
 
   $CMD &
+
+  #reset sessionId
+  sessionId=
 }
 
 start_screen_recording() {
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
+    sessionId=
+    while [ -z $sessionId ]; do
+      sleep 0.1
+      # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
+      sessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
+    done
+    export sessionId=$(echo $sessionId)
+    echo "sessionId inited: $sessionId"
+
     #TODO: wait until application or browser started otherwise 5-10 sec of Appium Settings app is recorded as well. Limit waiting by 10 seconds and start with recording anyway!
     # potential line to track valid session startup: "Screen already unlocked, doing nothing"
     /root/capture-screen.sh &
@@ -74,13 +65,20 @@ start_screen_recording() {
 }
 
 stop_screen_recording() {
-  sessionId=$1
-  index=$2
+  index=$1
+
+  sessionId=`cat "${APPIUM_LOG}$index" | grep "Session created with session id" | cut -d ":" -f 5`
+  export sessionId=$(echo $sessionId)
 
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ] && [ ! -z $sessionId ]; then
-    echo "session finished. stopping recorder..."
-    #kill screenrecord process
+    echo "session $sessionId finished. stopping recorder..."
+    #kill capture-screen.sh parent shell script
     pkill -f capture-screen.sh
+    #kill screenrecord child process
+    pkill -f screenrecord
+    #TODO: organize smart wait while video is generated
+    sleep 1
+    ls -la video.mp4
 
     #upload session artifacts
     S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
@@ -149,7 +147,9 @@ if [ "$RETAIN_TASK" = true ]; then
   declare -i index=0
   while true; do
     echo "starting session $i supervisor..."
-    retain_appium $index
+    start_screen_recording
+    rstart_appium $index
+    stop_screen_recording $index
     index+=1
     echo "finished session $i supervisor."
   done
