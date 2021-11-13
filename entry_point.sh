@@ -16,6 +16,19 @@ getSessionId() {
   echo "================================================================================================================="
   echo "sessionId: $sessionId"
   echo "================================================================================================================="
+
+  #13: cut initial frames in video where appium app starting
+  # Optimal line is below because it cut UIAutomator server stratup time and start video from the attempt to run application. So all kind of startup problems might be detected
+  #   2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
+  # The latest possible line is below. The only problem it couldn't record unlocking/unpining etc where problems might occur. Moreover this video ~5s less then duration in reporting:)
+  #   2021-11-13 12:45:55:233 [Appium] New AndroidUiautomator2Driver session created successfully, session 2045e7c6-b34d-44c6-8b72-2bd68489de82 added to master session list
+  declare isReady=
+  while [ -z $isReady ]; do
+    sleep 0.1
+    # 2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
+    isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands"`
+    #echo "isReady: $isReady"
+  done
 }
 
 upload() {
@@ -55,10 +68,8 @@ start_screen_recording() {
   echo "ATTENTION!!! Starting video recording for ${sessionId}"
   echo "================================================================================================================="
 
-#TODO: investigate possibility to capture audio as well
+  #TODO: #9 integrate audio capturing for android devices
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
-    #TODO: wait until application or browser started otherwise 5-10 sec of Appium Settings app is recorded as well. Limit waiting by 10 seconds and start with recording anyway!
-    # potential line to track valid session startup: "Screen already unlocked, doing nothing"
     /root/capture-screen.sh ${sessionId} &
   else
     echo "No sense to record video without S3 compatible storage!"
@@ -71,7 +82,8 @@ stop_screen_recording() {
   echo "================================================================================================================="
   #kill screenrecord on emulator/device
   adb shell "su root pkill -l 2 -f screenrecord"
-  #TODO: put explicit comment  here why sleep is required
+  # sleep was required to finish kill process correctly so video file is closed and editable/visible later.
+  # as of now `sleep 1` moved onto the concat-video.sh
   #sleep 1
 
   #kill capture-screen.sh parent shell script
