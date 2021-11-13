@@ -11,7 +11,7 @@ startScreenStream() {
      echo "================================================================================================================="
      echo "generating video file #${file}..."
      echo "================================================================================================================="
-     adb shell "su root screenrecord --verbose ${sessionId}_${file}.mp4";
+     adb shell "su root screenrecord --verbose ${SCREENRECORD_OPTS} ${sessionId}_${file}.mp4";
      file+=1
   done
 }
