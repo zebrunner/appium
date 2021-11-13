@@ -2,26 +2,19 @@
 
 set -e
 
-# Usage:
-# bash ./capture-screen.sh
+sessionId=$1
+echo sessionId: $sessionId
 
-SCREENRECORD_FLAGS="$@"
-
-screenStream() {
+startScreenStream() {
+  declare -i file=0
   while true; do
-#    adb exec-out screenrecord --output-format=h264 --size 1024x768 $SCREENRECORD_FLAGS -
-    echo "screenrecord args: --output-format=h264 $SCREENRECORD_FLAGS"
-    adb exec-out screenrecord --output-format=h264 $SCREENRECORD_FLAGS -
+     echo "================================================================================================================="
+     echo "generating video file #${file}..."
+     echo "================================================================================================================="
+     adb shell "su root screenrecord --verbose ${sessionId}_${file}.mp4";
+     file+=1
   done
 }
 
-# remove any existing video.mp4
-rm -f video.mp4
-echo "Starting video recording..."
-#TODO: test if we need kill for existing screenrecord as seems like w just capture screen remotely without operating on device/emulator anymore!
-
-#forcibly kill any existing screenrecord process to avoid recording of previous sessions
-#adb shell "su root pkill -f screenrecord" &
-
-#screenStream | ffmpeg -i - -s 1024x768 -framerate 30 -bufsize 16M video.mp4
-screenStream | ffmpeg -i - -framerate 30 -bufsize 16M video.mp4
+echo "Starting screen capturing for sessionId: $sessionId..."
+startScreenStream
