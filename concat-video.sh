@@ -30,21 +30,28 @@ while true; do
   file+=1
 done
 
-ls -la "${sessionId}*.mp4"
-if [ -f $videoFiles ]; then
-  cat $videoFiles
-  #TODO: #9 concat audio as well if appropriate artifact exists
-  ffmpeg -y -f concat -safe 0 -i $videoFiles -c copy $sessionId.mp4
+ls -la "${sessionId}*"
+
+if [ $file -eq 1 ]; then
+  echo "#12: there is no sense to concatenate video as it is single file, just rename..."
+  mv ${sessionId}_0.mp4 $sessionId.mp4
 else
-  echo "ERROR! unable to concat video as $videoFiles is absent!"
+  if [ -f $videoFiles ]; then
+    cat $videoFiles
+    #TODO: #9 concat audio as well if appropriate artifact exists
+    ffmpeg -y -f concat -safe 0 -i $videoFiles -c copy $sessionId.mp4
+  else
+    echo "[ERROR] unable to concat video as $videoFiles is absent!"
+  fi
+
+  # ffmpeg artifacts cleanup
+  rm -f $videoFiles
 fi
 
 if [ -f $sessionId.mp4 ]; then
   echo "$sessionId.mp4 generated successfully."
 else
-  echo "ERROR! unable to generate $sessionId.mp4!"
+  echo "[ERROR] unable to generate $sessionId.mp4!"
 fi
 
-#cleanup
-rm -f $videoFiles
 
