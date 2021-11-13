@@ -16,9 +16,10 @@ ENV AWS_ACCESS_KEY_ID=
 ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
 
-RUN apt-get update && apt-get install -y awscli iputils-ping ffmpeg
+RUN apt-get update && apt-get install -y awscli iputils-ping ffmpeg nano
 
 COPY capture-screen.sh /root
+COPY concat-video.sh /root
 COPY wireless_connect.sh /root
 COPY entry_point.sh /root
 

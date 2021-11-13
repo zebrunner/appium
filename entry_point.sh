@@ -5,20 +5,26 @@ DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 CMD="xvfb-run appium --log $APPIUM_LOG"
 
-upload() {
-  echo "Uploading artifacts on container SIGTERM"
-  sessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
+getSessionId() {
+  export sessionId=
+  while [ -z $sessionId ]; do
+    sleep 0.1
+    # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
+    sessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
+  done
   export sessionId=$(echo $sessionId)
-  echo "sessionId inited: $sessionId"
-
-  stop_screen_recording ""
+  echo "================================================================================================================="
+  echo "sessionId: $sessionId"
+  echo "================================================================================================================="
 }
 
-rstart_appium() {
-  index=$1
-  #be able to handle next session request using existing appium and device/emulator
+upload() {
+  echo "Uploading artifacts on container SIGTERM for sessionId: $sessionId"
+  stop_screen_recording
+  upload_screen_recording
+}
 
-  #TODO: mode driver quit/close into the embeded function
+waitUntilSessionExists() {
   isExited=
   while [ -z $isExited ]; do
     sleep 0.1
@@ -27,10 +33,12 @@ rstart_appium() {
 #    echo isExited: $isExited
   done
   echo "session $sessionId finished."
+}
 
+restart_appium() {
   # kill and restart appium & xvfb-run asap to be ready for the next session
   pkill -x node
-  mv "${APPIUM_LOG}" "${APPIUM_LOG}$index"
+  mv "${APPIUM_LOG}" "${sessionId}.log"
   pkill -x xvfb-run
   pkill -x Xvfb
   rm -rf /tmp/.X99-lock
@@ -40,58 +48,54 @@ rstart_appium() {
   fi
 
   $CMD &
-
-  #reset sessionId
-  sessionId=
 }
 
 start_screen_recording() {
-  if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
-    sessionId=
-    while [ -z $sessionId ]; do
-      sleep 0.1
-      # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
-      sessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
-    done
-    export sessionId=$(echo $sessionId)
-    echo "sessionId inited: $sessionId"
+  echo "================================================================================================================="
+  echo "ATTENTION!!! Starting video recording for ${sessionId}"
+  echo "================================================================================================================="
 
+#TODO: investigate possibility to capture audio as well
+  if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
     #TODO: wait until application or browser started otherwise 5-10 sec of Appium Settings app is recorded as well. Limit waiting by 10 seconds and start with recording anyway!
     # potential line to track valid session startup: "Screen already unlocked, doing nothing"
-    /root/capture-screen.sh &
+    /root/capture-screen.sh ${sessionId} &
   else
-    echo "No sense to start screen recording as integration with S3 storage not available!"
+    echo "No sense to record video without S3 compatible storage!"
   fi
 }
 
 stop_screen_recording() {
-  index=$1
+  echo "================================================================================================================="
+  echo "ATTENTION!!! session ${sessionId} finished."
+  echo "================================================================================================================="
+  #kill screenrecord on emulator/device
+  adb shell "su root pkill -l 2 -f screenrecord"
+  #TODO: put explicit comment  here why sleep is required
+  #sleep 1
 
-  sessionId=`cat "${APPIUM_LOG}$index" | grep "Session created with session id" | cut -d ":" -f 5`
-  export sessionId=$(echo $sessionId)
+  #kill capture-screen.sh parent shell script
+  pkill -f capture-screen.sh
+}
 
-  if [ ! -z $BUCKET ] && [ ! -z $TENANT ] && [ ! -z $sessionId ]; then
-    echo "session $sessionId finished. stopping recorder..."
-    #kill capture-screen.sh parent shell script
-    pkill -f capture-screen.sh
-    #kill screenrecord child process
-    pkill -f screenrecord
-    #TODO: organize smart wait while video is generated
-    sleep 3
-    ls -la video.mp4
+upload_screen_recording() {
+  if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
+    /root/concat-video.sh ${sessionId}
 
     #upload session artifacts
     S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
     echo S3_KEY_PATTERN: ${S3_KEY_PATTERN}
 
     date
-    aws s3 cp "${APPIUM_LOG}$index" "${S3_KEY_PATTERN}/session.log"
-    aws s3 cp "video.mp4" "${S3_KEY_PATTERN}/video.mp4"
-    rm -f "${APPIUM_LOG}$index"
-    rm -f "video.mp4"
+    aws s3 cp "${sessionId}.log" "${S3_KEY_PATTERN}/session.log"
+    aws s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
     date
+
+    #cleanup
+    rm -f "${sessionId}*"
+
   else
-    echo "No sense to stop screen recording as sessionId not detected!"
+    echo "No sense to upload video recording without S3 compatible storage!"
   fi
 
 }
@@ -139,23 +143,34 @@ fi
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 
-trap 'upload' SIGTERM
-
 $CMD &
 
 if [ "$RETAIN_TASK" = true ]; then
   declare -i index=0
   while true; do
-    echo "starting session $i supervisor..."
+    echo "starting session ${index} supervisor..."
+    getSessionId
+    echo sessionId: $sessionId
+
     start_screen_recording
-    rstart_appium $index
-    stop_screen_recording $index
+    #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
+    # to make it happen stop_screen_record should analye session quit but trap upload them should be re-tested carefully
+    waitUntilSessionExists
+    stop_screen_recording
+    restart_appium
+    upload_screen_recording
+    #reset sessionId
+    export sessionId=
     index+=1
-    echo "finished session $i supervisor."
+    echo "finished session ${index} supervisor."
   done
 else
+  getSessionId
+  echo sessionId: $sessionId
+  trap 'upload' SIGTERM
   start_screen_recording
 fi
 
 echo "waiting until SIGTERM received"
 while true; do :; done
+
