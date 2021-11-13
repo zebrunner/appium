@@ -87,7 +87,12 @@ upload_screen_recording() {
     echo S3_KEY_PATTERN: ${S3_KEY_PATTERN}
 
     date
-    aws s3 cp "${sessionId}.log" "${S3_KEY_PATTERN}/session.log"
+    if [ -f "${sessionId}.log" ]; then
+      aws s3 cp "${sessionId}.log" "${S3_KEY_PATTERN}/session.log"
+    else
+      # use-case when RETAIN_TASK is off or when docker container stopped explicitly and forcibly by ESG/human
+      aws s3 cp "${APPIUM_LOG}" "${S3_KEY_PATTERN}/session.log"
+    fi
     aws s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
     date
 
