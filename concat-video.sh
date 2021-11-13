@@ -9,6 +9,9 @@ adb shell "su root ls -la ${sessionId}*.mp4"
 videoFiles=$sessionId.txt
 rm -f $videoFiles
 
+#pause moved from stop_screen_recording to not affect appium restart and allow to close recording file correctly
+sleep 1
+
 # pull video artifacts until exist
 declare -i file=0
 while true; do
