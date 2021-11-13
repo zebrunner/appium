@@ -39,7 +39,7 @@ else
   if [ -f $videoFiles ]; then
     cat $videoFiles
     #TODO: #9 concat audio as well if appropriate artifact exists
-    ffmpeg -y -f concat -safe 0 -i $videoFiles -c copy $sessionId.mp4
+    ffmpeg $FFMPEG_OPTS -y -f concat -safe 0 -i $videoFiles -c copy $sessionId.mp4
   else
     echo "[ERROR] unable to concat video as $videoFiles is absent!"
   fi
