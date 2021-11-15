@@ -26,8 +26,8 @@ getSessionId() {
   while [ -z $isReady ]; do
     sleep 0.1
     # 2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
-    isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands"`
-    #echo "isReady: $isReady"
+    isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
+    echo "isReady: $isReady"
   done
 }
 
