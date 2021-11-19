@@ -70,6 +70,8 @@ start_screen_recording() {
 
   #TODO: #9 integrate audio capturing for android devices
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
+    # clear all logcat buffers
+    adb logcat -b all --clear
     /root/capture-screen.sh ${sessionId} &
   else
     echo "No sense to record video without S3 compatible storage!"
@@ -94,6 +96,10 @@ upload_screen_recording() {
   if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
     /root/concat-video.sh ${sessionId}
 
+    adb logcat > "${sessionId}-logcat.log"
+    # clear all logcat buffers
+    adb logcat -b all --clear
+
     #upload session artifacts
     S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
     echo S3_KEY_PATTERN: ${S3_KEY_PATTERN}
@@ -105,7 +111,13 @@ upload_screen_recording() {
       # use-case when RETAIN_TASK is off or when docker container stopped explicitly and forcibly by ESG/human
       aws s3 cp "${APPIUM_LOG}" "${S3_KEY_PATTERN}/session.log"
     fi
-    aws s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
+    if [ -f "${sessionId}.mp4" ]; then
+      aws s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
+    fi
+
+    if [ -f "${sessionId}-logcat.log" ]; then
+      aws s3 cp "${sessionId}-logcat.log" "${S3_KEY_PATTERN}/logcat.log"
+    fi
     date
 
     #cleanup
