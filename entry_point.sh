@@ -151,6 +151,7 @@ if [ "$RETAIN_TASK" = true ]; then
 
     getSession
     /root/stop-capture-artifacts.sh
+    sleep 0.5
     /root/capture-artifacts.sh ${sessionId} &
 
     #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
@@ -159,6 +160,7 @@ if [ "$RETAIN_TASK" = true ]; then
     /root/stop-capture-artifacts.sh
 
     restart_appium
+    sleep 0.5
     #TODO: test if execution in background is fine because originally it was foreground call
     /root/upload-artifacts.sh "${sessionId}" &
     #reset sessionId
@@ -174,6 +176,7 @@ else
 
   getSession
   /root/stop-capture-artifacts.sh
+  sleep 0.5
   /root/capture-artifacts.sh ${sessionId} &
 fi
 
