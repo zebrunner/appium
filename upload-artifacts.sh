@@ -6,7 +6,10 @@ if [ -z $BUCKET ] || [ -z $TENANT ]; then
 fi
 
 sessionId=$1
-echo "[info] [UploadArtifacts] sessionId: $sessionId"
+if [ -z $sessionId ]; then
+  echo "[warn] [CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
+  exit 0
+fi
 
 /root/concat-artifacts.sh "${sessionId}"
 
