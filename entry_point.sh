@@ -74,8 +74,8 @@ waitUntilSessionExists() {
     #handler for negative scenarios when session can't be started 
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
     isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
-    echo "[debug] [AppiumEntryPoint] isExited: $isExited"
-    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
+    #echo "[debug] [AppiumEntryPoint] isExited: $isExited"
+    #echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
   done
   echo "[info] [AppiumEntryPoint] session $sessionId finished."
 }
