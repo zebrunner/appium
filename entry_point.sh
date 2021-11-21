@@ -7,8 +7,8 @@ export APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 CMD="xvfb-run appium --log $APPIUM_LOG"
 
 getFallbackSession() {
-  export fallbackSessionId=
-  export tempSessionId=
+  declare fallbackSessionId=
+  declare tempSessionId=
   while [ -z $fallbackSessionId ] && [ -z $tempSessionId ]; do
     sleep 0.1
     # [debug] [BaseDriver]       "fallbackSessionId": "e7349434-a405-4ef7-99ef-6ce4aa069912"
@@ -27,7 +27,7 @@ getFallbackSession() {
 }
 
 getSession() {
-  export tempSessionId=
+  declare tempSessionId=
   while [ -z $tempSessionId ]; do
     sleep 0.1
     # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
@@ -56,13 +56,6 @@ getSession() {
   echo "[info] [AppiumEntryPoint] sessionId: $sessionId"
 }
 
-upload() {
-  echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
-  /root/stop-capture-artifacts.sh
-  # quotes required to keep order of params
-  /root/upload-artifacts.sh "${sessionId}"
-}
-
 waitUntilSessionExists() {
   declare isExited=
   declare isNonStarted=
@@ -71,13 +64,20 @@ waitUntilSessionExists() {
     #2021-10-22 16:00:21:124 [BaseDriver] Event 'quitSessionFinished' logged at 1634918421124 (09:00:21 GMT-0700 (Pacific Daylight Time))
     # Important! do not wrap quitSessionFinished in quotes here otherwise it can't recognize session finish!
     isExited=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
-    #handler for negative scenarios when session can't be started 
+    #handler for negative scenarios when session can't be started
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
     isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
     #echo "[debug] [AppiumEntryPoint] isExited: $isExited"
     #echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
   done
   echo "[info] [AppiumEntryPoint] session $sessionId finished."
+}
+
+upload() {
+  echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
+  /root/stop-capture-artifacts.sh
+  # quotes required to keep order of params
+  /root/upload-artifacts.sh "${sessionId}"
 }
 
 restart_appium() {
