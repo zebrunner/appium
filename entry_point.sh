@@ -47,8 +47,8 @@ getSession() {
     isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
     isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
-    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
-    echo "[debug] [AppiumEntryPoint] isReady: $isReady"
+    #echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
+    #echo "[debug] [AppiumEntryPoint] isReady: $isReady"
   done
 
   # export sessionId value only in case of Appium server startup success!
