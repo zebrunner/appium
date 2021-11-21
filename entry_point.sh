@@ -58,7 +58,7 @@ getSession() {
 
 upload() {
   echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
-  /root/capture-stop.sh
+  /root/stop-capture-artifacts.sh
   # quotes required to keep order of params
   /root/upload-artifacts.sh "${sessionId}"
 }
@@ -150,13 +150,13 @@ if [ "$RETAIN_TASK" = true ]; then
     /root/capture-artifacts.sh ${sessionId} &
 
     getSession
-    /root/capture-stop.sh
+    /root/stop-capture-artifacts.sh
     /root/capture-artifacts.sh ${sessionId} &
 
     #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
     # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
     waitUntilSessionExists
-    /root/capture-stop.sh
+    /root/stop-capture-artifacts.sh
 
     restart_appium
     #TODO: test if execution in background is fine because originally it was foreground call
@@ -173,7 +173,7 @@ else
   /root/capture-artifacts.sh ${sessionId} &
 
   getSession
-  /root/capture-stop.sh
+  /root/stop-capture-artifacts.sh
   /root/capture-artifacts.sh ${sessionId} &
 fi
 
