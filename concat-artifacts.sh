@@ -16,6 +16,10 @@ while true; do
     echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts!"
     break
   fi
+
+  # cleanup device from generated video file in bg
+  adb shell "su root rm -f ${sessionId}_${part}.mp4" &
+
   #TODO: in case of often mistakes with 0 size verification just comment it. it seems like ffmpeg can handle empty file during concantenation
   if [ ! -s "${sessionId}_${part}.mp4" ]; then
     echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts as ${sessionId}_${part}.mp4 already empty!!"
