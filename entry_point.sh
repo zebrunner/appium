@@ -40,11 +40,15 @@ getSession() {
   # The latest possible line is below. The only problem it couldn't record unlocking/unpining etc where problems might occur. Moreover this video ~5s less then duration in reporting:)
   #   2021-11-13 12:45:55:233 [Appium] New AndroidUiautomator2Driver session created successfully, session 2045e7c6-b34d-44c6-8b72-2bd68489de82 added to master session list
   declare isReady=
-  while [ -z $isReady ]; do
+  declare isNonStarted=
+  while [ -z $isReady ] && [ -z $isNonStarted ]; do
     sleep 0.1
     # 2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
     isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
-    #echo "[debug] [AppiumEntryPoint] isReady: $isReady"
+    #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
+    isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
+    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
+    echo "[debug] [AppiumEntryPoint] isReady: $isReady"
   done
 
   # export sessionId value only in case of Appium server startup success!
@@ -60,15 +64,18 @@ upload() {
 }
 
 waitUntilSessionExists() {
-  isExited=
-  while [ -z $isExited ]; do
+  declare isExited=
+  declare isNonStarted=
+  while [ -z $isExited ] && [ -z $isNonStarted ]; do
     sleep 0.1
     #2021-10-22 16:00:21:124 [BaseDriver] Event 'quitSessionFinished' logged at 1634918421124 (09:00:21 GMT-0700 (Pacific Daylight Time))
-    isExited=`cat ${APPIUM_LOG} | grep "quitSessionFinished" | cut -d "'" -f 2`
-    #TODO: handled negativ scenarios when session can't be started 
+    # Important! do not wrap quitSessionFinished in quotes here otherwise it can't recognize session finish!
+    isExited=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
+    #handler for negative scenarios when session can't be started 
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
-    isExited=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
-#    echo "[debug] [AppiumEntryPoint] isExited: $isExited"
+    isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
+    echo "[debug] [AppiumEntryPoint] isExited: $isExited"
+    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
   done
   echo "[info] [AppiumEntryPoint] session $sessionId finished."
 }
@@ -156,8 +163,8 @@ if [ "$RETAIN_TASK" = true ]; then
     /root/upload-artifacts.sh "${sessionId}" &
     #reset sessionId
     export sessionId=
-    index+=1
     echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
+    index+=1
   done
 else
   trap 'upload' SIGTERM
