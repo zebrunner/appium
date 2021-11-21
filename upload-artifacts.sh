@@ -8,7 +8,7 @@ fi
 sessionId=$1
 echo "[info] [UploadArtifacts] sessionId: $sessionId"
 
-/root/concat-video.sh "${sessionId}"
+/root/concat-artifacts.sh "${sessionId}"
 
 #upload session artifacts
 S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}

@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y awscli iputils-ping ffmpeg nano
 COPY capture-artifacts.sh /root
 COPY stop-capture-artifacts.sh /root
 COPY upload-artifacts.sh /root
-COPY concat-video.sh /root
+COPY concat-artifacts.sh /root
 COPY wireless_connect.sh /root
 COPY entry_point.sh /root
 
