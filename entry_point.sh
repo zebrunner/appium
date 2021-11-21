@@ -2,20 +2,37 @@
 
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
-APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
+#export needed to be accessible in upload-artifacts.sh
+export APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 CMD="xvfb-run appium --log $APPIUM_LOG"
 
-getSessionId() {
-  export sessionId=
-  while [ -z $sessionId ]; do
+getFallbackSession() {
+  declare fallbackSessionId=
+  declare tempSessionId=
+  while [ -z $fallbackSessionId ] && [ -z $tempSessionId ]; do
+    sleep 0.1
+    # [debug] [BaseDriver]       "fallbackSessionId": "e7349434-a405-4ef7-99ef-6ce4aa069912"
+    fallbackSessionId=`cat ${APPIUM_LOG} | grep "BaseDriver" | grep "fallbackSessionId" | cut -d "\"" -f 4`
+
+    # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
+    tempSessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
+  done
+
+  # if no custom fallbackSessionId id detected we should proceed with regular sessionId detection
+  if [ ! -z $fallbackSessionId ]; then
+    # in case of any problem with session startup it will be tracked as sessionId!
+    export sessionId=$(echo $fallbackSessionId)
+    echo "[info] [AppiumEntryPoint] fallbackSessionId: $fallbackSessionId"
+  fi
+}
+
+getSession() {
+  declare tempSessionId=
+  while [ -z $tempSessionId ]; do
     sleep 0.1
     # 2021-10-22 14:34:46:878 [BaseDriver] Session created with session id: d11cbf4a-c269-4d0e-bc25-37cb93616781
-    sessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
+    tempSessionId=`cat ${APPIUM_LOG} | grep "Session created with session id" | cut -d ":" -f 5`
   done
-  export sessionId=$(echo $sessionId)
-  echo "================================================================================================================="
-  echo "sessionId: $sessionId"
-  echo "================================================================================================================="
 
   #13: cut initial frames in video where appium app starting
   # Optimal line is below because it cut UIAutomator server stratup time and start video from the attempt to run application. So all kind of startup problems might be detected
@@ -23,29 +40,44 @@ getSessionId() {
   # The latest possible line is below. The only problem it couldn't record unlocking/unpining etc where problems might occur. Moreover this video ~5s less then duration in reporting:)
   #   2021-11-13 12:45:55:233 [Appium] New AndroidUiautomator2Driver session created successfully, session 2045e7c6-b34d-44c6-8b72-2bd68489de82 added to master session list
   declare isReady=
-  while [ -z $isReady ]; do
+  declare isNonStarted=
+  while [ -z $isReady ] && [ -z $isNonStarted ]; do
     sleep 0.1
     # 2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
     isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
-    #echo "isReady: $isReady"
+    #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
+    isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
+    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
+    echo "[debug] [AppiumEntryPoint] isReady: $isReady"
   done
-}
 
-upload() {
-  echo "Uploading artifacts on container SIGTERM for sessionId: $sessionId"
-  stop_screen_recording
-  upload_screen_recording
+  # export sessionId value only in case of Appium server startup success!
+  export sessionId=$(echo $tempSessionId)
+  echo "[info] [AppiumEntryPoint] sessionId: $sessionId"
 }
 
 waitUntilSessionExists() {
-  isExited=
-  while [ -z $isExited ]; do
+  declare isExited=
+  declare isNonStarted=
+  while [ -z $isExited ] && [ -z $isNonStarted ]; do
     sleep 0.1
     #2021-10-22 16:00:21:124 [BaseDriver] Event 'quitSessionFinished' logged at 1634918421124 (09:00:21 GMT-0700 (Pacific Daylight Time))
+    # Important! do not wrap quitSessionFinished in quotes here otherwise it can't recognize session finish!
     isExited=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
-#    echo isExited: $isExited
+    #handler for negative scenarios when session can't be started
+    #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
+    isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
+    #echo "[debug] [AppiumEntryPoint] isExited: $isExited"
+    #echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
   done
-  echo "session $sessionId finished."
+  echo "[info] [AppiumEntryPoint] session $sessionId finished."
+}
+
+upload() {
+  echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
+  /root/stop-capture-artifacts.sh
+  # quotes required to keep order of params
+  /root/upload-artifacts.sh "${sessionId}"
 }
 
 restart_appium() {
@@ -61,60 +93,6 @@ restart_appium() {
   fi
 
   $CMD &
-}
-
-start_screen_recording() {
-  echo "================================================================================================================="
-  echo "ATTENTION!!! Starting video recording for ${sessionId}"
-  echo "================================================================================================================="
-
-  #TODO: #9 integrate audio capturing for android devices
-  if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
-    /root/capture-screen.sh ${sessionId} &
-  else
-    echo "No sense to record video without S3 compatible storage!"
-  fi
-}
-
-stop_screen_recording() {
-  echo "================================================================================================================="
-  echo "ATTENTION!!! session ${sessionId} finished."
-  echo "================================================================================================================="
-  #kill screenrecord on emulator/device
-  adb shell "su root pkill -l 2 -f screenrecord"
-  # sleep was required to finish kill process correctly so video file is closed and editable/visible later.
-  # as of now `sleep 1` moved onto the concat-video.sh
-  #sleep 1
-
-  #kill capture-screen.sh parent shell script
-  pkill -f capture-screen.sh
-}
-
-upload_screen_recording() {
-  if [ ! -z $BUCKET ] && [ ! -z $TENANT ]; then
-    /root/concat-video.sh ${sessionId}
-
-    #upload session artifacts
-    S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
-    echo S3_KEY_PATTERN: ${S3_KEY_PATTERN}
-
-    date
-    if [ -f "${sessionId}.log" ]; then
-      aws s3 cp "${sessionId}.log" "${S3_KEY_PATTERN}/session.log"
-    else
-      # use-case when RETAIN_TASK is off or when docker container stopped explicitly and forcibly by ESG/human
-      aws s3 cp "${APPIUM_LOG}" "${S3_KEY_PATTERN}/session.log"
-    fi
-    aws s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
-    date
-
-    #cleanup
-    rm -f "${sessionId}*"
-
-  else
-    echo "No sense to upload video recording without S3 compatible storage!"
-  fi
-
 }
 
 if [ ! -z "${SALT_MASTER}" ]; then
@@ -165,29 +143,40 @@ $CMD &
 if [ "$RETAIN_TASK" = true ]; then
   declare -i index=0
   while true; do
-    echo "starting session ${index} supervisor..."
-    getSessionId
-    echo sessionId: $sessionId
+    # don't start screen capture asap in retain mode otherwise between tests execution we will do huge recording operation...
 
-    start_screen_recording
+    echo "[info] [AppiumEntryPoint] starting session ${index} supervisor..."
+    getFallbackSession
+    /root/capture-artifacts.sh ${sessionId} &
+
+    getSession
+    /root/stop-capture-artifacts.sh
+    /root/capture-artifacts.sh ${sessionId} &
+
     #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
-    # to make it happen stop_screen_record should analye session quit but trap upload them should be re-tested carefully
+    # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
     waitUntilSessionExists
-    stop_screen_recording
+    /root/stop-capture-artifacts.sh
+
     restart_appium
-    upload_screen_recording
+    #TODO: test if execution in background is fine because originally it was foreground call
+    /root/upload-artifacts.sh "${sessionId}" &
     #reset sessionId
     export sessionId=
+    echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
     index+=1
-    echo "finished session ${index} supervisor."
   done
 else
-  getSessionId
-  echo sessionId: $sessionId
   trap 'upload' SIGTERM
-  start_screen_recording
+  # start capturing artifacts explicitly to provide artifacts for fallbackSessionId
+  getFallbackSession
+  /root/capture-artifacts.sh ${sessionId} &
+
+  getSession
+  /root/stop-capture-artifacts.sh
+  /root/capture-artifacts.sh ${sessionId} &
 fi
 
-echo "waiting until SIGTERM received"
+echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
 while true; do :; done
 
