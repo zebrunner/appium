@@ -4,13 +4,13 @@
 set -e
 
 if [ -z $BUCKET ] || [ -z $TENANT ]; then
-  echo "[warn] [CaptureArtifacts] No sense to record video without S3 compatible storage!"
+  echo "[warn] [CaptureArtifacts] No sense to record artifacts without S3 compatible storage!"
   exit 0
 fi
 
 sessionId=$1
 if [ -z $sessionId ]; then
-  echo "[warn] [CaptureArtifacts] No sense to record video as sessionId not detected!"
+  echo "[warn] [CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
   exit 0
 fi
 
@@ -18,7 +18,7 @@ fi
 videoFile=${sessionId}
 echo "[info] [CaptureArtifacts] videoFile: $videoFile"
 
-startScreenStream() {
+startArtifactsStream() {
   declare -i part=0
   while true; do
      #TODO: #9 integrate audio capturing for android devices
@@ -28,4 +28,4 @@ startScreenStream() {
   done
 }
 
-startScreenStream
+startArtifactsStream
