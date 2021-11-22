@@ -88,9 +88,10 @@ restart_appium() {
   pkill -x xvfb-run
   pkill -x Xvfb
   rm -rf /tmp/.X99-lock
-  adb disconnect
   if [ "$REMOTE_ADB" = true ]; then
+    adb disconnect
     /root/wireless_connect.sh
+    #TODO: think about adb reconnect for locally available device in between tasks
   fi
 
   $CMD &
@@ -111,6 +112,9 @@ fi
 
 if [ "$REMOTE_ADB" = true ]; then
     /root/wireless_connect.sh
+else
+    # Obligatory start adb allowing remote access from stf provider instance
+    adb -a -P 5037 server nodaemon &
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then
