@@ -91,7 +91,9 @@ restart_appium() {
   if [ "$REMOTE_ADB" = true ]; then
     adb disconnect
     /root/wireless_connect.sh
-    #TODO: think about adb reconnect for locally available device in between tasks
+    # think about device reconnect for local as well
+    #else
+    #/root/local_connect.sh
   fi
 
   $CMD &
@@ -113,12 +115,16 @@ fi
 if [ "$REMOTE_ADB" = true ]; then
     /root/wireless_connect.sh
 else
-    # Obligatory start adb allowing remote access from stf provider instance
-    adb -a -P 5037 server nodaemon &
+    /root/local_connect.sh
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then
-    if [ "$CUSTOM_NODE_CONFIG" != true ]; then
+    if [ "$CUSTOM_NODE_CONFIG" = true ]; then
+        #execute to print info in stdout
+        . /opt/configgen.sh
+        # generate json file
+        /opt/configgen.sh > $NODE_CONFIG_JSON
+    else
         /root/generate_config.sh $NODE_CONFIG_JSON
     fi
     CMD+=" --nodeconfig $NODE_CONFIG_JSON"
