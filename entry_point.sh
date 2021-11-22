@@ -39,16 +39,17 @@ getSession() {
   #   2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
   # The latest possible line is below. The only problem it couldn't record unlocking/unpining etc where problems might occur. Moreover this video ~5s less then duration in reporting:)
   #   2021-11-13 12:45:55:233 [Appium] New AndroidUiautomator2Driver session created successfully, session 2045e7c6-b34d-44c6-8b72-2bd68489de82 added to master session list
-  declare isReady=
-  declare isNonStarted=
-  while [ -z $isReady ] && [ -z $isNonStarted ]; do
+  declare isStarted=
+  declare isFailed=
+  while [ -z $isStarted ] && [ -z $isFailed ]; do
     sleep 0.1
     # 2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
-    isReady=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
+    isStarted=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
+    echo "[debug] [AppiumEntryPoint] isStarted: $isStarted"
+
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
-    isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
-    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
-    echo "[debug] [AppiumEntryPoint] isReady: $isReady"
+    isFailed=`cat ${APPIUM_LOG} | grep "POST /wd/hub/session 500" | cut -d " " -f 7`
+    echo "[debug] [AppiumEntryPoint] isFailed: $isFailed"
   done
 
   # export sessionId value only in case of Appium server startup success!
@@ -57,19 +58,19 @@ getSession() {
 }
 
 waitUntilSessionExists() {
-  declare isExited=
-  declare isNonStarted=
-  while [ -z $isExited ] && [ -z $isNonStarted ]; do
+  declare isFinished=
+  declare isFailed=
+  while [ -z $isFinished ] && [ -z $isFailed ]; do
     sleep 0.1
     #2021-10-22 16:00:21:124 [BaseDriver] Event 'quitSessionFinished' logged at 1634918421124 (09:00:21 GMT-0700 (Pacific Daylight Time))
     # Important! do not wrap quitSessionFinished in quotes here otherwise it can't recognize session finish!
-    isExited=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
+    isFinished=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
+    echo "[debug] [AppiumEntryPoint] isFinished: $isFinished"
 
     #handler for negative scenarios when session can't be started
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
-    isNonStarted=`cat ${APPIUM_LOG} | grep "POST" | grep "/wd/hub/session" | grep "500" | cut -d " " -f 7`
-    echo "[debug] [AppiumEntryPoint] isExited: $isExited"
-    echo "[debug] [AppiumEntryPoint] isNonStarted: $isNonStarted"
+    isFailed=`cat ${APPIUM_LOG} | grep "POST /wd/hub/session 500" | cut -d " " -f 7`
+    echo "[debug] [AppiumEntryPoint] isFailed: $isFailed"
   done
   echo "[info] [AppiumEntryPoint] session $sessionId finished."
 }
@@ -162,7 +163,7 @@ if [ "$RETAIN_TASK" = true ]; then
 
     getSession
     /root/stop-capture-artifacts.sh
-    sleep 0.5
+    sleep 0.3
     /root/capture-artifacts.sh ${sessionId} &
 
     #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
@@ -171,7 +172,7 @@ if [ "$RETAIN_TASK" = true ]; then
     /root/stop-capture-artifacts.sh
 
     restart_appium
-    sleep 0.5
+    sleep 0.3
     #TODO: test if execution in background is fine because originally it was foreground call
     /root/upload-artifacts.sh "${sessionId}" &
     #reset sessionId
@@ -187,7 +188,7 @@ else
 
   getSession
   /root/stop-capture-artifacts.sh
-  sleep 0.5
+  sleep 0.3
   /root/capture-artifacts.sh ${sessionId} &
 fi
 
