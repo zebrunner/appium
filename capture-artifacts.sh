@@ -23,7 +23,7 @@ startArtifactsStream() {
   while true; do
      #TODO: #9 integrate audio capturing for android devices
      echo "[info] [CaptureArtifacts] generating video file ${videoFile}_${part}.mp4..."
-     adb shell "su root screenrecord --verbose ${SCREENRECORD_OPTS} ${videoFile}_${part}.mp4"
+     adb shell "screenrecord --verbose ${SCREENRECORD_OPTS} /sdcard/${videoFile}_${part}.mp4"
      part+=1
   done
 }

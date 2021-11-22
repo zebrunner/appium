@@ -18,7 +18,8 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
                     sleep ${REMOTE_ADB_POLLING_SEC}
                 fi
             done
-
+            # switch to root account for running adb
+            adb root
             echo "Connected to: ${array_device}."
         fi
     done
