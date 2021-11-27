@@ -18,6 +18,11 @@ fi
 videoFile=${sessionId}
 echo "[info] [CaptureArtifacts] videoFile: $videoFile"
 
+
+# 17: implement capture artifacts on iOS/AppleTV devices
+# example of the video recording command is below where ip is iPhone address and 20022 is MJPEG port started by WDA
+# ffmpeg -f mjpeg -r 10 -i http://169.254.231.124:20022 -vf scale="-2:720" -vcodec libx264 -y video.mp4
+
 startArtifactsStream() {
   declare -i part=0
   while true; do
