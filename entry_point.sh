@@ -82,6 +82,9 @@ upload() {
   /root/upload-artifacts.sh "${sessionId}"
 }
 
+# method not used but keep for future when we could operate without selenium grid
+# https://github.com/zebrunner/esg-appium/issues/20
+# retain_task shouldn't kill appium in between session
 restart_appium() {
   # kill and restart appium & xvfb-run asap to be ready for the next session
   pkill -x node
@@ -99,6 +102,15 @@ restart_appium() {
 
   $CMD &
 }
+
+clear_appium() {
+  # copy appium log for upload and clean to populate new in new requests
+  ls -la "${APPIUM_LOG}"
+  cp "${APPIUM_LOG}" "${sessionId}.log"
+  > "${APPIUM_LOG}"
+  ls -la "${APPIUM_LOG}"
+}
+
 
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
@@ -170,9 +182,9 @@ if [ "$RETAIN_TASK" = true ]; then
     # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
     waitUntilSessionExists
     /root/stop-capture-artifacts.sh
-
-    restart_appium
     sleep 0.3
+
+    clear_appium
     #TODO: test if execution in background is fine because originally it was foreground call
     /root/upload-artifacts.sh "${sessionId}" &
     #reset sessionId
