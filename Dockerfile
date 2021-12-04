@@ -36,11 +36,11 @@ COPY files/upload-artifacts.sh /opt
 COPY files/concat-artifacts.sh /opt
 COPY files/wireless_connect.sh /opt
 COPY files/local_connect.sh /opt
-COPY entry_point.sh /root
+COPY entry_point.sh /opt
 
 # Zebrunner MCloud node config generator
 COPY files/configgen.sh /opt
 COPY files/WebDriverAgent.ipa /opt
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-CMD ["/root/entry_point.sh"]
+CMD ["/opt/entry_point.sh"]
