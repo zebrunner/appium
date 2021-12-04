@@ -33,7 +33,7 @@ RUN unzip go-ios-linux.zip -d go-ios
 COPY files/capture-artifacts.sh /opt
 COPY files/stop-capture-artifacts.sh /opt
 COPY files/upload-artifacts.sh /opt
-COPY concat-artifacts.sh /root
+COPY files/concat-artifacts.sh /opt
 COPY wireless_connect.sh /root
 COPY local_connect.sh /root
 COPY entry_point.sh /root
