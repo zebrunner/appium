@@ -30,9 +30,8 @@ RUN wget https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-
 RUN mkdir go-ios
 RUN unzip go-ios-linux.zip -d go-ios
 
-#TODO: think about moving into the /opt/zebrunner
 COPY capture-artifacts.sh /root
-COPY stop-capture-artifacts.sh /root
+COPY file/stop-capture-artifacts.sh /opt
 COPY upload-artifacts.sh /root
 COPY concat-artifacts.sh /root
 COPY wireless_connect.sh /root
@@ -40,8 +39,8 @@ COPY local_connect.sh /root
 COPY entry_point.sh /root
 
 # Zebrunner MCloud node config generator
-COPY files/configgen.sh /opt/
-COPY files/WebDriverAgent.ipa /opt/
+COPY files/configgen.sh /opt
+COPY files/WebDriverAgent.ipa /opt
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]

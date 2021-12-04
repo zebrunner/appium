@@ -77,7 +77,7 @@ waitUntilSessionExists() {
 
 upload() {
   echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
-  /root/stop-capture-artifacts.sh
+  /opt/stop-capture-artifacts.sh
   # quotes required to keep order of params
   /root/upload-artifacts.sh "${sessionId}"
 }
@@ -171,17 +171,17 @@ if [ "$RETAIN_TASK" = true ]; then
 
     echo "[info] [AppiumEntryPoint] starting session ${index} supervisor..."
     getFallbackSession
-    /root/capture-artifacts.sh ${sessionId} &
+    /opt/capture-artifacts.sh ${sessionId} &
 
     getSession
-    /root/stop-capture-artifacts.sh
+    /opt/stop-capture-artifacts.sh
     sleep 0.3
-    /root/capture-artifacts.sh ${sessionId} &
+    /opt/capture-artifacts.sh ${sessionId} &
 
     #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
     # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
     waitUntilSessionExists
-    /root/stop-capture-artifacts.sh
+    /opt/stop-capture-artifacts.sh
     sleep 0.3
 
     clear_appium
@@ -196,12 +196,12 @@ else
   trap 'upload' SIGTERM
   # start capturing artifacts explicitly to provide artifacts for fallbackSessionId
   getFallbackSession
-  /root/capture-artifacts.sh ${sessionId} &
+  /opt/capture-artifacts.sh ${sessionId} &
 
   getSession
-  /root/stop-capture-artifacts.sh
+  /opt/stop-capture-artifacts.sh
   sleep 0.3
-  /root/capture-artifacts.sh ${sessionId} &
+  /opt/capture-artifacts.sh ${sessionId} &
 fi
 
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
