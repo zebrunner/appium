@@ -1,7 +1,7 @@
 FROM appium/appium:v1.22.0-p0
 
 # Android is default one
-PLATFORM_NAME=ANDROID
+ENV PLATFORM_NAME=ANDROID
 
 # Tasks management setting allowing serving several sequent requests.
 ENV RETAIN_TASK=true
