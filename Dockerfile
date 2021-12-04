@@ -46,4 +46,4 @@ COPY files/configgen.sh /opt
 COPY files/WebDriverAgent.ipa /opt
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-CMD ["/opt/entry_point.sh"]
+CMD ["/root/entry_point.sh"]
