@@ -30,8 +30,8 @@ RUN wget https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-
 RUN mkdir go-ios
 RUN unzip go-ios-linux.zip -d go-ios
 
-COPY capture-artifacts.sh /root
-COPY file/stop-capture-artifacts.sh /opt
+COPY files/capture-artifacts.sh /opt
+COPY files/stop-capture-artifacts.sh /opt
 COPY upload-artifacts.sh /root
 COPY concat-artifacts.sh /root
 COPY wireless_connect.sh /root
