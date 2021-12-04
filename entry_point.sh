@@ -94,7 +94,7 @@ restart_appium() {
   rm -rf /tmp/.X99-lock
   if [ "$REMOTE_ADB" = true ]; then
     adb disconnect
-    /root/wireless_connect.sh
+    /opt/wireless_connect.sh
     # think about device reconnect for local as well
     #else
     #/root/local_connect.sh
@@ -126,7 +126,7 @@ if [ "$ATD" = true ]; then
 fi
 
 if [ "$REMOTE_ADB" = true ]; then
-    /root/wireless_connect.sh
+    /opt/wireless_connect.sh
 else
     /root/local_connect.sh
 fi
