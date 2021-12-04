@@ -79,7 +79,7 @@ upload() {
   echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
   /opt/stop-capture-artifacts.sh
   # quotes required to keep order of params
-  /root/upload-artifacts.sh "${sessionId}"
+  /opt/upload-artifacts.sh "${sessionId}"
 }
 
 # method not used but keep for future when we could operate without selenium grid
@@ -186,7 +186,7 @@ if [ "$RETAIN_TASK" = true ]; then
 
     clear_appium
     #TODO: test if execution in background is fine because originally it was foreground call
-    /root/upload-artifacts.sh "${sessionId}" &
+    /opt/upload-artifacts.sh "${sessionId}" &
     #reset sessionId
     export sessionId=
     echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
