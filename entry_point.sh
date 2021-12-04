@@ -97,7 +97,7 @@ restart_appium() {
     /opt/wireless_connect.sh
     # think about device reconnect for local as well
     #else
-    #/root/local_connect.sh
+    #/opt/local_connect.sh
   fi
 
   $CMD &
@@ -128,7 +128,7 @@ fi
 if [ "$REMOTE_ADB" = true ]; then
     /opt/wireless_connect.sh
 else
-    /root/local_connect.sh
+    /opt/local_connect.sh
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then

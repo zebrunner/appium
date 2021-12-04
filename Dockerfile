@@ -35,7 +35,7 @@ COPY files/stop-capture-artifacts.sh /opt
 COPY files/upload-artifacts.sh /opt
 COPY files/concat-artifacts.sh /opt
 COPY files/wireless_connect.sh /opt
-COPY local_connect.sh /root
+COPY files/local_connect.sh /opt
 COPY entry_point.sh /root
 
 # Zebrunner MCloud node config generator
