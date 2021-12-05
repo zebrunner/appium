@@ -13,7 +13,7 @@ cat << EndOfMessage
   "udid":"$DEVICE_UDID",
   "mjpegServerPort": ${MJPEG_PORT},
   "clearSystemFiles": "false",
-  "webDriverAgentUrl":"http://${deviceIP}:${WDA_PORT}",
+  "webDriverAgentUrl":"http://${WDA_HOST}:${WDA_PORT}",
   "preventWDAAttachments": "true",
   "simpleIsVisibleCheck": "true",
   "wdaLocalPort": "${WDA_PORT}",

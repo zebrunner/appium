@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Appium device container is considered healthy if stf appium up&running. For iOS also WDA status check is needed
+# 0 - healthy
+# 1 - unhealthy
+
+curl --silent http://localhost:4723/wd/hub/status | grep "\"status\":0"
+if [[ ! $? -eq 0 ]]; then
+  echo "Appium service is unhealthy!"
+  pkill node
+  exit 1
+fi
+
+exit 0

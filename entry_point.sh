@@ -10,6 +10,12 @@ CMD="xvfb-run appium --log $APPIUM_LOG"
 getFallbackSession() {
   declare fallbackSessionId=
   declare tempSessionId=
+
+  while [ ! -f ${APPIUM_LOG} ]; do
+    # no sense to parse non existing log file
+    sleep 0.1
+  done
+
   while [ -z $fallbackSessionId ] && [ -z $tempSessionId ]; do
     sleep 0.1
     # [debug] [BaseDriver]       "fallbackSessionId": "e7349434-a405-4ef7-99ef-6ce4aa069912"
@@ -112,6 +118,47 @@ clear_appium() {
   ls -la "${APPIUM_LOG}"
 }
 
+function retainTasks() {
+  declare -i index=0
+  while true; do
+    # don't start screen capture asap in retain mode otherwise between tests execution we will do huge recording operation...
+
+    echo "[info] [AppiumEntryPoint] starting session ${index} supervisor..."
+    getFallbackSession
+    /opt/capture-artifacts.sh ${sessionId} &
+
+    getSession
+    /opt/stop-capture-artifacts.sh
+    sleep 0.3
+    /opt/capture-artifacts.sh ${sessionId} &
+
+    #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
+    # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
+    waitUntilSessionExists
+    /opt/stop-capture-artifacts.sh
+    sleep 0.3
+
+    clear_appium
+    #TODO: test if execution in background is fine because originally it was foreground call
+    /opt/upload-artifacts.sh "${sessionId}" &
+    #reset sessionId
+    export sessionId=
+    echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
+    index+=1
+  done
+}
+
+function serveTask() {
+  # start capturing artifacts explicitly to provide artifacts for fallbackSessionId
+  getFallbackSession
+  /opt/capture-artifacts.sh ${sessionId} &
+
+  getSession
+  /opt/stop-capture-artifacts.sh
+  sleep 0.3
+  /opt/capture-artifacts.sh ${sessionId} &
+}
+
 
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
@@ -130,6 +177,12 @@ if [ "$REMOTE_ADB" = true ]; then
     /root/wireless_connect.sh
 else
     /root/local_connect.sh
+fi
+
+if [ "${PLATFORM_NAME^^}" = "IOS" ]; then
+    # install and start wda, populate specific iOS device data
+    . /opt/start-wda.sh
+    echo WDA_HOST: $WDA_HOST
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then
@@ -171,46 +224,30 @@ rm -rf /tmp/.X99-lock
 #TODO: add iOS specific CMD args for WebDriverAgent(s)
 $CMD &
 
+echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
+trap 'upload' SIGTERM
+
 if [ "$RETAIN_TASK" = true ]; then
-  declare -i index=0
-  while true; do
-    # don't start screen capture asap in retain mode otherwise between tests execution we will do huge recording operation...
-
-    echo "[info] [AppiumEntryPoint] starting session ${index} supervisor..."
-    getFallbackSession
-    /opt/capture-artifacts.sh ${sessionId} &
-
-    getSession
-    /opt/stop-capture-artifacts.sh
-    sleep 0.3
-    /opt/capture-artifacts.sh ${sessionId} &
-
-    #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
-    # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
-    waitUntilSessionExists
-    /opt/stop-capture-artifacts.sh
-    sleep 0.3
-
-    clear_appium
-    #TODO: test if execution in background is fine because originally it was foreground call
-    /opt/upload-artifacts.sh "${sessionId}" &
-    #reset sessionId
-    export sessionId=
-    echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
-    index+=1
-  done
+  retainTasks &
 else
-  trap 'upload' SIGTERM
-  # start capturing artifacts explicitly to provide artifacts for fallbackSessionId
-  getFallbackSession
-  /opt/capture-artifacts.sh ${sessionId} &
-
-  getSession
-  /opt/stop-capture-artifacts.sh
-  sleep 0.3
-  /opt/capture-artifacts.sh ${sessionId} &
+  serveTask &
 fi
 
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
-while true; do :; done
+
+echo "---------------------------------------------------------"
+echo "processes RIGHT AFTER START:"
+ps -ef
+echo "---------------------------------------------------------"
+
+# wait until backgroud processes exists for node (appium)
+node_pids=`pidof node`
+wait -n $node_pids
+
+
+echo "Exit status: $?"
+echo "---------------------------------------------------------"
+echo "processes BEFORE EXIT:"
+ps -ef
+echo "---------------------------------------------------------"
 

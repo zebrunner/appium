@@ -1,5 +1,6 @@
 #!/bin/bash
 
+#TODO: move device dta parsing into se[arate sh script. Kepp here only config json generation
 # "${PLATFORM_NAME^^}" this convert var value into upper case.
 if [[ "${PLATFORM_NAME^^}" == "ANDROID" ]]; then
   # device type
@@ -27,14 +28,17 @@ if [[ "${PLATFORM_NAME^^}" == "ANDROID" ]]; then
   fi
 elif [[ "${PLATFORM_NAME^^}" == "IOS" ]]; then
   export AUTOMATION_NAME='XCUITest'
-  # TODO: detect tablet and TV for iOS
-  DEVICETYPE='Phone'
-  #TODO: find valid iOS device version
-  export PLATFORM_VERSION=14.7.1
+  # TODO: detect tablet and TV for iOS, also review `ios info` output data like below
+    #"DeviceClass":"iPhone",
+    #"ProductName":"iPhone OS",
+    #"ProductType":"iPhone10,5",
+    #"ProductVersion":"14.7.1",
+    #"SerialNumber":"C38V961BJCM2",
+    #"TimeZone":"Europe/Minsk",
+    #"TimeZoneOffsetFromUTC":10800,
 
-  export WDA_PORT=8100
-  export MJPEG_PORT=8101
-  export deviceIP=192.168.88.155
+  DEVICETYPE='Phone'
+  export PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
 else
   echo "Undefined platform $PLATFORM_NAME detected!"
   exit -1
