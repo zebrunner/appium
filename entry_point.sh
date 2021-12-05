@@ -4,6 +4,7 @@ NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 #export needed to be accessible in upload-artifacts.sh
 export APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
+
 CMD="xvfb-run appium --log $APPIUM_LOG"
 
 getFallbackSession() {
@@ -85,23 +86,23 @@ upload() {
 # method not used but keep for future when we could operate without selenium grid
 # https://github.com/zebrunner/esg-appium/issues/20
 # retain_task shouldn't kill appium in between session
-restart_appium() {
-  # kill and restart appium & xvfb-run asap to be ready for the next session
-  pkill -x node
-  mv "${APPIUM_LOG}" "${sessionId}.log"
-  pkill -x xvfb-run
-  pkill -x Xvfb
-  rm -rf /tmp/.X99-lock
-  if [ "$REMOTE_ADB" = true ]; then
-    adb disconnect
-    /root/wireless_connect.sh
-    # think about device reconnect for local as well
-    #else
-    #/root/local_connect.sh
-  fi
-
-  $CMD &
-}
+#restart_appium() {
+#  # kill and restart appium & xvfb-run asap to be ready for the next session
+#  pkill -x node
+#  mv "${APPIUM_LOG}" "${sessionId}.log"
+#  pkill -x xvfb-run
+#  pkill -x Xvfb
+#  rm -rf /tmp/.X99-lock
+#  if [ "$REMOTE_ADB" = true ]; then
+#    adb disconnect
+#    /root/wireless_connect.sh
+#    # think about device reconnect for local as well
+#    #else
+#    #/root/local_connect.sh
+#  fi
+#
+#  $CMD $DEFAULT_CAPABILITIES &
+#}
 
 clear_appium() {
   # copy appium log for upload and clean to populate new in new requests
@@ -133,10 +134,15 @@ fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then
     if [ "$CUSTOM_NODE_CONFIG" = true ]; then
-        #execute to print info in stdout
+        #execute to print info in stdout and export some env vars
         . /opt/configgen.sh
-        # generate json file
+        # generate config json file
         /opt/configgen.sh > $NODE_CONFIG_JSON
+
+        #execute to print info in stdout and export some env vars
+        . /opt/ios-capabilities-gen.sh
+        # generate default capabilities json file for iOS device if needed
+        /opt/ios-capabilities-gen.sh > $DEFAULT_CAPABILITIES_JSON
     else
         /root/generate_config.sh $NODE_CONFIG_JSON
     fi
@@ -162,6 +168,7 @@ fi
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 
+#TODO: add iOS specific CMD args for WebDriverAgent(s)
 $CMD &
 
 if [ "$RETAIN_TASK" = true ]; then

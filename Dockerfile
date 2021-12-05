@@ -1,7 +1,7 @@
 FROM appium/appium:v1.22.0-p0
 
-# Android is default one
 ENV PLATFORM_NAME=ANDROID
+ENV DEVICE_UDID=
 
 # add go-ios utility into the PATH
 ENV PATH=/root/go-ios:$PATH
@@ -47,6 +47,7 @@ COPY entry_point.sh /root
 
 # Zebrunner MCloud node config generator
 COPY files/configgen.sh /opt
+COPY files/ios-capabilities-gen.sh /opt
 COPY files/WebDriverAgent.ipa /opt
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM

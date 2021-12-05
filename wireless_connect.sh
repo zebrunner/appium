@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# exit for iOS devices
+if [[ "$PLATFORM_NAME" == "ios" ]]; then
+  exit 0
+fi
+
 if [ ! -z "$ANDROID_DEVICES" ]; then
     connected_devices=$(adb devices)
     IFS=',' read -r -a array <<< "$ANDROID_DEVICES"

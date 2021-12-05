@@ -1,69 +1,44 @@
 #!/bin/bash
 
-# device type
-isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
-isTv=`adb shell getprop ro.build.characteristics | grep tv`
+# "${PLATFORM_NAME^^}" this convert var value into upper case.
+if [[ "${PLATFORM_NAME^^}" == "ANDROID" ]]; then
+  # device type
+  isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
+  isTv=`adb shell getprop ro.build.characteristics | grep tv`
 
-## abi
-#arm=`adb shell getprop ro.product.cpu.abi | grep arm`
+  # version
+  PLATFORM_VERSION=`adb shell getprop | grep -m 1 ro.build.version.release |  sed 's/^.*:.*\[\(.*\)\].*$/\1/g'`
 
-# version
-ANDROID_VERSION=`adb shell getprop | grep -m 1 ro.build.version.release |  sed 's/^.*:.*\[\(.*\)\].*$/\1/g'`
-
-## display size
-#info=`adb shell dumpsys display | grep -A 20 DisplayDeviceInfo`
-#width=`echo ${info} | sed 's/^.* \([0-9]\{3,4\}\) x \([0-9]\{3,4\}\).*density \([0-9]\{3\}\),.*$/\1/g'`
-#height=`echo ${info} | sed 's/^.* \([0-9]\{3,4\}\) x \([0-9]\{3,4\}\).*density \([0-9]\{3\}\),.*$/\2/g'`
-#density=`echo ${info} | sed 's/^.* \([0-9]\{3,4\}\) x \([0-9]\{3,4\}\).*density \([0-9]\{3\}\),.*$/\3/g'`
-#let widthDp=${width}/${density}
-#let heightDp=${height}/${density}
-#let sumW=${widthDp}*${widthDp}
-#let sumH=${heightDp}*${heightDp}
-#let sum=${sumW}+${sumH}
-
-#if [[ $softwarebuttons ]]
-#then
-#    HARDWAREBUTTONS=false
-#else
-#    HARDWAREBUTTONS=true
-#fi
-
-if [[ $isTablet ]]
-then
+  if [[ $isTablet ]]
+  then
     DEVICETYPE='Tablet'
-elif [[ $isTv ]]
-then
+  elif [[ $isTv ]]
+  then
     DEVICETYPE='TV'
-else
+  else
     DEVICETYPE='Phone'
-fi
+  fi
 
-#if [[ $arm ]]
-#then
-#    ABI='ARM'
-#else
-#    ABI='X86'
-#fi
-
-#if [[ ${sum} -ge 81 ]]
-#then
-#    DISPLAYSIZE=10
-#else
-#    DISPLAYSIZE=7
-#fi
-
-if [[ ${ANDROID_VERSION} == 4* ]] || [[ ${ANDROID_VERSION} == 5* ]] || [[ ${ANDROID_VERSION} == 6* ]]
-then
+  if [[ ${PLATFORM_VERSION} == 4* ]] || [[ ${PLATFORM_VERSION} == 5* ]] || [[ ${PLATFORM_VERSION} == 6* ]]
+  then
     export AUTOMATION_NAME='Appium'
-else
+  else
     export AUTOMATION_NAME='uiautomator2'
+  fi
+elif [[ "${PLATFORM_NAME^^}" == "IOS" ]]; then
+  export AUTOMATION_NAME='XCUITest'
+  # TODO: detect tablet and TV for iOS
+  DEVICETYPE='Phone'
+  #TODO: find valid iOS device version
+  export PLATFORM_VERSION=14.7.1
+
+  export WDA_PORT=8100
+  export MJPEG_PORT=8101
+  export deviceIP=192.168.88.155
+else
+  echo "Undefined platform $PLATFORM_NAME detected!"
+  exit -1
 fi
-
-#SOCKET_PROTOCOL=ws
-#if [ -f /opt/nginx/ssl/ssl.crt ] && [ /opt/nginx/ssl/ssl.key ]; then
-#    export SOCKET_PROTOCOL=wss
-#fi
-
 
 cat << EndOfMessage
 {
@@ -73,8 +48,8 @@ cat << EndOfMessage
           "maxInstances": 1,
           "deviceName": "${DEVICE_NAME}",
           "deviceType": "${DEVICETYPE}",
-          "platformName":"${PLATFORM_NAME}",
-          "platformVersion":"${ANDROID_VERSION}",
+          "platformName":"${PLATFORM_NAME^^}",
+          "platformVersion":"${PLATFORM_VERSION}",
 	  "udid": "${DEVICE_UDID}",
 	  "adb_port": ${ADB_PORT},
 	  "proxy_port": ${PROXY_PORT},
