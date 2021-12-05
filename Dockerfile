@@ -3,6 +3,9 @@ FROM appium/appium:v1.22.0-p0
 # Android is default one
 ENV PLATFORM_NAME=ANDROID
 
+# add go-ios utility into the PATH
+ENV PATH=/root/go-ios:$PATH
+
 # Tasks management setting allowing serving several sequent requests.
 ENV RETAIN_TASK=true
 
@@ -32,6 +35,7 @@ RUN apt-get update && \
 RUN wget https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN mkdir go-ios
 RUN unzip go-ios-linux.zip -d go-ios
+RUN rm go-ios-linux.zip
 
 COPY files/capture-artifacts.sh /opt
 COPY files/stop-capture-artifacts.sh /opt
