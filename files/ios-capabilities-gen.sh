@@ -1,6 +1,6 @@
 #!/bin/bash
 if [[ "${PLATFORM_NAME^^}" != "IOS" ]]; then
-  exit 0
+  return 0
 fi
 
 export DEFAULT_CAPABILITIES=true
