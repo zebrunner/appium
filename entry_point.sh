@@ -5,7 +5,7 @@ DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 #export needed to be accessible in upload-artifacts.sh
 export APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 
-CMD="xvfb-run appium --log $APPIUM_LOG"
+CMD="xvfb-run appium --log-timestamp --log $APPIUM_LOG"
 
 getFallbackSession() {
   declare fallbackSessionId=
