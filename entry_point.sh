@@ -228,9 +228,9 @@ echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
 trap 'upload' SIGTERM
 
 if [ "$RETAIN_TASK" = true ]; then
-  retainTasks
+  retainTasks &
 else
-  serveTask
+  serveTask &
 fi
 
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
