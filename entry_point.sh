@@ -159,6 +159,12 @@ if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
 
+if [ "$OPTIMIZE_APP_DOWNLOAD" = true ]; then
+    /opt/downloader/script.sh
+    mkdir /opt/apk/
+    CMD+=" --tmp /opt/apk/"
+fi
+
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 

@@ -36,5 +36,8 @@ COPY entry_point.sh /root
 # Zebrunner MCloud node config generator
 COPY files/configgen.sh /opt/
 
+# Local apps downloader
+COPY downloader/ /opt/downloader/
+
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
