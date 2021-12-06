@@ -67,12 +67,15 @@ getSession() {
 waitUntilSessionExists() {
   declare isFinished=
   declare isFailed=
-  while [ -z $isFinished ] && [ -z $isFailed ]; do
+  while [ -z "${isFinished}" ] && [ -z "${isExited}" ] && [ -z "${isFailed}" ]; do
     sleep 0.1
     #2021-10-22 16:00:21:124 [BaseDriver] Event 'quitSessionFinished' logged at 1634918421124 (09:00:21 GMT-0700 (Pacific Daylight Time))
     # Important! do not wrap quitSessionFinished in quotes here otherwise it can't recognize session finish!
     isFinished=`cat ${APPIUM_LOG} | grep quitSessionFinished | cut -d "'" -f 2`
     echo "[debug] [AppiumEntryPoint] isFinished: $isFinished"
+
+    isExited=`cat ${APPIUM_LOG} | grep "The process has exited with code"`
+    echo "[debug] [AppiumEntryPoint] isExited: $isExited"
 
     #handler for negative scenarios when session can't be started
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
@@ -221,7 +224,7 @@ fi
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 
-#TODO: add iOS specific CMD args for WebDriverAgent(s)
+echo $CMD
 $CMD &
 
 echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
