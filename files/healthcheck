@@ -4,11 +4,32 @@
 # 0 - healthy
 # 1 - unhealthy
 
-curl --silent http://localhost:4723/wd/hub/status | grep "\"status\":0"
-if [[ ! $? -eq 0 ]]; then
+#curl --silent http://localhost:4723/wd/hub/status | grep "\"status\":0"
+#if [[ ! $? -eq 0 ]]; then
+#  echo "Appium service is unhealthy!"
+#  pkill node
+#  exit 1
+#fi
+
+#Hit the Appium status URL to see if it is available
+if curl -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
+then
+  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium is already running. Nothing to do"
+else
   echo "Appium service is unhealthy!"
   pkill node
   exit 1
 fi
+
+#TODO: find a way to provide WDA_HOST from entry_point into the independent healthcheck
+##Hit WDA status URL to see if it is available
+#if curl -Is "http:$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
+#then
+#  echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
+#else
+#  echo "WDA service is unhealthy!"
+#  pkill node
+#  exit 1
+#fi
 
 exit 0
