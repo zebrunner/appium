@@ -22,6 +22,7 @@ ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 ENV WDA_WAIT_TIMEOUT=30
+ENV WDA_ENV=/etc/wda.env
 
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"

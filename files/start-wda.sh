@@ -5,6 +5,9 @@ LOG_FILE=/opt/logs/wda.log
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
 ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
 
+echo "[$(date +'%d/%m/%Y %H:%M:%S')] Activating default com.apple.springboard during WDA startup"
+ios launch com.apple.springboard
+
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
 ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --udid $DEVICE_UDID > ${LOG_FILE} 2>&1 &
 
@@ -36,3 +39,4 @@ fi
 export WDA_HOST="${ip//\//}"
 echo "Detected WDA_HOST ip: ${WDA_HOST}"
 
+echo "WDA_HOST=${WDA_HOST}" > ${WDA_ENV}
