@@ -21,6 +21,8 @@ ENV AWS_ACCESS_KEY_ID=
 ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
 
+# Appium location for optimized downoading enabling
+ENV APPIUM_LOCATION=/usr/lib/node_modules/appium
 
 RUN apt-get update && apt-get install -y awscli iputils-ping ffmpeg nano
 

@@ -187,7 +187,7 @@ async function configureApp (app, supportedAppExtensions) {
       } else if (await fs.exists(lockFile)) {
         // Wait for some time till App is downloaded by some parallel Appium instance
         const waitingTime = 5000;
-        var maxAttemptsCount = 12;
+        var maxAttemptsCount = 5 * 12;
         // const waitingTime = 1000;
         // const maxAttemptsCount = 5;
         var attemptsCount = 0;
@@ -207,9 +207,13 @@ async function configureApp (app, supportedAppExtensions) {
         newApp = localFile;
         shouldUnzipApp = ZIP_EXTS.includes(path.extname(newApp));
         downloadIsNeaded = false;
+      } else {
+        downloadIsNeaded = true;
       }
       if(downloadIsNeaded) {
       logger.info(`Local version of app was not found. Hence using default Appium logic for downloading`);
+      const sharedFolderPath = await getSharedFolderForAppUrl(app);
+      logger.info(`Folder for local shared apps: ${sharedFolderPath}`);
       await fs.close(await fs.open(lockFile, 'w'));
       try {
 
@@ -275,8 +279,6 @@ async function configureApp (app, supportedAppExtensions) {
       newApp = await downloadApp(newApp, targetPath);
 
       // ***** Custom logic for copying of downloaded app to static location *****
-      const sharedFolderPath = await getSharedFolderForAppUrl(app);
-      logger.info(`Folder for local shared apps: ${sharedFolderPath}`);
       logger.info(`New app path: ${newApp}`);
       await fs.copyFile(newApp, localFile);
       }
