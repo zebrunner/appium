@@ -179,23 +179,26 @@ else
     /root/local_connect.sh
 fi
 
-if [ "${PLATFORM_NAME^^}" = "IOS" ]; then
-    # install and start wda, populate specific iOS device data
-    . /opt/start-wda.sh
-    echo WDA_HOST: $WDA_HOST
+if [ "${PLATFORM_NAME,,}" = "android" ]; then
+    . /opt/android.sh
+elif [ "${PLATFORM_NAME,,}" = "ios" ]; then
+    . /opt/ios.sh
 fi
+
+export
 
 if [ "$CONNECT_TO_GRID" = true ]; then
     if [ "$CUSTOM_NODE_CONFIG" = true ]; then
         #execute to print info in stdout and export some env vars
-        . /opt/configgen.sh
+        . /opt/zbr-config-gen.sh
         # generate config json file
-        /opt/configgen.sh > $NODE_CONFIG_JSON
+        /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
 
+        export
         #execute to print info in stdout and export some env vars
-        . /opt/ios-capabilities-gen.sh
+        . /opt/zbr-default-caps-gen.sh
         # generate default capabilities json file for iOS device if needed
-        /opt/ios-capabilities-gen.sh > $DEFAULT_CAPABILITIES_JSON
+        /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
     else
         /root/generate_config.sh $NODE_CONFIG_JSON
     fi
