@@ -185,20 +185,15 @@ elif [ "${PLATFORM_NAME,,}" = "ios" ]; then
     . /opt/ios.sh
 fi
 
-export
-
 if [ "$CONNECT_TO_GRID" = true ]; then
     if [ "$CUSTOM_NODE_CONFIG" = true ]; then
-        #execute to print info in stdout and export some env vars
-        . /opt/zbr-config-gen.sh
         # generate config json file
         /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
+        cat $NODE_CONFIG_JSON
 
-        export
-        #execute to print info in stdout and export some env vars
-        . /opt/zbr-default-caps-gen.sh
         # generate default capabilities json file for iOS device if needed
         /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
+        cat $DEFAULT_CAPABILITIES_JSON
     else
         /root/generate_config.sh $NODE_CONFIG_JSON
     fi

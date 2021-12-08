@@ -42,8 +42,8 @@ COPY entry_point.sh /root
 # Zebrunner MCloud node config generator
 COPY files/android.sh /opt
 COPY files/ios.sh /opt
-COPY files/configgen.sh /opt
-COPY files/ios-capabilities-gen.sh /opt
+COPY files/zbr-config-gen.sh /opt
+COPY files/zbr-default-caps-gen.sh /opt
 
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
