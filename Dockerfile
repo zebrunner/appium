@@ -15,7 +15,7 @@ ENV CHROMEDRIVER_AUTODOWNLOAD=true
 
 # iOS envs
 ENV WDA_WAIT_TIMEOUT=30
-ENV WDA_ENV=/app/zebrunner/wda-${DEVICE_UDID}.env
+ENV WDA_ENV=/opt/zebrunner/wda.env
 
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
