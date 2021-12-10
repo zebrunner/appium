@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# exit for iOS devices
+if [[ "$PLATFORM_NAME" == "ios" ]]; then
+  exit 0
+fi
+
 # start adb allowing remote access by "-a" arg
 
 # https://github.com/sorccu/docker-adb

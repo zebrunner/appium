@@ -4,11 +4,18 @@ NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 #export needed to be accessible in upload-artifacts.sh
 export APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
-CMD="xvfb-run appium --log $APPIUM_LOG"
+
+CMD="xvfb-run appium --log-timestamp --log $APPIUM_LOG"
 
 getFallbackSession() {
   declare fallbackSessionId=
   declare tempSessionId=
+
+  while [ ! -f ${APPIUM_LOG} ]; do
+    # no sense to parse non existing log file
+    sleep 0.1
+  done
+
   while [ -z $fallbackSessionId ] && [ -z $tempSessionId ]; do
     sleep 0.1
     # [debug] [BaseDriver]       "fallbackSessionId": "e7349434-a405-4ef7-99ef-6ce4aa069912"
@@ -60,7 +67,7 @@ getSession() {
 waitUntilSessionExists() {
   declare isFinished=
   declare isFailed=
-  while [ -z $isFinished ] && [ -z $isFailed ]; do
+  while [ -z "${isFinished}" ] && [ -z "${isFailed}" ]; do
     sleep 0.1
     #2021-10-22 16:00:21:124 [BaseDriver] Event 'quitSessionFinished' logged at 1634918421124 (09:00:21 GMT-0700 (Pacific Daylight Time))
     # Important! do not wrap quitSessionFinished in quotes here otherwise it can't recognize session finish!
@@ -77,31 +84,31 @@ waitUntilSessionExists() {
 
 upload() {
   echo "[info] [AppiumEntryPoint] Uploading artifacts on container SIGTERM for sessionId: $sessionId"
-  /root/stop-capture-artifacts.sh
+  /opt/stop-capture-artifacts.sh
   # quotes required to keep order of params
-  /root/upload-artifacts.sh "${sessionId}"
+  /opt/upload-artifacts.sh "${sessionId}"
 }
 
 # method not used but keep for future when we could operate without selenium grid
 # https://github.com/zebrunner/esg-appium/issues/20
 # retain_task shouldn't kill appium in between session
-restart_appium() {
-  # kill and restart appium & xvfb-run asap to be ready for the next session
-  pkill -x node
-  mv "${APPIUM_LOG}" "${sessionId}.log"
-  pkill -x xvfb-run
-  pkill -x Xvfb
-  rm -rf /tmp/.X99-lock
-  if [ "$REMOTE_ADB" = true ]; then
-    adb disconnect
-    /root/wireless_connect.sh
-    # think about device reconnect for local as well
-    #else
-    #/root/local_connect.sh
-  fi
-
-  $CMD &
-}
+#restart_appium() {
+#  # kill and restart appium & xvfb-run asap to be ready for the next session
+#  pkill -x node
+#  mv "${APPIUM_LOG}" "${sessionId}.log"
+#  pkill -x xvfb-run
+#  pkill -x Xvfb
+#  rm -rf /tmp/.X99-lock
+#  if [ "$REMOTE_ADB" = true ]; then
+#    adb disconnect
+#    /root/wireless_connect.sh
+#    # think about device reconnect for local as well
+#    #else
+#    #/root/local_connect.sh
+#  fi
+#
+#  $CMD $DEFAULT_CAPABILITIES &
+#}
 
 clear_appium() {
   # copy appium log for upload and clean to populate new in new requests
@@ -109,6 +116,47 @@ clear_appium() {
   cp "${APPIUM_LOG}" "${sessionId}.log"
   > "${APPIUM_LOG}"
   ls -la "${APPIUM_LOG}"
+}
+
+function retainTasks() {
+  declare -i index=0
+  while true; do
+    # don't start screen capture asap in retain mode otherwise between tests execution we will do huge recording operation...
+
+    echo "[info] [AppiumEntryPoint] starting session ${index} supervisor..."
+    getFallbackSession
+    /opt/capture-artifacts.sh ${sessionId} &
+
+    getSession
+    /opt/stop-capture-artifacts.sh
+    sleep 0.3
+    /opt/capture-artifacts.sh ${sessionId} &
+
+    #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
+    # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
+    waitUntilSessionExists
+    /opt/stop-capture-artifacts.sh
+    sleep 0.3
+
+    clear_appium
+    #TODO: test if execution in background is fine because originally it was foreground call
+    /opt/upload-artifacts.sh "${sessionId}" &
+    #reset sessionId
+    export sessionId=
+    echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
+    index+=1
+  done
+}
+
+function serveTask() {
+  # start capturing artifacts explicitly to provide artifacts for fallbackSessionId
+  getFallbackSession
+  /opt/capture-artifacts.sh ${sessionId} &
+
+  getSession
+  /opt/stop-capture-artifacts.sh
+  sleep 0.3
+  /opt/capture-artifacts.sh ${sessionId} &
 }
 
 
@@ -131,12 +179,21 @@ else
     /root/local_connect.sh
 fi
 
+if [ "${PLATFORM_NAME,,}" = "android" ]; then
+    . /opt/android.sh
+elif [ "${PLATFORM_NAME,,}" = "ios" ]; then
+    . /opt/ios.sh
+fi
+
 if [ "$CONNECT_TO_GRID" = true ]; then
     if [ "$CUSTOM_NODE_CONFIG" = true ]; then
-        #execute to print info in stdout
-        . /opt/configgen.sh
-        # generate json file
-        /opt/configgen.sh > $NODE_CONFIG_JSON
+        # generate config json file
+        /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
+        cat $NODE_CONFIG_JSON
+
+        # generate default capabilities json file for iOS device if needed
+        /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
+        cat $DEFAULT_CAPABILITIES_JSON
     else
         /root/generate_config.sh $NODE_CONFIG_JSON
     fi
@@ -162,48 +219,33 @@ fi
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 
+echo $CMD
 $CMD &
 
+echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
+trap 'upload' SIGTERM
+
 if [ "$RETAIN_TASK" = true ]; then
-  declare -i index=0
-  while true; do
-    # don't start screen capture asap in retain mode otherwise between tests execution we will do huge recording operation...
-
-    echo "[info] [AppiumEntryPoint] starting session ${index} supervisor..."
-    getFallbackSession
-    /root/capture-artifacts.sh ${sessionId} &
-
-    getSession
-    /root/stop-capture-artifacts.sh
-    sleep 0.3
-    /root/capture-artifacts.sh ${sessionId} &
-
-    #TODO: think about replacing order i.e. stop_screen_recording and then restart_appium
-    # to make it happen stop_screen_record should analyze session quit but trap upload then should be re-tested carefully
-    waitUntilSessionExists
-    /root/stop-capture-artifacts.sh
-    sleep 0.3
-
-    clear_appium
-    #TODO: test if execution in background is fine because originally it was foreground call
-    /root/upload-artifacts.sh "${sessionId}" &
-    #reset sessionId
-    export sessionId=
-    echo "[info] [AppiumEntryPoint] finished session ${index} supervisor."
-    index+=1
-  done
+  retainTasks &
 else
-  trap 'upload' SIGTERM
-  # start capturing artifacts explicitly to provide artifacts for fallbackSessionId
-  getFallbackSession
-  /root/capture-artifacts.sh ${sessionId} &
-
-  getSession
-  /root/stop-capture-artifacts.sh
-  sleep 0.3
-  /root/capture-artifacts.sh ${sessionId} &
+  serveTask &
 fi
 
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
-while true; do :; done
+
+echo "---------------------------------------------------------"
+echo "processes RIGHT AFTER START:"
+ps -ef
+echo "---------------------------------------------------------"
+
+# wait until backgroud processes exists for node (appium)
+node_pids=`pidof node`
+wait -n $node_pids
+
+
+echo "Exit status: $?"
+echo "---------------------------------------------------------"
+echo "processes BEFORE EXIT:"
+ps -ef
+echo "---------------------------------------------------------"
 
