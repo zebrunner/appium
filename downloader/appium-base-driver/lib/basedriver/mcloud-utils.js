@@ -1,6 +1,7 @@
 import fs from 'appium-support/build/lib/fs';
 import nodePath from 'path';
 import axios from 'axios';
+import os from 'os';
 const path = require('path');
 import logger from './logger';
 
