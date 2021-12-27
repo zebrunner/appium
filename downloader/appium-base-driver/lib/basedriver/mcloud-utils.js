@@ -1,9 +1,12 @@
 import fs from 'appium-support/build/lib/fs';
 import nodePath from 'path';
 import axios from 'axios';
-import os from 'os';
 const path = require('path');
 import logger from './logger';
+
+async function getLocalAppsFolder() {
+    return process.env.APPIUM_APPS_DIR;
+}
 
 async function getSharedFolderForAppUrl(url) {
     const sub = await getLocalFileForAppUrl(url);
@@ -32,7 +35,7 @@ async function getLocalFileForAppUrl(url) {
     }
     sub = sub.replace(/\//g, path.sep);
 
-    const targetPath = nodePath.join(process.env.APPIUM_TMP_DIR || os.tmpdir(), sub);
+    const targetPath = nodePath.join(await getLocalAppsFolder(), sub);
     logger.info(`Target path [getLocalFileForAppUrl]: ${targetPath}`)
     return targetPath;
 }
@@ -58,4 +61,4 @@ async function getFileContentLength(remoteUrl) {
 }
 
 
-module.exports = { getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength }
+module.exports = { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength }
