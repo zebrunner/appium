@@ -337,7 +337,7 @@ async function configureApp (app, supportedAppExtensions) {
       try {
         newApp = await unzipApp(archivePath, tmpRoot, supportedAppExtensions);
       } finally {
-        if (newApp !== archivePath && archivePath !== app) {
+        if (newApp !== archivePath && archivePath !== app && localAppsFolder === undefined) {
           await fs.rimraf(archivePath);
         }
       }
