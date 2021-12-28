@@ -17,6 +17,11 @@ ENV CHROMEDRIVER_AUTODOWNLOAD=true
 ENV WDA_WAIT_TIMEOUT=30
 ENV WDA_ENV=/opt/zebrunner/wda.env
 
+# try to patch appium + xcode
+RUN mkdir -p /Applications/Xcode.app/Contents/Developer
+COPY files/Info.plist /Applications/Xcode.app/Contents/
+COPY files/xcode-select /usr/local/bin
+
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
 ENV FFMPEG_OPTS=
@@ -44,6 +49,8 @@ COPY files/android.sh /opt
 COPY files/ios.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
+
+ENV DELME2 v2
 
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
