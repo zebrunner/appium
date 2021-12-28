@@ -135,6 +135,7 @@ async function configureApp (app, supportedAppExtensions) {
   let newApp = app;
   let shouldUnzipApp = false;
   let archiveHash = null;
+  const localAppsFolder = await getLocalAppsFolder();
   const remoteAppProps = {
     lastModified: null,
     immutable: false,
@@ -165,7 +166,6 @@ async function configureApp (app, supportedAppExtensions) {
 
       // ***** Custom logic for verification of local static path for APPs *****
       let downloadIsNeaded = true;
-      const localAppsFolder = await getLocalAppsFolder();
       let localFile;
       let lockFile;
       if(localAppsFolder != undefined) {
@@ -324,7 +324,7 @@ async function configureApp (app, supportedAppExtensions) {
       if (APPLICATIONS_CACHE.has(app) && archiveHash === APPLICATIONS_CACHE.get(app).hash) {
         const {fullPath} = APPLICATIONS_CACHE.get(app);
         if (await fs.exists(fullPath)) {
-          if (archivePath !== app) {
+          if (archivePath !== app && localAppsFolder === undefined) {
             await fs.rimraf(archivePath);
           }
           logger.info(`Will reuse previously cached application at '${fullPath}'`);
