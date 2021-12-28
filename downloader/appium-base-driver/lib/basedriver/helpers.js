@@ -135,7 +135,7 @@ async function configureApp (app, supportedAppExtensions) {
   let newApp = app;
   let shouldUnzipApp = false;
   let archiveHash = null;
-  const localAppsFolder = await getLocalAppsFolder();
+  let localAppsFolder;
   const remoteAppProps = {
     lastModified: null,
     immutable: false,
@@ -166,6 +166,7 @@ async function configureApp (app, supportedAppExtensions) {
 
       // ***** Custom logic for verification of local static path for APPs *****
       let downloadIsNeaded = true;
+      localAppsFolder = await getLocalAppsFolder();
       let localFile;
       let lockFile;
       if(localAppsFolder != undefined) {
