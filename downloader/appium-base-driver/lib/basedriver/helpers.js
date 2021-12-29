@@ -6,7 +6,7 @@ import { tempDir, fs, util, zip, net, timing } from 'appium-support';
 import LRU from 'lru-cache';
 import AsyncLock from 'async-lock';
 import axios from 'axios';
-import { getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength } from './mcloud-utils';
+import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength } from './mcloud-utils';
 
 const IPA_EXT = '.ipa';
 const ZIP_EXTS = ['.zip', IPA_EXT];
@@ -135,6 +135,7 @@ async function configureApp (app, supportedAppExtensions) {
   let newApp = app;
   let shouldUnzipApp = false;
   let archiveHash = null;
+  let localAppsFolder;
   const remoteAppProps = {
     lastModified: null,
     immutable: false,
@@ -164,59 +165,82 @@ async function configureApp (app, supportedAppExtensions) {
       }
 
       // ***** Custom logic for verification of local static path for APPs *****
-      const localFile = await getLocalFileForAppUrl(newApp);
-      const lockFile = localFile + '.lock';
-      let downloadIsNeaded;
-      if(await fs.exists(localFile)) {
-        logger.info(`Local version of app was found. Will check actuality of the file`);
-        // Checking of local application actuality
-        const remoteFileLength = await getFileContentLength(app);
-        const stats = await fs.stat(localFile);
-        const localFileLength = stats.size;
-        logger.info(`Remote file size is ${remoteFileLength} and local file size is ${localFileLength}`);
-        if(remoteFileLength != localFileLength) {
-          logger.info(`Sizes differ. Hence that's needed to download fresh version of the app`);
-          await fs.unlink(localFile);
-          downloadIsNeaded = true;
-        } else {
-          logger.info(`Sizes are the same. Hence will use already stored application for the session`);
+      let downloadIsNeaded = true;
+      localAppsFolder = await getLocalAppsFolder();
+      let localFile;
+      let lockFile;
+      const waitingTime = 5000;
+      const maxAttemptsCount = 5 * 12;
+      
+      if(localAppsFolder != undefined) {
+        localFile = await getLocalFileForAppUrl(newApp);
+        lockFile = localFile + '.lock';
+
+        if(await fs.exists(localFile)) {
+          logger.info(`Local version of app was found. Will check actuality of the file`);
+          // Checking of local application actuality
+          const remoteFileLength = await getFileContentLength(app);
+          // At this point local file might be deleted by parallel session which updates outdated app
+          let attemptsCount = 0;
+          while(!await fs.exists(localFile) && (attemptsCount++ < maxAttemptsCount)) {
+            await new Promise((resolve) => {
+              logger.info(`Attempt #${attemptsCount} for local app file to appear again`);
+              setTimeout(resolve, waitingTime);
+            });
+          }
+          if(!await fs.exists(localFile)) {
+            throw Error(`Local application file has not appeared after updating by parallel Appium session`);
+          }
+          const stats = await fs.stat(localFile);
+          const localFileLength = stats.size;
+          logger.info(`Remote file size is ${remoteFileLength} and local file size is ${localFileLength}`);
+          if(remoteFileLength != localFileLength) {
+            logger.info(`Sizes differ. Hence that's needed to download fresh version of the app`);
+            await fs.unlink(localFile);
+            downloadIsNeaded = true;
+          } else {
+            logger.info(`Sizes are the same. Hence will use already stored application for the session`);
+            newApp = localFile;
+            shouldUnzipApp = ZIP_EXTS.includes(path.extname(newApp));
+            downloadIsNeaded = false;
+          }
+        } else if (await fs.exists(lockFile)) {
+          logger.info(`Local version of app not found but .lock file exists. Waiting for .lock to disappear`);
+          // Wait for some time till App is downloaded by some parallel Appium instance
+          let attemptsCount = 0;
+          while(await fs.exists(lockFile) && (attemptsCount++ < maxAttemptsCount)) {
+            await new Promise((resolve) => {
+              logger.info(`Attempt #${attemptsCount} for .lock file checking`);
+              setTimeout(resolve, waitingTime);
+            });
+          }
+          if(await fs.exists(lockFile)) {
+            throw Error(`.lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
+          }
+          if(!await fs.exists(localFile)) {
+            throw Error(`Local application file has not appeared after .lock file removal`);
+          }
+          logger.info(`Local version of app was found after .lock file removal. Will use it for new session`);
           newApp = localFile;
           shouldUnzipApp = ZIP_EXTS.includes(path.extname(newApp));
           downloadIsNeaded = false;
+        } else {
+          logger.info(`Neither local version of app nor .lock file was found. Will download app from remote URL.`);
+          downloadIsNeaded = true;
         }
-      } else if (await fs.exists(lockFile)) {
-        // Wait for some time till App is downloaded by some parallel Appium instance
-        const waitingTime = 5000;
-        var maxAttemptsCount = 5 * 12;
-        // const waitingTime = 1000;
-        // const maxAttemptsCount = 5;
-        var attemptsCount = 0;
-        while(await fs.exists(lockFile) && (attemptsCount++ < maxAttemptsCount)) {
-          await new Promise((resolve) => {
-            logger.info(`Attempt #${attemptsCount} for .lock file checking`);
-            setTimeout(resolve, waitingTime);
-          });
-        }
-        if(await fs.exists(lockFile)) {
-          throw Error(`.lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
-        }
-        if(!await fs.exists(localFile)) {
-          throw Error(`Local application file has not appeared after .lock file removal`);
-        }
-        logger.info(`Local version of app was found after .lock file removal. Will use it for new session`);
-        newApp = localFile;
-        shouldUnzipApp = ZIP_EXTS.includes(path.extname(newApp));
-        downloadIsNeaded = false;
       } else {
-        downloadIsNeaded = true;
+        logger.info(`Local apps folder is not defined via environment properties, hence skipping this logic`);
       }
       if(downloadIsNeaded) {
-      logger.info(`Local version of app was not found. Hence using default Appium logic for downloading`);
-      const sharedFolderPath = await getSharedFolderForAppUrl(app);
-      logger.info(`Folder for local shared apps: ${sharedFolderPath}`);
-      await fs.close(await fs.open(lockFile, 'w'));
-      try {
+      
+        if(localAppsFolder != undefined) {
+          logger.info(`Local version of app was not found. Hence using default Appium logic for downloading`);
+          const sharedFolderPath = await getSharedFolderForAppUrl(app);
+          logger.info(`Folder for local shared apps: ${sharedFolderPath}`);
+          await fs.close(await fs.open(lockFile, 'w'));
+        }
 
+        try {
       const cachedPath = getCachedApplicationPath(app, remoteAppProps);
       if (cachedPath) {
         if (await fs.exists(cachedPath)) {
@@ -279,12 +303,16 @@ async function configureApp (app, supportedAppExtensions) {
       newApp = await downloadApp(newApp, targetPath);
 
       // ***** Custom logic for copying of downloaded app to static location *****
-      logger.info(`New app path: ${newApp}`);
-      await fs.copyFile(newApp, localFile);
+      if(localAppsFolder != undefined) {
+        logger.info(`New app path: ${newApp}`);
+        await fs.copyFile(newApp, localFile);
+      }
       }
       finally {
-        logger.info(`Going to remove lock file ${lockFile}`)
-        await fs.unlink(lockFile);
+        if(localAppsFolder != undefined) {
+          logger.info(`Going to remove lock file ${lockFile}`)
+          await fs.unlink(lockFile);
+        }
       }
       }
     } else if (await fs.exists(newApp)) {
@@ -307,7 +335,7 @@ async function configureApp (app, supportedAppExtensions) {
       if (APPLICATIONS_CACHE.has(app) && archiveHash === APPLICATIONS_CACHE.get(app).hash) {
         const {fullPath} = APPLICATIONS_CACHE.get(app);
         if (await fs.exists(fullPath)) {
-          if (archivePath !== app) {
+          if (archivePath !== app && localAppsFolder === undefined) {
             await fs.rimraf(archivePath);
           }
           logger.info(`Will reuse previously cached application at '${fullPath}'`);
@@ -320,7 +348,7 @@ async function configureApp (app, supportedAppExtensions) {
       try {
         newApp = await unzipApp(archivePath, tmpRoot, supportedAppExtensions);
       } finally {
-        if (newApp !== archivePath && archivePath !== app) {
+        if (newApp !== archivePath && archivePath !== app && localAppsFolder === undefined) {
           await fs.rimraf(archivePath);
         }
       }
