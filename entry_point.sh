@@ -218,8 +218,6 @@ fi
 
 if [ "$OPTIMIZE_APP_DOWNLOAD" = true ]; then
     /opt/downloader/script.sh
-    mkdir /opt/apk/
-    ENV APPIUM_APPS_DIR=/opt/apk/
 fi
 
 pkill -x xvfb-run

@@ -6,6 +6,11 @@ ENV DEVICE_UDID=
 # Tasks management setting allowing serving several sequent requests.
 ENV RETAIN_TASK=true
 
+# Enable local caching for appium instances
+ENV OPTIMIZE_APP_DOWNLOAD=false
+ENV APPIUM_APPS_DIR=/opt/appium-storage
+RUN mkdir -p $APPIUM_APPS_DIR
+
 # Android envs
 ENV REMOTE_ADB=false
 ENV ANDROID_DEVICES=android:5555
@@ -68,7 +73,7 @@ COPY files/zbr-default-caps-gen.sh /opt
 COPY files/healthcheck /usr/local/bin
 
 # Local apps downloader
-COPY downloader/ /opt/downloader/
+COPY files/downloader/ /opt/downloader/
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
