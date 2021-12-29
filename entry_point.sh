@@ -217,7 +217,7 @@ if [ "$ADB_SHELL" = true ]; then
 fi
 
 if [ "$OPTIMIZE_APP_DOWNLOAD" = true ]; then
-    /opt/downloader/script.sh
+    /opt/downloader/appium-patch.sh
 fi
 
 pkill -x xvfb-run
