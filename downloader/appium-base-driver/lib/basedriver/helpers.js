@@ -169,6 +169,9 @@ async function configureApp (app, supportedAppExtensions) {
       localAppsFolder = await getLocalAppsFolder();
       let localFile;
       let lockFile;
+      const waitingTime = 5000;
+      const maxAttemptsCount = 5 * 12;
+      
       if(localAppsFolder != undefined) {
         localFile = await getLocalFileForAppUrl(newApp);
         lockFile = localFile + '.lock';
@@ -177,6 +180,17 @@ async function configureApp (app, supportedAppExtensions) {
           logger.info(`Local version of app was found. Will check actuality of the file`);
           // Checking of local application actuality
           const remoteFileLength = await getFileContentLength(app);
+          // At this point local file might be deleted by parallel session which updates outdated app
+          let attemptsCount = 0;
+          while(!await fs.exists(localFile) && (attemptsCount++ < maxAttemptsCount)) {
+            await new Promise((resolve) => {
+              logger.info(`Attempt #${attemptsCount} for local app file to appear again`);
+              setTimeout(resolve, waitingTime);
+            });
+          }
+          if(!await fs.exists(localFile)) {
+            throw Error(`Local application file has not appeared after updating by parallel Appium session`);
+          }
           const stats = await fs.stat(localFile);
           const localFileLength = stats.size;
           logger.info(`Remote file size is ${remoteFileLength} and local file size is ${localFileLength}`);
@@ -193,11 +207,7 @@ async function configureApp (app, supportedAppExtensions) {
         } else if (await fs.exists(lockFile)) {
           logger.info(`Local version of app not found but .lock file exists. Waiting for .lock to disappear`);
           // Wait for some time till App is downloaded by some parallel Appium instance
-          const waitingTime = 5000;
-          var maxAttemptsCount = 5 * 12;
-          // const waitingTime = 1000;
-          // const maxAttemptsCount = 5;
-          var attemptsCount = 0;
+          let attemptsCount = 0;
           while(await fs.exists(lockFile) && (attemptsCount++ < maxAttemptsCount)) {
             await new Promise((resolve) => {
               logger.info(`Attempt #${attemptsCount} for .lock file checking`);
