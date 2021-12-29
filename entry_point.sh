@@ -216,6 +216,10 @@ if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
 
+if [ "$OPTIMIZE_APP_DOWNLOAD" = true ]; then
+    /opt/downloader/appium-patch.sh
+fi
+
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 

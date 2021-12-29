@@ -3,7 +3,7 @@
 #IMPORTANT!!! Don't do any echo otherwise you corrupt generated defaultcapabilities json
 
 if [[ "${PLATFORM_NAME,,}" != "ios" ]]; then
-  return 0
+  exit 0
 fi
 
 export DEFAULT_CAPABILITIES=true

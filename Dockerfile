@@ -6,6 +6,12 @@ ENV DEVICE_UDID=
 # Tasks management setting allowing serving several sequent requests.
 ENV RETAIN_TASK=true
 
+# Enable local caching for appium instances
+ENV APPIUM_HOME=/usr/lib/node_modules/appium
+ENV OPTIMIZE_APP_DOWNLOAD=false
+ENV APPIUM_APPS_DIR=/opt/appium-storage
+RUN mkdir -p $APPIUM_APPS_DIR
+
 # Android envs
 ENV REMOTE_ADB=false
 ENV ANDROID_DEVICES=android:5555
@@ -37,6 +43,7 @@ ENV AWS_ACCESS_KEY_ID=
 ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
 
+#TODO: test improved PATH=$PATH:/root/go-ios
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bin:/root/tools:/root/tools/bin:/root/platform-tools:/root/build-tools:/root/go-ios
 
 RUN apt-get update && \
@@ -63,6 +70,9 @@ COPY files/zbr-default-caps-gen.sh /opt
 
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
+
+# Local apps downloader
+COPY files/downloader/ /opt/downloader/
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
