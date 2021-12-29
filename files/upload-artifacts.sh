@@ -11,7 +11,7 @@ if [ -z $sessionId ]; then
   exit 0
 fi
 
-/root/concat-artifacts.sh "${sessionId}"
+/opt/concat-artifacts.sh "${sessionId}"
 
 #upload session artifacts
 S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
