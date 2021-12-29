@@ -7,6 +7,7 @@ ENV DEVICE_UDID=
 ENV RETAIN_TASK=true
 
 # Enable local caching for appium instances
+ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV OPTIMIZE_APP_DOWNLOAD=false
 ENV APPIUM_APPS_DIR=/opt/appium-storage
 RUN mkdir -p $APPIUM_APPS_DIR
@@ -42,9 +43,7 @@ ENV AWS_ACCESS_KEY_ID=
 ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
 
-# Appium location for optimized downoading enabling
-ENV APPIUM_LOCATION=/usr/lib/node_modules/appium
-
+#TODO: test improved PATH=$PATH:/root/go-ios
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bin:/root/tools:/root/tools/bin:/root/platform-tools:/root/build-tools:/root/go-ios
 
 RUN apt-get update && \
