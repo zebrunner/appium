@@ -14,8 +14,17 @@ ENV REMOTE_ADB_POLLING_SEC=5
 ENV CHROMEDRIVER_AUTODOWNLOAD=true
 
 # iOS envs
+ENV WDA_PORT=8100
+ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
 ENV WDA_ENV=/opt/zebrunner/wda.env
+ENV WDA_LOG_FILE=/opt/zebrunner/wda.log
+ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
+
+ENV P12FILE=/opt/zebrunner/mcloud.p12
+ENV P12PASSWORD=
+
+RUN mkdir -p /opt/zebrunner/DeveloperDiskImages
 
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
@@ -31,8 +40,15 @@ ENV AWS_DEFAULT_REGION=
 # Appium location for optimized downoading enabling
 ENV APPIUM_LOCATION=/usr/lib/node_modules/appium
 
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bin:/root/tools:/root/tools/bin:/root/platform-tools:/root/build-tools:/root/go-ios
+
 RUN apt-get update && \
-	apt-get install -y awscli iputils-ping ffmpeg nano
+	apt-get install -y awscli iputils-ping ffmpeg nano jq
+
+#Grab gidevice from github and extract it in a folder
+RUN wget https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
+RUN mkdir go-ios
+RUN unzip go-ios-linux.zip -d go-ios
 
 COPY files/capture-artifacts.sh /opt
 COPY files/stop-capture-artifacts.sh /opt
