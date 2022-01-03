@@ -47,12 +47,17 @@ getSession() {
   # The latest possible line is below. The only problem it couldn't record unlocking/unpining etc where problems might occur. Moreover this video ~5s less then duration in reporting:)
   #   2021-11-13 12:45:55:233 [Appium] New AndroidUiautomator2Driver session created successfully, session 2045e7c6-b34d-44c6-8b72-2bd68489de82 added to master session list
   declare isStarted=
+  declare isStartedOnMac=
   declare isFailed=
-  while [ -z $isStarted ] && [ -z $isFailed ]; do
+  while [ -z $isStarted ] && [ -z $isStartedOnMac ] && [ -z $isFailed ]; do
     sleep 0.1
     # 2021-11-13 12:45:49:210 [WD Proxy] Got response with status 200: {"sessionId":"None","value":{"message":"UiAutomator2 Server is ready to accept commands","ready":true}}
     isStarted=`cat ${APPIUM_LOG} | grep "Got response with status" | grep "Server is ready to accept commands" | cut -d ":" -f 9 | cut -d "}" -f 1`
     echo "[debug] [AppiumEntryPoint] isStarted: $isStarted"
+
+    # 2022-01-03 16:41:57:647 - [Appium] New XCUITestDriver session created successfully, session f94c0464-4c52-4858-afd4-200da7a92056 added to master session list
+    isStartedOnMac=`cat ${APPIUM_LOG} | grep "New XCUITestDriver session created successfully" | cut -d " " -f 10`
+    echo "[debug] [AppiumEntryPoint] isStartedOnMac: $isStartedOnMac"
 
     #2021-11-21 14:34:30:565 [HTTP] <-- POST /wd/hub/session 500 213 ms - 651
     isFailed=`cat ${APPIUM_LOG} | grep "POST /wd/hub/session 500" | cut -d " " -f 7`
