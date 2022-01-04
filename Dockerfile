@@ -7,8 +7,8 @@ ENV DEVICE_UDID=
 ENV RETAIN_TASK=true
 
 # Enable local caching for appium instances
+ENV MCLOUD=false
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
-ENV OPTIMIZE_APP_DOWNLOAD=false
 ENV APPIUM_APPS_DIR=/opt/appium-storage
 RUN mkdir -p $APPIUM_APPS_DIR
 
@@ -71,8 +71,8 @@ COPY files/zbr-default-caps-gen.sh /opt
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
 
-# Local apps downloader
-COPY files/downloader/ /opt/downloader/
+# Custom mclout patches
+COPY files/mcloud/ /opt/mcloud/
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
