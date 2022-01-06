@@ -1,8 +1,9 @@
 import fs from 'appium-support/build/lib/fs';
 import nodePath from 'path';
 import axios from 'axios';
-const path = require('path');
+import path from 'path';
 import logger from './logger';
+import { exec } from 'child_process';
 
 async function getLocalAppsFolder() {
     return process.env.APPIUM_APPS_DIR;
@@ -60,5 +61,19 @@ async function getFileContentLength(remoteUrl) {
     }
 }
 
+function executeShell(shellCommand, description) {
+    exec(shellCommand, (error, stdout, stderr) => {
+        if (error) {
+            logger.info(`${description} error: ${error.message}`);
+            return;
+        }
+        if (stderr) {
+            logger.info(`${description} stderr: ${stderr}`);
+            return;
+        }
+        logger.info(`${description} command was successfully executed`);
+      });
+}
 
-module.exports = { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength }
+
+module.exports = { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, executeShell }
