@@ -35,12 +35,10 @@ class IOSDeploy {
   }
 
   async remove(bundleid) {
-    const service = await _appiumIosDevice.services.startInstallationProxyService(this.udid);
-
     try {
-      await service.uninstallApplication(bundleid);
-    } finally {
-      service.close();
+      await (0, _teen_process.exec)(IOS_DEPLOY, ['uninstall', bundleid, '--udid=' + this.udid]);
+    } catch (err1) {
+      throw new Error(`App is not uninstalled '${bundleid}':\n` + `  - ${err1.message}\n` + `  - ${err1.stderr || err1.stdout || err1.message}`);
     }
   }
 
@@ -66,7 +64,7 @@ class IOSDeploy {
       }
 
       try {
-        await (0, _teen_process.exec)(IOS_DEPLOY, ['--id', this.udid, '--bundle', app]);
+        await (0, _teen_process.exec)(IOS_DEPLOY, ['install', '--path=' + app, '--udid=' + this.udid]);
       } catch (err1) {
         throw new Error(`Could not install '${app}':\n` + `  - ${err.message}\n` + `  - ${err1.stderr || err1.stdout || err1.message}`);
       }
@@ -184,35 +182,27 @@ class IOSDeploy {
       } else {
        _logger.default.debug(bundleid + ' is NOT found among system apps.')
       }
+    } catch (err1) {
+      throw new Error(`App is no installed among system apps '${bundleid}':\n` + `  - ${err1.message}\n` + `  - ${err1.stderr || err1.stdout || err1.message}`);
+    }
 
-
-      // verify if app installed among non system apps
-      let {stdout2, stderr2, code2} = await _teen_process.exec(IOS_DEPLOY, ['apps', '--udid=' + this.udid]);
-      _logger.default.debug(stdout2)
-      _logger.default.debug(stderr2);              // ''
-      _logger.default.debug(code2);                // 0
-      if (stdout2 != null && stdout2.indexOf(bundleid) !== -1) {
-        _logger.default.debug(bundleid + ' is found among apps.')
+    try {
+      // verify if app installed among system first!
+      let {stdout, stderr, code} = await _teen_process.exec(IOS_DEPLOY, ['apps', '--udid=' + this.udid]);
+      _logger.default.debug(stdout);
+      _logger.default.debug(stderr);              // ''
+      _logger.default.debug(code);                // 0
+      if (stdout != null && stdout.indexOf(bundleid) !== -1) {
+        _logger.default.debug(bundleid + ' is found among non system apps.')
         return true;
       } else {
-       _logger.default.debug(bundleid + ' is NOT found among apps.')
+       _logger.default.debug(bundleid + ' is NOT found among non system apps.')
       }
-
     } catch (err1) {
-      throw new Error(`App is no installed among apps '${bundleid}':\n` + `  - ${err1.message}\n` + `  - ${err1.stderr || err1.stdout || err1.message}`);
+      throw new Error(`App is no installed among non system apps '${bundleid}':\n` + `  - ${err1.message}\n` + `  - ${err1.stderr || err1.stdout || err1.message}`);
     }
+
     return false;
-
-//    const service = await _appiumIosDevice.services.startInstallationProxyService(this.udid);
-
-//    try {
-//      const applications = await service.lookupApplications({
-//        bundleIds: bundleid
-//      });
-//      return !!applications[bundleid];
-//    } finally {
-//      service.close();
-//    }
   }
 
   async getUserInstalledBundleIdsByBundleName(bundleName) {
