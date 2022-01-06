@@ -77,30 +77,11 @@ async function detectUdid() {
 }
 
 async function getAndCheckXcodeVersion() {
-  let version;
-
-  try {
-    version = await _appiumXcode.default.getVersion(true);
-  } catch (err) {
-    _logger.default.debug(err);
-
-    _logger.default.errorAndThrow(`Could not determine Xcode version: ${err.message}`);
-  }
-
-  if (version.versionFloat < 7.3) {
-    _logger.default.errorAndThrow(`Xcode version '${version.versionString}'. Support for ` + `Xcode ${version.versionString} is not supported. ` + `Please upgrade to version 7.3 or higher`);
-  }
-
-  return version;
+  return '13.2';
 }
 
 async function getAndCheckIosSdkVersion() {
-  return '13.2';
-//  try {
-//    return await _appiumXcode.default.getMaxIOSSDK();
-//  } catch (err) {
-//    _logger.default.errorAndThrow(`Could not determine iOS SDK version: ${err.message}`);
-//  }
+  return '15.2';
 }
 
 function getGenericSimulatorForIosVersion(platformVersion, deviceName) {
