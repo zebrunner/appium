@@ -11,22 +11,6 @@ PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
     #"TimeZone":"Europe/Minsk",
     #"TimeZoneOffsetFromUTC":10800,
 
-
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
-if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
-  # #280 pair supervised iOS device
-  ios pair --p12file="${P12FILE}" --password="${P12PASSWORD}" --udid=$DEVICE_UDID
-else
-  # #256 pair iOS device in regular way
-  ios pair --udid=$DEVICE_UDID
-fi
-
-if [ $? == 1 ]; then
-  echo "ERROR! Unable to pair iOS device!"
-  # Below exit completely destroy stf container as there is no sense to continue with unpaired device
-  exit -1
-fi
-
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download DeveloperDiskImages automatically"
 #ios image auto --basedir /opt/zebrunner/DeveloperDiskImages
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Mount /opt/zebrunner/DeveloperDiskImages/$PLATFORM_VERSION/DeveloperDiskImage.dmg"

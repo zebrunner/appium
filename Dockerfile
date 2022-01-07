@@ -27,9 +27,6 @@ ENV WDA_ENV=/opt/zebrunner/wda.env
 ENV WDA_LOG_FILE=/opt/zebrunner/wda.log
 ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 
-ENV P12FILE=/opt/zebrunner/mcloud.p12
-ENV P12PASSWORD=
-
 RUN mkdir -p /opt/zebrunner/DeveloperDiskImages
 
 # Screenrecord params
