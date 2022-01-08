@@ -269,16 +269,9 @@ class BaseDriver extends _protocol.Protocol {
       this.logEvent(EVENT_SESSION_START);
 
       if (res != undefined && res.value != undefined) {
-        _logger.default.info("stopping fallback session recording");
-
-        const stop_rec_command = `sh /opt/stop-capture-artifacts.sh`;
-        (0, _mcloudUtils.executeShell)(stop_rec_command, 'stop video recording');
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        _logger.default.info("starting new video recording on session init");
-
-        const start_rec_command = `sh /opt/capture-artifacts.sh ${res.value[0]}`;
-        (0, _mcloudUtils.executeShell)(start_rec_command, 'start video recording');
+        _logger.default.info("[MCLOUD] starting artifacts capturing for session " + res.value[0]);
+        const start_rec_command = `/opt/start-capture-artifacts.sh ${res.value[0]} >> /tmp/video.log 2>&1`;
+        (1, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start capturing artifacts'); // 1 error code expected as process should be killed
       }
     } else if (cmd === 'deleteSession') {
       this.logEvent(EVENT_SESSION_QUIT_DONE);

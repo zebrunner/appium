@@ -24,6 +24,15 @@ var _mcloudUtils = require("../mcloud-utils");
 let commands = {};
 
 commands.createSession = async function createSession(jsonwpDesiredCapabilities, jsonwpRequiredCaps, w3cCapabilities) {
+  _logger.default.debug(`[MCLOUD] resetting logs`);
+  const reset_log_command = `/opt/reset-logs.sh`;
+  (0, _mcloudUtils.executeShell)(reset_log_command, '[MCLOUD] reset appium logs');
+
+  //TODO: test negative cases. Seems like we handled it correctly on session finish and during appium container termination
+//  _logger.default.debug(`[MCLOUD] stopping capturing artifacts before session startup`);
+//  const stop_rec_command = `/opt/stop-capture-artifacts.sh`;
+//  (0, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts before session startup');
+
   if (this.sessionId !== null) {
     throw new _protocol.errors.SessionNotCreatedError('Cannot create a new session ' + 'while one is in progress');
   }
@@ -93,8 +102,9 @@ commands.createSession = async function createSession(jsonwpDesiredCapabilities,
 
   _logger.default.info(`Session created with session id: ${this.sessionId}`);
 
-  const start_rec_command = `sh /opt/capture-artifacts.sh ${this.sessionId}`;
-  (0, _mcloudUtils.executeShell)(start_rec_command, 'start video recording');
+  _logger.default.debug(`[MCLOUD] Starting artifacts capturing for init steps`);
+  const start_rec_command = `/opt/start-capture-artifacts.sh ${this.sessionId} > /tmp/video.log 2>&1`;
+  (1, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start artifacts capturing for init steps'); // 1 error code expected as process should be killed
   return [this.sessionId, caps];
 };
 
@@ -130,11 +140,15 @@ commands.deleteSession = async function deleteSession() {
     }
   }
 
-  const stop_rec_command = `sh /opt/stop-capture-artifacts.sh`;
-  (0, _mcloudUtils.executeShell)(stop_rec_command, 'stop video recording');
+  _logger.default.debug(`[MCLOUD] stopping capturing artifacts for session ${this.sessionId}`);
+  const stop_rec_command = `/opt/stop-capture-artifacts.sh ${this.sessionId}`;
+  (0, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts');
+
   await new Promise(resolve => setTimeout(resolve, 300));
-  const upload_video_command = `sh /opt/upload-artifacts.sh ${this.sessionId}`;
-  (0, _mcloudUtils.executeShell)(upload_video_command, 'upload video recordings');
+
+  _logger.default.debug(`[MCLOUD] uploading captured artifacts`);
+  const upload_video_command = `sh /opt/upload-artifacts.sh ${this.sessionId} >> /tmp/video.log`;
+  (0, _mcloudUtils.executeShell)(upload_video_command, '[MCLOUD] upload captured artifacts');
   this.sessionId = null;
 };
 

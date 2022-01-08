@@ -1,6 +1,7 @@
 #!/bin/bash
 
-#set -e The set -e option instructs bash to immediately exit if any command [1] has a non-zero exit status.
+# set -e The set -e option instructs bash to immediately exit if any command [1] has a non-zero exit status.
+# option required to exit asap after kill of any screenrecord operation
 set -e
 
 if [ -z $BUCKET ] || [ -z $TENANT ]; then
@@ -13,6 +14,8 @@ if [ -z $sessionId ]; then
   echo "[warn] [CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
   exit 0
 fi
+
+echo sessionId:$sessionId
 
 # use sessionId value if non empty sessionId otherwise init as "video" string
 videoFile=${sessionId}
@@ -34,3 +37,5 @@ startArtifactsStream() {
 }
 
 startArtifactsStream
+
+exit 0

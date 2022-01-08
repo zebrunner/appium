@@ -1,5 +1,7 @@
 #!/bin/bash
 
+APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
+
 if [ -z $BUCKET ] || [ -z $TENANT ]; then
   echo "[warn] [UploadArtifacts] No sense to upload artifacts without S3 compatible storage!"
   exit 0
@@ -11,19 +13,20 @@ if [ -z $sessionId ]; then
   exit 0
 fi
 
-/opt/concat-artifacts.sh "${sessionId}"
-
 #upload session artifacts
 S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
 echo "[info] [UploadArtifacts] S3_KEY_PATTERN: ${S3_KEY_PATTERN}"
-
 if [ -f "${sessionId}.log" ]; then
   aws s3 cp "${sessionId}.log" "${S3_KEY_PATTERN}/session.log"
 else
-  # use-case when RETAIN_TASK is off or when docker container stopped explicitly and forcibly by ESG/human
+  # Use-case when appium container received SIGTERM signal from outside. Upload current apppium log file in this case.
   aws s3 cp "${APPIUM_LOG}" "${S3_KEY_PATTERN}/session.log"
 fi
+
+/opt/concat-video-recordings.sh "${sessionId}"
 aws s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
 
 #cleanup
 rm -f "${sessionId}*"
+
+exit 0

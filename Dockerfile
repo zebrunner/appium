@@ -49,10 +49,11 @@ RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.42/go-ios
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
-COPY files/capture-artifacts.sh /opt
+COPY files/start-capture-artifacts.sh /opt
 COPY files/stop-capture-artifacts.sh /opt
 COPY files/upload-artifacts.sh /opt
-COPY files/concat-artifacts.sh /opt
+COPY files/concat-video-recordings.sh /opt
+COPY files/reset-logs.sh /opt
 COPY wireless_connect.sh /root
 COPY local_connect.sh /root
 COPY entry_point.sh /root

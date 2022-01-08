@@ -1,7 +1,7 @@
 #!/bin/bash
 
 sessionId=$1
-echo sessionId: $sessionId
+echo sessionId:$sessionId
 
 #adb shell "su root chmod a+r ${sessionId}*.mp4"
 #adb shell "su root ls -la ${sessionId}*.mp4"

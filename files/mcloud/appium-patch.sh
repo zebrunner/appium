@@ -3,8 +3,8 @@ cp ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/helpers.js ${AP
 cp ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/driver.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/driver.js.bak
 cp ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/commands/session.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/commands/session.js.bak
 cp /opt/mcloud/appium-base-driver/lib/basedriver/helpers.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/helpers.js
-cp /opt/mcloud/appium-base-driver/lib/basedriver/driver.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/driver.js
-cp /opt/mcloud/appium-base-driver/lib/basedriver/session.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/commands/session.js
+#cp /opt/mcloud/appium-base-driver/lib/basedriver/driver.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/driver.js
+#cp /opt/mcloud/appium-base-driver/lib/basedriver/session.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/commands/session.js
 cp /opt/mcloud/appium-base-driver/lib/basedriver/mcloud-utils.js ${APPIUM_HOME}/node_modules/appium-base-driver/lib/basedriver/mcloud-utils.js
 
 cp ${APPIUM_HOME}/node_modules/appium-base-driver/build/lib/basedriver/helpers.js ${APPIUM_HOME}/node_modules/appium-base-driver/build/lib/basedriver/helpers.js.bak
