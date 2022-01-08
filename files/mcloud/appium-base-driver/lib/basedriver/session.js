@@ -80,11 +80,7 @@ commands.createSession = async function createSession (jsonwpDesiredCapabilities
   }
 
   log.info(`Session created with session id: ${this.sessionId}`);
-
-  const part=0;
-  const screenrecord_opts = process.env.SCREENRECORD_OPTS != undefined ? process.env.SCREENRECORD_OPTS : '';
-  const start_rec_command = `adb shell "screenrecord --verbose ${screenrecord_opts} /sdcard/${this.sessionId}_${part}.mp4"`;
-
+  const start_rec_command = `sh /opt/capture-artifacts.sh ${this.sessionId}`;
   executeShell(start_rec_command, 'start video recording');
   return [this.sessionId, caps];
 };
@@ -119,20 +115,12 @@ commands.deleteSession = async function deleteSession (/* sessionId */) {
   }
 
   // stop recording
-  const part=0;
-  const stop_rec_command = 'pkill -f screenrecord';
+  const stop_rec_command = `sh /opt/stop-capture-artifacts.sh`;
   executeShell(stop_rec_command, 'stop video recording');
   await new Promise(resolve => setTimeout(resolve, 300));
-  // pull video from device
-  const pull_video_command =`adb pull "/sdcard/${this.sessionId}_${part}.mp4" "${this.sessionId}.mp4" > /dev/null 2>&1`;
-  executeShell(pull_video_command, 'pull video recording from device');
-  // remove video from device
-  const remove_video_command =`adb shell "rm -f /sdcard/${this.sessionId}.mp4" &`;
-  executeShell(remove_video_command, 'remove video recording from device');
-  // upload video to s3
-  const s3_path=`s3://${process.env.BUCKET}/${process.env.TENANT}/artifacts/test-sessions/${this.sessionId}`;
-  const upload_to_s3_command = `aws s3 cp "${this.sessionId}.mp4" "${s3_path}/video.mp4"`;
-  executeShell(upload_to_s3_command, 'upload video to s3');
+  // upload video
+  const upload_video_command = `sh /opt/upload-artifacts.sh ${this.sessionId}`;
+  executeShell(upload_video_command, 'upload video recordings');
 
   this.sessionId = null;
 };

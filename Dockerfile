@@ -10,6 +10,7 @@ ENV RETAIN_TASK=true
 ENV MCLOUD=false
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
+ENV APPIUM_APP_WAITING_TIMEOUT=600
 RUN mkdir -p $APPIUM_APPS_DIR
 
 # Android envs
