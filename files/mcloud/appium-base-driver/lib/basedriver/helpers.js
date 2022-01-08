@@ -169,8 +169,8 @@ async function configureApp (app, supportedAppExtensions) {
       localAppsFolder = await getLocalAppsFolder();
       let localFile;
       let lockFile;
-      const waitingTime = 5000;
-      const maxAttemptsCount = 5 * 12;
+      const waitingTime = 1000;
+      const maxAttemptsCount = process.env.APPIUM_APP_WAITING_TIMEOUT;
       
       if(localAppsFolder != undefined) {
         localFile = await getLocalFileForAppUrl(newApp);
