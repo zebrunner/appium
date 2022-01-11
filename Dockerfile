@@ -33,6 +33,13 @@ ENV P12PASSWORD=
 
 RUN mkdir -p /opt/zebrunner/DeveloperDiskImages
 
+# Emulate presense of the xcode on the Linux container
+RUN mkdir -p /Applications/Xcode.app/Contents/Developer && mkdir -p /var/db
+RUN ln -s /Applications/Xcode.app/Contents/Developer /var/db/xcode_select_link
+COPY files/mcloud/xcode/Info.plist /Applications/Xcode.app/Contents
+COPY files/mcloud/xcode/xcrun /usr/local/bin
+
+
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
 ENV FFMPEG_OPTS=

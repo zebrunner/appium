@@ -20,6 +20,7 @@ cp /opt/mcloud/appium-base-driver/build/lib/basedriver/mcloud-utils.js ${APPIUM_
 cp ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/ios-deploy.js ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/ios-deploy.js.bak
 cp /opt/mcloud/appium-xcuitest-driver/build/lib/ios-deploy.js ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/ios-deploy.js
 
-cp ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/utils.js ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/utils.js.bak
-cp /opt/mcloud/appium-xcuitest-driver/build/lib/utils.js ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/utils.js
+
+#cp ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/utils.js ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/utils.js.bak
+#cp /opt/mcloud/appium-xcuitest-driver/build/lib/utils.js ${APPIUM_HOME}/node_modules/appium-xcuitest-driver/build/lib/utils.js
 

@@ -1,0 +1,26 @@
+#!/bin/bash
+
+case "$1" in
+    --show-sdk-path)
+        echo "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+        ;;
+    --show-sdk-version)
+        echo "12.1"
+        ;;
+    --show-sdk-build-version)
+        echo "21C46"
+        ;;
+    --show-sdk-platform-path)
+        echo "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform"
+        ;;
+    --show-sdk-platform-version)
+        echo "12.1"
+        ;;
+    --version)
+        echo "xcrun version 60."
+        ;;
+    *)
+        echo "Invalid option detected: $1"
+        exit 1
+        ;;
+esac
