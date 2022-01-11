@@ -1,17 +1,5 @@
 #!/bin/bash
 
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
-PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
-  # TODO: detect tablet and TV for iOS, also review `ios info` output data like below
-    #"DeviceClass":"iPhone",
-    #"ProductName":"iPhone OS",
-    #"ProductType":"iPhone10,5",
-    #"ProductVersion":"14.7.1",
-    #"SerialNumber":"C38V961BJCM2",
-    #"TimeZone":"Europe/Minsk",
-    #"TimeZoneOffsetFromUTC":10800,
-
-
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
 if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
   # #280 pair supervised iOS device
@@ -26,6 +14,17 @@ if [ $? == 1 ]; then
   # Below exit completely destroy stf container as there is no sense to continue with unpaired device
   exit -1
 fi
+
+echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
+PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
+  # TODO: detect tablet and TV for iOS, also review `ios info` output data like below
+    #"DeviceClass":"iPhone",
+    #"ProductName":"iPhone OS",
+    #"ProductType":"iPhone10,5",
+    #"ProductVersion":"14.7.1",
+    #"SerialNumber":"C38V961BJCM2",
+    #"TimeZone":"Europe/Minsk",
+    #"TimeZoneOffsetFromUTC":10800,
 
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download DeveloperDiskImages automatically"
 #ios image auto --basedir /opt/zebrunner/DeveloperDiskImages
