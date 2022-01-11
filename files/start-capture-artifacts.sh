@@ -4,7 +4,7 @@
 # option required to exit asap after kill of any screenrecord operation
 set -e
 
-if [ -z $BUCKET ] || [ -z $TENANT ]; then
+if [ -z $BUCKET ]; then
   echo "[warn] [CaptureArtifacts] No sense to record artifacts without S3 compatible storage!"
   exit 0
 fi

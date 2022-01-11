@@ -2,7 +2,7 @@
 
 APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 
-if [ -z $BUCKET ] || [ -z $TENANT ]; then
+if [ -z $BUCKET ]; then
   echo "[warn] [UploadArtifacts] No sense to upload artifacts without S3 compatible storage!"
   exit 0
 fi
@@ -15,6 +15,11 @@ fi
 
 #upload session artifacts
 S3_KEY_PATTERN=s3://${BUCKET}/${TENANT}/artifacts/test-sessions/${sessionId}
+if [ -z $TENANT ]; then
+  # use-case with embedded minio storage
+  S3_KEY_PATTERN=s3://${BUCKET}/artifacts/test-sessions/${sessionId}
+fi
+
 echo "[info] [UploadArtifacts] S3_KEY_PATTERN: ${S3_KEY_PATTERN}"
 if [ -f "${sessionId}.log" ]; then
   aws s3 cp "${sessionId}.log" "${S3_KEY_PATTERN}/session.log"
