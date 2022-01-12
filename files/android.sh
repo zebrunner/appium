@@ -7,7 +7,7 @@ isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
 isTv=`adb shell getprop ro.build.characteristics | grep tv`
 
 # version
-PLATFORM_VERSION=`adb shell getprop | grep -m 1 ro.build.version.release |  sed 's/^.*:.*\[\(.*\)\].*$/\1/g'`
+export PLATFORM_VERSION=`adb shell getprop | grep -m 1 ro.build.version.release |  sed 's/^.*:.*\[\(.*\)\].*$/\1/g'`
 
 if [[ $isTablet ]]
 then
