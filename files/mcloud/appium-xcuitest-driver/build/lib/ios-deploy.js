@@ -173,9 +173,9 @@ class IOSDeploy {
     try {
       // verify if app installed among system first!
       let {stdout, stderr, code} = await _teen_process.exec(IOS_DEPLOY, ['apps', '--system', '--udid=' + this.udid]);
-      _logger.default.debug(stdout);
-      _logger.default.debug(stderr);              // ''
-      _logger.default.debug(code);                // 0
+      // _logger.default.debug(stdout);
+      // _logger.default.debug(stderr);              // ''
+      // _logger.default.debug(code);                // 0
       if (stdout != null && stdout.indexOf(bundleid) !== -1) {
         _logger.default.debug(bundleid + ' is found among system apps.')
         return true;
@@ -189,9 +189,9 @@ class IOSDeploy {
     try {
       // verify if app installed among system first!
       let {stdout, stderr, code} = await _teen_process.exec(IOS_DEPLOY, ['apps', '--udid=' + this.udid]);
-      _logger.default.debug(stdout);
-      _logger.default.debug(stderr);              // ''
-      _logger.default.debug(code);                // 0
+      // _logger.default.debug(stdout);
+      // _logger.default.debug(stderr);              // ''
+      // _logger.default.debug(code);                // 0
       if (stdout != null && stdout.indexOf(bundleid) !== -1) {
         _logger.default.debug(bundleid + ' is found among non system apps.')
         return true;
