@@ -147,7 +147,7 @@ commands.deleteSession = async function deleteSession() {
   await new Promise(resolve => setTimeout(resolve, 300));
 
   _logger.default.debug(`[MCLOUD] uploading captured artifacts`);
-  const upload_video_command = `sh /opt/upload-artifacts.sh ${this.sessionId} >> /tmp/video.log`;
+  const upload_video_command = `/opt/upload-artifacts.sh ${this.sessionId} >> /tmp/video.log`;
   (0, _mcloudUtils.executeShell)(upload_video_command, '[MCLOUD] upload captured artifacts');
   this.sessionId = null;
 };
