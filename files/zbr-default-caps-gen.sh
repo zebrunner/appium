@@ -2,16 +2,25 @@
 
 #IMPORTANT!!! Don't do any echo otherwise you corrupt generated defaultcapabilities json
 
-if [[ "${PLATFORM_NAME,,}" != "ios" ]]; then
-  exit 0
+if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+ cat << EndOfMessage
+ {
+  "deviceName": "${DEVICE_NAME}",
+  "deviceType": "${DEVICETYPE}",
+  "platformName":"${PLATFORM_NAME}",
+  "platformVersion":"${PLATFORM_VERSION}",
+  "udid": "${DEVICE_UDID}",
+  "automationName": "${AUTOMATION_NAME}"
+ }
 fi
 
-export DEFAULT_CAPABILITIES=true
-#TODO: review extra default params we used in mcloud-ios
-#'{"webkitDebugProxyPort": '${iwdp_port}', "derivedDataPath":"'${BASEDIR}/tmp/DerivedData/${udid}'", remove -> "usePrebuiltWDA": "true", ??? "useNewWDA": "'$newWDA'"
 
-cat << EndOfMessage
-{
+#TODO: review extra default params we used in mcloud-ios
+#'{"webkitDebugProxyPort": '${iwdp_port}'
+
+if [[ "${PLATFORM_NAME,,}" == "ios" ]]; the
+ cat << EndOfMessage
+ {
   "udid":"$DEVICE_UDID",
   "mjpegServerPort": ${MJPEG_PORT},
   "clearSystemFiles": "false",
@@ -23,5 +32,7 @@ cat << EndOfMessage
   "automationName":"${AUTOMATION_NAME}",
   "platformName": "${PLATFORM_NAME}",
   "deviceName": "${DEVICE_NAME}"
-}
-EndOfMessage
+ }
+ EndOfMessage
+fi
+
