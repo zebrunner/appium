@@ -33,7 +33,11 @@ else
   aws ${OVERIDDEN_ENTRYPOINT} s3 cp "${APPIUM_LOG}" "${S3_KEY_PATTERN}/session.log"
 fi
 
-/opt/concat-video-recordings.sh "${sessionId}"
+if [ "${PLATFORM_NAME,,}" == "android" ]; then
+  # concat required only for android where screenrecord utility has 180s limitation for recording!
+  /opt/concat-video-recordings.sh "${sessionId}"
+fi
+
 aws ${OVERIDDEN_ENTRYPOINT} s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
 
 #cleanup

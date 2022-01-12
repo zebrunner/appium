@@ -9,7 +9,11 @@ cat << EndOfMessage
  "platformName":"${PLATFORM_NAME}",
  "platformVersion":"${PLATFORM_VERSION}",
  "udid": "${DEVICE_UDID}",
- "automationName": "${AUTOMATION_NAME}"
+ "automationName": "${AUTOMATION_NAME}",
+ "provider": "mcloud",
+ "enableVideo": "true",
+ "enableLog": "true",
+ "enableVnc": "false"
 }
 EndOfMessage
 fi
@@ -31,7 +35,11 @@ cat << EndOfMessage
  "platformVersion": "${PLATFORM_VERSION}",
  "automationName":"${AUTOMATION_NAME}",
  "platformName": "${PLATFORM_NAME}",
- "deviceName": "${DEVICE_NAME}"
+ "deviceName": "${DEVICE_NAME}",
+ "provider": "mcloud",
+ "enableVideo": "true",
+ "enableLog": "true",
+ "enableVnc": "false"
 }
 EndOfMessage
 fi

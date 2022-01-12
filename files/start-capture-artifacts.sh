@@ -22,11 +22,7 @@ videoFile=${sessionId}
 echo "[info] [CaptureArtifacts] videoFile: $videoFile"
 
 
-# 17: implement capture artifacts on iOS/AppleTV devices
-# example of the video recording command is below where ip is iPhone address and 20022 is MJPEG port started by WDA
-# ffmpeg -f mjpeg -r 10 -i http://169.254.231.124:20022 -vf scale="-2:720" -vcodec libx264 -y video.mp4
-
-startArtifactsStream() {
+captureAndroidArtifacts() {
   declare -i part=0
   while true; do
      #TODO: #9 integrate audio capturing for android devices
@@ -36,6 +32,19 @@ startArtifactsStream() {
   done
 }
 
-startArtifactsStream
+captureIOSArtifacts() {
+  # example of the video recording command is below where ip is iPhone address and 20022 is MJPEG port started by WDA
+  # ffmpeg -f mjpeg -r 10 -i http://169.254.231.124:20022 -vf scale="-2:720" -vcodec libx264 -y video.mp4
+  . ${WDA_ENV}
+  ffmpeg -f mjpeg -r 10 -i http://${WDA_HOST}:${MJPEG_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} ${sessionId}.mp4
+}
+
+if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+  captureAndroidArtifacts
+fi
+
+if [[ "${PLATFORM_NAME,,}" == "ios" ]]; then
+  captureIOSArtifacts
+fi
 
 exit 0

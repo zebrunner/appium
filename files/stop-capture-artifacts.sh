@@ -8,17 +8,17 @@ if [ ! -z $sessionId ]; then
   cp "${APPIUM_LOG}" "$sessionId.log"
 fi
 
-# do not kill start-capture-artifacts.sh parent process!
-#pkill -e -f /opt/start-capture-artifacts.sh
-pkill -e -f screenrecord
+
+if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+  # do not kill start-capture-artifacts.sh parent process!
+  #pkill -e -f /opt/start-capture-artifacts.sh
+  pkill -e -f screenrecord
+fi
+
+if [[ "${PLATFORM_NAME,,}" == "ios" ]]; then
+  pkill -e -f ffmpeg
+fi
+
 
 exit 0
 
-#kill screenrecord on emulator/device
-#adb shell "pkill -l 2 -f screenrecord"
-# sleep was required to finish kill process correctly so video file is closed and editable/visible later.
-# as of now `sleep 1` moved onto the entry_point.sh to be controlled on high level, also testing sleep 0.5
-#sleep 1
-
-#kill start-capture-artifacts.sh parent shell script
-#pkill -f start-capture-artifacts.sh
