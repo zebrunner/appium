@@ -16,7 +16,7 @@ if [ $? == 1 ]; then
 fi
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
-PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
+export PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
   # TODO: detect tablet and TV for iOS, also review `ios info` output data like below
     #"DeviceClass":"iPhone",
     #"ProductName":"iPhone OS",
