@@ -17,7 +17,12 @@ fi
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 export PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
-  # TODO: detect tablet and TV for iOS, also review `ios info` output data like below
+deviceClass=$(ios info --udid=$DEVICE_UDID | jq -r ".DeviceClass")
+export DEVICETYPE='Phone'
+if [ "$deviceClass" = "iPad" ]; then
+  export DEVICETYPE='Tablet'
+fi
+# TODO: detect tablet and TV for iOS, also review `ios info` output data like below
     #"DeviceClass":"iPhone",
     #"ProductName":"iPhone OS",
     #"ProductType":"iPhone10,5",
@@ -116,6 +121,4 @@ rm -f ${sessionFile}
 
 
 export AUTOMATION_NAME='XCUITest'
-#TODO: move DEVICETYPE into the WDA_ENV
-export DEVICETYPE='Phone'
 
