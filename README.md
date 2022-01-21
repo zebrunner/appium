@@ -1,13 +1,13 @@
 Zebrunner MCloud Appium
 ==================
 
-Enhanced Appium docker image for testing on physical devices (Android and iOS) including Phones, Tablets, TV and emulators/simulators.
+Enhanced Appium docker image for testing on physical devices (Android and iOS), including Phones, Tablets, TV and emulators/simulators.
 
 * It is built on top of [Appium](https://github.com/appium/appium/) and supports:
-  * Connection iOS devices via Linux Hardware
+  * Connection with iOS devices via the Linux Hardware
   * Integration with [STF](https://github.com/zebrunner/stf) for remote manual testing
-  * Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure etc)
-  * Video recordings capabilities including AppleTV, AndroidTV and TizenTV
+  * Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure, etc.)
+  * Video recording capabilities including AppleTV, AndroidTV, and TizenTV
   * Video recording for pre-conditions and mapping with test results in [Zebrunner Reporting](https://zebrunner.com/)
 
 Feel free to support the development with a [**donation**](https://www.paypal.com/donate?hosted_button_id=JLQ4U468TWQPS) for the next improvements.
@@ -17,7 +17,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 </p>
 
 
-> Follow installation and configuration guide in [MCloud](https://github.com/zebrunner/mcloud) to reuse this image effectively.
+> Follow the installation and configuration guide in [MCloud](https://github.com/zebrunner/mcloud) to reuse this image effectively.
 
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
