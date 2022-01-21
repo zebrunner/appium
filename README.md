@@ -5,7 +5,7 @@ Enhanced Appium docker image for testing on physical devices (Android and iOS) i
 
 * It is built on top of [Appium](https://github.com/appium/appium/) and supports:
   * Connection iOS devices via Linux Hardware
-  * Integration with STF for remote manual testing
+  * Integration with [STF](https://github.com/zebrunner/stf) for remote manual testing
   * Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure etc)
   * Video recordings capabilities including AppleTV, AndroidTV and TizenTV
   * Video recording for pre-conditions and mapping with test results in [Zebrunner Reporting](https://zebrunner.com/)
