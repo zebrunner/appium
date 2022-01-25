@@ -70,7 +70,7 @@ COPY files/zbr-default-caps-gen.sh /opt
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
 
-# Custom mclout patches
+# Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud/
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
