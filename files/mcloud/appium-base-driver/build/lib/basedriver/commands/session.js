@@ -141,7 +141,7 @@ commands.deleteSession = async function deleteSession() {
   _logger.default.debug(`[MCLOUD] stopping capturing artifacts for session ${this.sessionId}`);
 
   const stop_rec_command = `/opt/stop-capture-artifacts.sh ${this.sessionId}`;
-  (0, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts');
+  (1, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts');
   await new Promise(resolve => setTimeout(resolve, 300));
 
   _logger.default.debug(`[MCLOUD] uploading captured artifacts`);
