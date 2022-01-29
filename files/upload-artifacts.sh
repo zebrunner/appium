@@ -43,6 +43,7 @@ fi
 aws ${OVERIDDEN_ENTRYPOINT} s3 cp "${sessionId}.mp4" "${S3_KEY_PATTERN}/video.mp4"
 
 #cleanup
-rm -f "${sessionId}*"
+rm -fv "${sessionId}.log"
+rm -fv "${sessionId}.mp4"
 
 exit 0

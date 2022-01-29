@@ -18,7 +18,7 @@ if [[ "${PLATFORM_NAME}" == "android" ]]; then
 fi
 
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-  pkill -e -f ffmpeg
+  pkill -f $sessionId
 fi
 
 
