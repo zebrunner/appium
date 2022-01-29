@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# exit for iOS devices
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
+  # exit for iOS devices
   exit 0
 fi
 

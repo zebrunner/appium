@@ -2,7 +2,9 @@
 
 #IMPORTANT!!! Don't do any echo otherwise you corrupt generated defaultcapabilities json
 
-if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "${PLATFORM_NAME}" == "android" ]]; then
 cat << EndOfMessage
 {
  "deviceName": "${DEVICE_NAME}",
@@ -22,7 +24,7 @@ fi
 #TODO: review extra default params we used in mcloud-ios
 #'{"webkitDebugProxyPort": '${iwdp_port}'
 
-if [[ "${PLATFORM_NAME,,}" == "ios" ]]; then
+if [[ "${PLATFORM_NAME}" == "ios" ]]; then
 cat << EndOfMessage
 {
  "udid":"$DEVICE_UDID",

@@ -9,13 +9,15 @@ if [ ! -z $sessionId ]; then
 fi
 
 
-if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "${PLATFORM_NAME}" == "android" ]]; then
   # do not kill start-capture-artifacts.sh parent process!
   #pkill -e -f /opt/start-capture-artifacts.sh
   pkill -e -f screenrecord
 fi
 
-if [[ "${PLATFORM_NAME,,}" == "ios" ]]; then
+if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   pkill -e -f ffmpeg
 fi
 

@@ -1,6 +1,8 @@
 #!/bin/bash
 
 #IMPORTANT!!! Don't do any echo otherwise you corrupt generated nodeconfig.json
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 cat << EndOfMessage
 {
   "capabilities":
@@ -9,7 +11,7 @@ cat << EndOfMessage
           "maxInstances": 1,
           "deviceName": "${DEVICE_NAME}",
           "deviceType": "${DEVICETYPE}",
-          "platformName":"${PLATFORM_NAME^^}",
+          "platformName":"${PLATFORM_NAME}",
           "platformVersion":"${PLATFORM_VERSION}",
 	  "udid": "${DEVICE_UDID}",
 	  "adb_port": ${ADB_PORT},

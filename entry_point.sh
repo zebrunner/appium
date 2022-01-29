@@ -38,9 +38,11 @@ else
     /root/local_connect.sh
 fi
 
-if [ "${PLATFORM_NAME,,}" = "android" ]; then
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [ "${PLATFORM_NAME}" = "android" ]; then
     . /opt/android.sh
-elif [ "${PLATFORM_NAME,,}" = "ios" ]; then
+elif [ "${PLATFORM_NAME}" = "ios" ]; then
     . /opt/ios.sh
 fi
 

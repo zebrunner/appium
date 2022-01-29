@@ -39,11 +39,13 @@ captureIOSArtifacts() {
   ffmpeg -f mjpeg -r 10 -i http://${WDA_HOST}:${MJPEG_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} ${sessionId}.mp4
 }
 
-if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "${PLATFORM_NAME}" == "android" ]]; then
   captureAndroidArtifacts
 fi
 
-if [[ "${PLATFORM_NAME,,}" == "ios" ]]; then
+if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   captureIOSArtifacts
 fi
 

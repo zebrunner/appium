@@ -33,7 +33,9 @@ else
   aws ${OVERIDDEN_ENTRYPOINT} s3 cp "${APPIUM_LOG}" "${S3_KEY_PATTERN}/session.log"
 fi
 
-if [ "${PLATFORM_NAME,,}" == "android" ]; then
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [ "${PLATFORM_NAME}" == "android" ]; then
   # concat required only for android where screenrecord utility has 180s limitation for recording!
   /opt/concat-video-recordings.sh "${sessionId}"
 fi
