@@ -101,7 +101,7 @@ commands.createSession = async function createSession(jsonwpDesiredCapabilities,
   _logger.default.debug(`[MCLOUD] Starting artifacts capturing for init steps`);
 
   const start_rec_command = `/opt/start-capture-artifacts.sh ${this.sessionId} > /tmp/video.log 2>&1`;
-  (0, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start artifacts capturing for init steps');
+  (1, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start artifacts capturing for init steps');
   process.env.sessionId = this.sessionId;
   return [this.sessionId, caps];
 };
@@ -141,7 +141,7 @@ commands.deleteSession = async function deleteSession() {
   _logger.default.debug(`[MCLOUD] stopping capturing artifacts for session ${this.sessionId}`);
 
   const stop_rec_command = `/opt/stop-capture-artifacts.sh ${this.sessionId}`;
-  (1, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts');
+  (0, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts');
   await new Promise(resolve => setTimeout(resolve, 300));
 
   _logger.default.debug(`[MCLOUD] uploading captured artifacts`);
