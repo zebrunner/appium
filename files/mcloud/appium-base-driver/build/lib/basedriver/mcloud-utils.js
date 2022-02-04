@@ -56,7 +56,7 @@ async function getLocalFileForAppUrl(url) {
 }
 
 async function getFileContentLength(remoteUrl) {
-  const timeout = 5000;
+  const timeout = 30000;
   const requestOpts = {
     url: remoteUrl,
     responseType: 'stream',
