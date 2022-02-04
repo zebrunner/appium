@@ -269,10 +269,16 @@ class BaseDriver extends _protocol.Protocol {
       this.logEvent(EVENT_SESSION_START);
 
       if (res != undefined && res.value != undefined) {
+        _logger.default.debug(`[MCLOUD] stopping capturing artifacts for session ${res.value[0]}`);
+
+        const stop_rec_command = `/opt/stop-capture-artifacts.sh ${res.value[0]}`;
+        (0, _mcloudUtils.executeShell)(stop_rec_command, '[MCLOUD] stop capturing artifacts');
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         _logger.default.info(`[MCLOUD] starting artifacts capturing for session ${res.value[0]}`);
 
         const start_rec_command = `/opt/start-capture-artifacts.sh ${res.value[0]} >> /tmp/video.log 2>&1`;
-        (0, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start capturing artifacts');
+        (1, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start capturing artifacts');
       }
     } else if (cmd === 'deleteSession') {
       this.logEvent(EVENT_SESSION_QUIT_DONE);

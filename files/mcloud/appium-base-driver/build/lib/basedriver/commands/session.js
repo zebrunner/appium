@@ -101,7 +101,7 @@ commands.createSession = async function createSession(jsonwpDesiredCapabilities,
   _logger.default.debug(`[MCLOUD] Starting artifacts capturing for init steps`);
 
   const start_rec_command = `/opt/start-capture-artifacts.sh ${this.sessionId} > /tmp/video.log 2>&1`;
-  (0, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start artifacts capturing for init steps');
+  (1, _mcloudUtils.executeShell)(start_rec_command, '[MCLOUD] start artifacts capturing for init steps');
   process.env.sessionId = this.sessionId;
   return [this.sessionId, caps];
 };

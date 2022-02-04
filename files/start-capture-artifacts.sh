@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export
+
 # set -e The set -e option instructs bash to immediately exit if any command [1] has a non-zero exit status.
 # option required to exit asap after kill of any screenrecord operation
 set -e
@@ -35,15 +37,20 @@ captureAndroidArtifacts() {
 captureIOSArtifacts() {
   # example of the video recording command is below where ip is iPhone address and 20022 is MJPEG port started by WDA
   # ffmpeg -f mjpeg -r 10 -i http://169.254.231.124:20022 -vf scale="-2:720" -vcodec libx264 -y video.mp4
-  . ${WDA_ENV}
-  ffmpeg -f mjpeg -r 10 -i http://${WDA_HOST}:${MJPEG_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} ${sessionId}.mp4
+  if [ -z ${WDA_HOST} ] || [ -z ${MJPEG_PORT} ]; then
+    . ${WDA_ENV}
+  fi
+  echo "[info] [CaptureArtifacts] generating video file ${videoFile}.mp4..."
+  ffmpeg -f mjpeg -r 10 -i http://${WDA_HOST}:${MJPEG_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} ${sessionId}.mp4 > /dev/null 2>&1
 }
 
-if [[ "${PLATFORM_NAME,,}" == "android" ]]; then
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "${PLATFORM_NAME}" == "android" ]]; then
   captureAndroidArtifacts
 fi
 
-if [[ "${PLATFORM_NAME,,}" == "ios" ]]; then
+if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   captureIOSArtifacts
 fi
 
