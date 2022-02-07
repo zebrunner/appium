@@ -1,6 +1,11 @@
 #!/bin/bash
 
-DEVICE_UDID=${DEVICE_UDID/-/}
+ios list | grep $DEVICE_UDID
+if [ $? == 1 ]; then
+  echo "WARN! Unable to detect iOS device with udid: $DEVICE_UDID."
+  DEVICE_UDID=${DEVICE_UDID/-/}
+fi
+
 echo DEVICE_UDID: $DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
