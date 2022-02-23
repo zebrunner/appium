@@ -8,6 +8,7 @@
 if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
 then
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium is already running. Nothing to do"
+  exit 0
 else
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium service is unhealthy!"
   pkill node
@@ -15,6 +16,19 @@ else
 fi
 
 #Hit the WDA status URL to see if it is available
+if [ -f ${WDA_ENV} ]; then
+  source ${WDA_ENV}
+  #Hit WDA status URL to see if it is available
+  if curl --retry 3 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
+  then
+    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
+    exit 0
+  else
+    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA service is unhealthy! Restarting!"
+    . /opt/ios.sh
+  fi
+fi
+
 if [ -f ${WDA_ENV} ]; then
   source ${WDA_ENV}
   #Hit WDA status URL to see if it is available
