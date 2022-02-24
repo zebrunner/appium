@@ -94,7 +94,7 @@ index 867b861..7fa3b46 100644
        this.logEvent(EVENT_SESSION_QUIT_DONE);
      }
 diff --git a/lib/basedriver/helpers.js b/lib/basedriver/helpers.js
-index fcbf49d..7f94369 100644
+index fcbf49d..8bdee52 100644
 --- a/lib/basedriver/helpers.js
 +++ b/lib/basedriver/helpers.js
 @@ -6,6 +6,7 @@ import { tempDir, fs, util, zip, net, timing } from 'appium-support';
@@ -207,7 +207,7 @@ index fcbf49d..7f94369 100644
        const cachedPath = getCachedApplicationPath(app, remoteAppProps);
        if (cachedPath) {
          if (await fs.exists(cachedPath)) {
-@@ -220,6 +300,24 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -220,6 +300,20 @@ async function configureApp (app, supportedAppExtensions) {
          suffix: '',
        });
        newApp = await downloadApp(newApp, targetPath);
@@ -221,18 +221,14 @@ index fcbf49d..7f94369 100644
 +      finally {
 +        if(localAppsFolder != undefined) {
 +          logger.info(`[MCLOUD] Going to remove lock file ${lockFile}`)
-+          if (await fs.exists(lockFile)) {
-+            await fs.unlink(lockFile);
-+          } else {
-+            logger.warn(`[MCLOUD] Lock file ${lockFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
-+          }
++          await fs.unlink(lockFile);
 +        }
 +      }
 +      }
      } else if (await fs.exists(newApp)) {
        // Use the local app
        logger.info(`Using local app '${newApp}'`);
-@@ -240,7 +338,7 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -240,7 +334,7 @@ async function configureApp (app, supportedAppExtensions) {
        if (APPLICATIONS_CACHE.has(app) && archiveHash === APPLICATIONS_CACHE.get(app).hash) {
          const {fullPath} = APPLICATIONS_CACHE.get(app);
          if (await fs.exists(fullPath)) {
@@ -241,7 +237,7 @@ index fcbf49d..7f94369 100644
              await fs.rimraf(archivePath);
            }
            logger.info(`Will reuse previously cached application at '${fullPath}'`);
-@@ -253,7 +351,7 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -253,7 +347,7 @@ async function configureApp (app, supportedAppExtensions) {
        try {
          newApp = await unzipApp(archivePath, tmpRoot, supportedAppExtensions);
        } finally {
