@@ -8,7 +8,6 @@
 if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
 then
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium is already running. Nothing to do"
-  exit 0
 else
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium service is unhealthy!"
   pkill node
