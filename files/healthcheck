@@ -24,6 +24,9 @@ if [ -f ${WDA_ENV} ]; then
     exit 0
   else
     echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA service is unhealthy! Restarting!"
+    # stop any existing wda
+    ios kill --bundleid=$WDA_BUNDLEID --udid=$DEVICE_UDID
+    # install/start wda again
     . /opt/ios.sh
   fi
 fi

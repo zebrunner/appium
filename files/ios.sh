@@ -3,7 +3,7 @@
 ios list | grep $DEVICE_UDID
 if [ $? == 1 ]; then
   echo "WARN! Unable to detect iOS device with udid: $DEVICE_UDID."
-  DEVICE_UDID=${DEVICE_UDID/-/}
+  export DEVICE_UDID=${DEVICE_UDID/-/}
 fi
 
 echo DEVICE_UDID: $DEVICE_UDID
