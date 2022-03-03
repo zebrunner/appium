@@ -18,16 +18,18 @@ fi
 if [ -f ${WDA_ENV} ]; then
   source ${WDA_ENV}
   #Hit WDA status URL to see if it is available
-  if curl --retry 2 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
+  if curl --retry 3 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
   then
     echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
     exit 0
   else
     echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA service is unhealthy! Restarting!"
     # stop any existing wda
-    ios kill --bundleid=$WDA_BUNDLEID --udid=$DEVICE_UDID
+    echo ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
+    ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
     # start wda again
     echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
+    echo ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid $DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
     ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid $DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
 
     #Start the WDA service on the device using the WDA bundleId
@@ -72,7 +74,7 @@ fi
 if [ -f ${WDA_ENV} ]; then
   source ${WDA_ENV}
   #Hit WDA status URL to see if it is available
-  if curl --retry 2 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
+  if curl --retry 3 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
   then
     echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
   else
