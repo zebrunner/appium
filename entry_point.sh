@@ -107,3 +107,5 @@ echo "processes BEFORE EXIT:"
 ps -ef
 echo "---------------------------------------------------------"
 
+# rmove WDA_ENV if any
+rm -f ${WDA_ENV}
