@@ -7,10 +7,10 @@
 #Hit the Appium status URL to see if it is available
 if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
 then
-  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium is already running. Nothing to do"
+  echo "Appium is up and running."
 else
-  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium service is unhealthy!"
-  pkill node
+  echo "Appium is unhealthy!"
+  #TODO: start appim again
   exit 1
 fi
 
@@ -20,10 +20,10 @@ if [ -f ${WDA_ENV} ]; then
   #Hit WDA status URL to see if it is available
   if curl --retry 3 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
   then
-    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
+    echo "WDA is up and running."
     exit 0
   else
-    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA service is unhealthy! Restarting!"
+    echo "WDA is unhealthy! Restarting!"
     # stop any existing wda
     echo ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
     ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
@@ -55,8 +55,7 @@ if [ -f ${WDA_ENV} ]; then
     if [[ -z $ip ]]; then
       echo "ERROR! Unable to parse WDA_HOST ip from log file!"
       cat $WDA_LOG_FILE
-      # Below exit completely destroy stf container as there is no sense to continue with undefined WDA_HOST ip!
-      pkill node
+      exit 1
     fi
 
     export WDA_HOST="${ip//\//}"
@@ -68,19 +67,6 @@ if [ -f ${WDA_ENV} ]; then
     echo "export WDA_PORT=${WDA_PORT}" >> ${WDA_ENV}
     echo "export MJPEG_PORT=${MJPEG_PORT}" >> ${WDA_ENV}
     echo "export PLATFORM_VERSION=${PLATFORM_VERSION}" >> ${WDA_ENV}
-  fi
-fi
-
-if [ -f ${WDA_ENV} ]; then
-  source ${WDA_ENV}
-  #Hit WDA status URL to see if it is available
-  if curl --retry 3 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
-  then
-    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
-  else
-    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA service is unhealthy!"
-    pkill node
-    exit 1
   fi
 fi
 
