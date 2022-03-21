@@ -93,12 +93,6 @@ echo "Detected WDA_HOST ip: ${WDA_HOST}"
 echo "WDA_PORT=${WDA_PORT}"
 
 
-echo "export WDA_HOST=${WDA_HOST}" > ${WDA_ENV}
-echo "export WDA_PORT=${WDA_PORT}" >> ${WDA_ENV}
-echo "export MJPEG_PORT=${MJPEG_PORT}" >> ${WDA_ENV}
-echo "export PLATFORM_VERSION=${PLATFORM_VERSION}" >> ${WDA_ENV}
-
-
 # #247: right after the WDA startup it should load SNAPSHOT of com.apple.springboard default screen and default timeout is 60 sec for 1st start.
 # We have to start this session at once and till next restart WDA sessions might be stopped/started asap.
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent 1st session"
@@ -130,6 +124,13 @@ echo sessionId: $sessionId
 curl --silent --location --request DELETE "http://${WDA_HOST}:${WDA_PORT}/session/${sessionId}"
 
 rm -f ${sessionFile}
+
+# #67 start stf services only when 1st WDA session was successfully registered
+echo "export WDA_HOST=${WDA_HOST}" > ${WDA_ENV}
+echo "export WDA_PORT=${WDA_PORT}" >> ${WDA_ENV}
+echo "export MJPEG_PORT=${MJPEG_PORT}" >> ${WDA_ENV}
+echo "export PLATFORM_VERSION=${PLATFORM_VERSION}" >> ${WDA_ENV}
+
 
 #TODO: to  improve better 1st super slow session startup we have to investigate extra xcuitest caps: https://github.com/appium/appium-xcuitest-driver
 #customSnapshotTimeout, waitForIdleTimeout, animationCoolOffTimeout etc
