@@ -94,7 +94,7 @@ index 867b861..7fa3b46 100644
        this.logEvent(EVENT_SESSION_QUIT_DONE);
      }
 diff --git a/lib/basedriver/helpers.js b/lib/basedriver/helpers.js
-index fcbf49d..8bdee52 100644
+index fcbf49d..df1658c 100644
 --- a/lib/basedriver/helpers.js
 +++ b/lib/basedriver/helpers.js
 @@ -6,6 +6,7 @@ import { tempDir, fs, util, zip, net, timing } from 'appium-support';
@@ -122,7 +122,7 @@ index fcbf49d..8bdee52 100644
    const remoteAppProps = {
      lastModified: null,
      immutable: false,
-@@ -160,6 +162,84 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -160,6 +162,93 @@ async function configureApp (app, supportedAppExtensions) {
          }
          logger.debug(`Cache-Control: ${headers['cache-control']}`);
        }
@@ -157,9 +157,18 @@ index fcbf49d..8bdee52 100644
 +          const stats = await fs.stat(localFile);
 +          const localFileLength = stats.size;
 +          logger.info(`[MCLOUD] Remote file size is ${remoteFileLength} and local file size is ${localFileLength}`);
-+          if(remoteFileLength != localFileLength) {
++          if(remoteFileLength == undefined) {
++            logger.warn(`[MCLOUD] We could not retrieve remote app size. But since env variable CHECK_APP_SIZE_OPTIONALLY=true old app file will be used.`);
++            newApp = localFile;
++            shouldUnzipApp = ZIP_EXTS.includes(path.extname(newApp));
++            downloadIsNeaded = false;
++          } else if(remoteFileLength != localFileLength) {
 +            logger.info(`[MCLOUD] Sizes differ. Hence that's needed to download fresh version of the app`);
-+            await fs.unlink(localFile);
++            if (await fs.exists(localFile)) {
++              await fs.unlink(localFile);
++            } else {
++              logger.warn(`[MCLOUD] Old local application file ${localFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
++            }
 +            downloadIsNeaded = true;
 +          } else {
 +            logger.info(`[MCLOUD] Sizes are the same. Hence will use already stored application for the session`);
@@ -192,7 +201,7 @@ index fcbf49d..8bdee52 100644
 +          downloadIsNeaded = true;
 +        }
 +      } else {
-+        logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic`);
++        logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic. Use variable APPIUM_APPS_DIR for path setting`);
 +      }
 +      if(downloadIsNeaded) {
 +      
@@ -207,7 +216,7 @@ index fcbf49d..8bdee52 100644
        const cachedPath = getCachedApplicationPath(app, remoteAppProps);
        if (cachedPath) {
          if (await fs.exists(cachedPath)) {
-@@ -220,6 +300,20 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -220,6 +309,24 @@ async function configureApp (app, supportedAppExtensions) {
          suffix: '',
        });
        newApp = await downloadApp(newApp, targetPath);
@@ -228,7 +237,7 @@ index fcbf49d..8bdee52 100644
      } else if (await fs.exists(newApp)) {
        // Use the local app
        logger.info(`Using local app '${newApp}'`);
-@@ -240,7 +334,7 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -240,7 +347,7 @@ async function configureApp (app, supportedAppExtensions) {
        if (APPLICATIONS_CACHE.has(app) && archiveHash === APPLICATIONS_CACHE.get(app).hash) {
          const {fullPath} = APPLICATIONS_CACHE.get(app);
          if (await fs.exists(fullPath)) {
@@ -237,7 +246,7 @@ index fcbf49d..8bdee52 100644
              await fs.rimraf(archivePath);
            }
            logger.info(`Will reuse previously cached application at '${fullPath}'`);
-@@ -253,7 +347,7 @@ async function configureApp (app, supportedAppExtensions) {
+@@ -253,7 +360,7 @@ async function configureApp (app, supportedAppExtensions) {
        try {
          newApp = await unzipApp(archivePath, tmpRoot, supportedAppExtensions);
        } finally {
@@ -248,10 +257,10 @@ index fcbf49d..8bdee52 100644
        }
 diff --git a/lib/basedriver/mcloud-utils.js b/lib/basedriver/mcloud-utils.js
 new file mode 100644
-index 0000000..273112a
+index 0000000..37d6fc6
 --- /dev/null
 +++ b/lib/basedriver/mcloud-utils.js
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,102 @@
 +import fs from 'appium-support/build/lib/fs';
 +import nodePath from 'path';
 +import axios from 'axios';
@@ -296,22 +305,45 @@ index 0000000..273112a
 +}
 +
 +async function getFileContentLength(remoteUrl) {
-+    const timeout = 5000;
++    const timeout = 10000;
++    const retries = 5;
++    const pollingInterval = 3000;
++    const check_app_size_optionally = process.env.CHECK_APP_SIZE_OPTIONALLY;
++    logger.info(`[MCLOUD] env CHECK_APP_SIZE_OPTIONALLY=${check_app_size_optionally}`);
++
 +    const requestOpts = {
 +        url: remoteUrl,
 +        responseType: 'stream',
 +        timeout,
 +    };
 +
-+    try {
-+        const {
-+          headers: responseHeaders,
-+        } = await axios(requestOpts);
-+        const responseLength = parseInt(responseHeaders['content-length'], 10);
-+        logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
-+        return responseLength;
-+    } catch (err) {
-+        throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl}: ${err.message}`);
++    // getting content-length with retry
++    var lastError;
++    const getLengthRequest = async () => {
++        for (var i=0; i<retries; i++) {
++            try {
++                logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
++                const {
++                    headers: responseHeaders,
++                } = await axios(requestOpts);
++                const responseLength = parseInt(responseHeaders['content-length'], 10);
++                logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
++                return responseLength;
++            } catch (error) {
++                lastError = error;
++                console.log(`[MCLOUD] Cannot fetch info about app size. Will retry attempt in ${pollingInterval}ms`);
++                await new Promise(resolve => setTimeout(resolve, pollingInterval));
++            }
++        }
++    }
++    const length = await getLengthRequest();
++    if(length) {
++        return length;
++    } else if (check_app_size_optionally !== undefined && check_app_size_optionally === 'true') {
++        logger.debug(`[MCLOUD] Returning app size as undefined`);
++        return undefined;
++    } else {
++        throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
 +    }
 +}
 +

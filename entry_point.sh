@@ -4,7 +4,7 @@ NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp --log $APPIUM_LOG"
+CMD="xvfb-run appium --log-no-colors --log-timestamp --log $APPIUM_LOG $APPIUM_CLI"
 
 upload() {
   /opt/stop-capture-artifacts.sh
@@ -107,3 +107,5 @@ echo "processes BEFORE EXIT:"
 ps -ef
 echo "---------------------------------------------------------"
 
+# rmove WDA_ENV if any
+rm -f ${WDA_ENV}

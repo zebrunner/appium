@@ -1,7 +1,15 @@
 #!/bin/bash
 
-DEVICE_UDID=${DEVICE_UDID/-/}
+ios list | grep $DEVICE_UDID
+if [ $? == 1 ]; then
+  echo "WARN! Unable to detect iOS device with udid: $DEVICE_UDID."
+  export DEVICE_UDID=${DEVICE_UDID/-/}
+fi
+
 echo DEVICE_UDID: $DEVICE_UDID
+
+# removing any existing env file with WDA settings...
+rm -f ${WDA_ENV}
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
 if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
@@ -46,6 +54,9 @@ ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
 # no need to launch springboard as it is already started. below command doesn't activate it!
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Activating default com.apple.springboard during WDA startup"
 #ios launch com.apple.springboard
+
+echo "[$(date +'%d/%m/%Y %H:%M:%S')] Killing existing WebDriverAgent application if any"
+ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
 ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid $DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
@@ -94,6 +105,9 @@ echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent 1st session"
 # start new WDA session with default 60 sec snapshot timeout
 sessionFile=/tmp/${DEVICE_UDID}.txt
 curl --silent --location --request POST "http://${WDA_HOST}:${WDA_PORT}/session" --header 'Content-Type: application/json' --data-raw '{"capabilities": {"waitForQuiescence": false}}' > ${sessionFile}
+
+echo "WDA session response:"
+cat ${sessionFile}
 
 bundleId=`cat $sessionFile | grep "CFBundleIdentifier" | cut -d '"' -f 4`
 echo bundleId: $bundleId

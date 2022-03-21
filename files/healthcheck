@@ -5,12 +5,12 @@
 # 1 - unhealthy
 
 #Hit the Appium status URL to see if it is available
-if curl -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
+if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
 then
-  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium is already running. Nothing to do"
+  echo "Appium is up and running."
 else
-  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Appium service is unhealthy!"
-  pkill node
+  echo "Appium is unhealthy!"
+  #TODO: start appim again
   exit 1
 fi
 
@@ -18,13 +18,55 @@ fi
 if [ -f ${WDA_ENV} ]; then
   source ${WDA_ENV}
   #Hit WDA status URL to see if it is available
-  if curl -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
+  if curl --retry 3 --retry-delay 10 -Is "http://$WDA_HOST:$WDA_PORT/status" | head -1 | grep -q '200 OK'
   then
-    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA is up and running. Nothing to do"
+    echo "WDA is up and running."
+    exit 0
   else
-    echo "[$(date +'%d/%m/%Y %H:%M:%S')] WDA service is unhealthy!"
-    pkill node
-    exit 1
+    echo "WDA is unhealthy! Restarting!"
+    # stop any existing wda
+    echo ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
+    ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
+    # start wda again
+    echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
+    echo ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid $DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
+    ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid $DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
+
+    #Start the WDA service on the device using the WDA bundleId
+    ip=""
+    #Parse the device IP address from the WebDriverAgent logs using the ServerURL
+    #We are trying several times because it takes a few seconds to start the WDA but we want to avoid hardcoding specific seconds wait
+
+    echo detecting WDA_HOST ip address...
+    for ((i=1; i<=$WDA_WAIT_TIMEOUT; i++))
+    do
+     if [ -z "$ip" ]
+      then
+       #{"level":"info","msg":"2021-12-08 19:26:18.502735+0300 WebDriverAgentRunner-Runner[8680:8374823] ServerURLHere-\u003ehttp://192.168.88.155:8100\u003c-ServerURLHere\n","time":"2021-12-08T16:26:18Z"}
+       ip=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 7`
+       export WDA_PORT=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 8 | cut -d '\' -f 1`
+       echo "attempt $i"
+       sleep 1
+      else
+       break
+     fi
+    done
+
+    if [[ -z $ip ]]; then
+      echo "ERROR! Unable to parse WDA_HOST ip from log file!"
+      cat $WDA_LOG_FILE
+      exit 1
+    fi
+
+    export WDA_HOST="${ip//\//}"
+    echo "Detected WDA_HOST ip: ${WDA_HOST}"
+    echo "WDA_PORT=${WDA_PORT}"
+
+
+    echo "export WDA_HOST=${WDA_HOST}" > ${WDA_ENV}
+    echo "export WDA_PORT=${WDA_PORT}" >> ${WDA_ENV}
+    echo "export MJPEG_PORT=${MJPEG_PORT}" >> ${WDA_ENV}
+    echo "export PLATFORM_VERSION=${PLATFORM_VERSION}" >> ${WDA_ENV}
   fi
 fi
 
