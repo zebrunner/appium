@@ -230,11 +230,7 @@ index fcbf49d..df1658c 100644
 +      finally {
 +        if(localAppsFolder != undefined) {
 +          logger.info(`[MCLOUD] Going to remove lock file ${lockFile}`)
-+          if (await fs.exists(lockFile)) {
-+            await fs.unlink(lockFile);
-+          } else {
-+            logger.warn(`[MCLOUD] Lock file ${lockFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
-+          }
++          await fs.unlink(lockFile);
 +        }
 +      }
 +      }
