@@ -30,11 +30,23 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
     done
 
     if [ "$ANDROID_DEVICES" == "device:5555" ]; then
-	sleep 5
-	adb devices
+	# Moved sleep after reconnection to root where the problem occurs much more often
+	#sleep 5
+	#adb devices
+
+	# download and install chrome apk from https://www.apkmirror.com/apk/google-inc/chrome/chrome-99-0-4844-73-release/
+	# version: x86 + x86_64 
+	# url: https://www.apkmirror.com/apk/google-inc/chrome/chrome-99-0-4844-73-release/google-chrome-fast-secure-99-0-4844-73-10-android-apk-download/
+
+	# /opt/zebrunner/chrome/latest.apk  is default location for browser
+	adb install /opt/zebrunner/chrome/latest.apk
 
         # switch to root account for running adb
         adb root
+
+        sleep 5
+        adb devices
+	#TODO: add smart verification onto the connection state as sometimes emulator becomes offline on this step
     fi
 fi
 
