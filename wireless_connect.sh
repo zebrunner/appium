@@ -41,6 +41,9 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
 	# /opt/zebrunner/chrome/latest.apk  is default location for browser
 	adb install /opt/zebrunner/chrome/latest.apk
 
+	# install appium apk
+	adb install /usr/lib/node_modules/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk
+
         # switch to root account for running adb
         adb root
 
