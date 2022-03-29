@@ -48,8 +48,20 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
         adb root
 
         sleep 5
+        ret=1
+        redroidDevice="device:5555"
+        while [[ $ret -eq 1 ]]; do
+            echo "Connecting as root to: ${redroidDevice}"
+            adb connect ${redroidDevice}
+            adb devices | grep ${redroidDevice} | grep "device"
+            ret=$?
+            if [[ $ret -eq 1 ]]; then
+                sleep ${REMOTE_ADB_POLLING_SEC}
+            fi
+        done
+        echo "Connected as root to: ${redroidDevice}."
+
         adb devices
-	#TODO: add smart verification onto the connection state as sometimes emulator becomes offline on this step
     fi
 fi
 
