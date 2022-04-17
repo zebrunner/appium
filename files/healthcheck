@@ -4,6 +4,13 @@
 # 0 - healthy
 # 1 - unhealthy
 
+# For disconnected device remove current container asap
+state=`stat /dev/device-${DEVICE_NAME}-${DEVICE_UDID} --format=%a`
+if [[ "${state}" == "0" ]]; then
+  echo "/dev/device-${DEVICE_NAME}-${DEVICE_UDID} is disconnected!"
+  docker rm -f ${HOSTNAME}
+fi
+
 #Hit the Appium status URL to see if it is available
 if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
 then

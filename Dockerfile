@@ -47,7 +47,7 @@ ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
 
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip  wget curl libimobiledevice-utils libimobiledevice6 usbmuxd
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip  wget curl libimobiledevice-utils libimobiledevice6 usbmuxd udev
 
 #Grab gidevice from github and extract it in a folder
 RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.42/go-ios-linux.zip
@@ -69,6 +69,8 @@ COPY files/ios.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 
+# udev for removal
+COPY files/udev/90_mcloud_device_appium.rules /etc/udev/rules.d/
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
 
