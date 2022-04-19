@@ -23,3 +23,10 @@ then
 else
   export AUTOMATION_NAME='uiautomator2'
 fi
+
+
+# uninstall appium specific applications
+adb uninstall io.appium.uiautomator2.server.test
+adb uninstall io.appium.uiautomator2.server
+adb uninstall io.appium.settings
+adb uninstall io.appium.unlock
