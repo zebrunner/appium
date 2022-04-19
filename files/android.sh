@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#TODO: investigate if we can just source from device info env file and completely move adb command outside to stf
-
 # device type
 isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
 isTv=`adb shell getprop ro.build.characteristics | grep tv`
