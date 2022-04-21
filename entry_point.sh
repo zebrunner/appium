@@ -37,6 +37,11 @@ else
     /root/local_connect.sh
 fi
 
+if [ ! $? -eq 0 ]; then
+    # wireless or locall connect is unsuccessful. there is no sense to continue and restart container on failure
+    exit 0
+fi
+
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [ "${PLATFORM_NAME}" = "android" ]; then

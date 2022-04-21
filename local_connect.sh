@@ -36,6 +36,11 @@ do
     index+=1
 done
 
+if [ ! "$available" -eq 1 ]; then
+    # device is not connected/authorized. no sense to continue
+    exit 1
+fi
+
 info=""
 # to support device reboot as device is available by adb but not functionaning correctly.
 # this extra dumpsys display call guarantees that android is fully booted
