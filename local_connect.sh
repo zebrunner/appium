@@ -3,6 +3,9 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
+  #TODO: #85 define exit strategy from container on exit
+  # add ios list verification here
+
   # exit for iOS devices
   exit 0
 fi
