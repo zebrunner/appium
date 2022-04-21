@@ -38,7 +38,7 @@ else
 fi
 
 if [ ! $? -eq 0 ]; then
-    # wireless or locall connect is unsuccessful. there is no sense to continue and restart container on failure
+    echo "Connect is unsuccessful! Exiting."
     exit 0
 fi
 
