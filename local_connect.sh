@@ -3,10 +3,17 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
-  #TODO: #87 ios: define exit strategy from container on exit
-  # add ios list verification here
+  #87 ios: define exit strategy from container on exit
+  ios list | grep $DEVICE_UDID
+  if [ $? == 1 ]; then
+    ios list | grep ${DEVICE_UDID/-/}
+    if [ $? == 1 ]; then
+      echo "Device is not available!"
+      exit 1
+    fi
+  fi
 
-  # exit for iOS devices
+  # exit 0 means all good
   exit 0
 fi
 
