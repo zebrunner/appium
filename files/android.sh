@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#TODO: investigate if we can just source from device info env file and completely move adb command outside to stf
-
 # device type
 isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
 isTv=`adb shell getprop ro.build.characteristics | grep tv`
@@ -25,3 +23,10 @@ then
 else
   export AUTOMATION_NAME='uiautomator2'
 fi
+
+
+# uninstall appium specific applications
+adb uninstall io.appium.uiautomator2.server.test
+adb uninstall io.appium.uiautomator2.server
+adb uninstall io.appium.settings
+adb uninstall io.appium.unlock

@@ -37,6 +37,11 @@ else
     /root/local_connect.sh
 fi
 
+if [ ! $? -eq 0 ]; then
+    echo "Connect is unsuccessful! Exiting."
+    exit 0
+fi
+
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [ "${PLATFORM_NAME}" = "android" ]; then
@@ -108,3 +113,21 @@ echo "---------------------------------------------------------"
 
 # rmove WDA_ENV if any
 rm -f ${WDA_ENV}
+
+
+
+if [ "$REMOTE_ADB" = true ]; then
+    /root/wireless_connect.sh
+else
+    /root/local_connect.sh
+fi
+
+if [ ! $? -eq 0 ]; then
+    echo "Connect is unsuccessful! Exiting."
+    #TODO: #86 move usbreset onto the appium side
+    exit 0
+else
+    # return negative state to kick off container restart
+    exit 1
+fi
+

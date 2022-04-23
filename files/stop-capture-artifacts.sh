@@ -17,6 +17,7 @@ if [[ "${PLATFORM_NAME}" == "android" ]]; then
   pkill -e -f screenrecord
 fi
 
+#TODO: don't do kill (ffmpeg) if sessionId is not detected
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   pkill -f $sessionId
 fi

@@ -58,7 +58,7 @@ index f1264e8..7be543a 100644
  };
  
 diff --git a/lib/basedriver/driver.js b/lib/basedriver/driver.js
-index 867b861..14300da 100644
+index 867b861..651eea6 100644
 --- a/lib/basedriver/driver.js
 +++ b/lib/basedriver/driver.js
 @@ -18,6 +18,8 @@ import {
@@ -77,11 +77,11 @@ index 867b861..14300da 100644
 +  async getStatusWDA () {
 +    const wdaURL = await parseWDAUrl();
 +    if (!wdaURL) {
-+      return {"status": "error", "details": "Environment variable WDA_ENV is undefined"};
++      throw new Error("Environment variable WDA_ENV is undefined");
 +    }
 +    const status = await getWDAStatus(wdaURL);
 +    if (!status) {
-+      return {"status": "error", "details": "Error for sending of WDA status http call. See appium logs for details"};
++      throw new Error("Error for sending of WDA status http call. See appium logs for details");
 +    }
 +    return {"status": "success", "details": status};
 +  }
@@ -94,19 +94,19 @@ index 867b861..14300da 100644
 +        await executeShellWPromise(adbDevicesCmd);
 +        return {"status": "success", "details": `Connected device with UDID ${deviceUDID} is ready for execution`};
 +      } catch (error) {
-+        return {"status": "error", "details": `Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`};
++        throw new Error(`Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
 +      }
 +    } else {
 +      const deviceName = process.env.ANDROID_DEVICES;
 +      if(!deviceName) {
-+        return {"status": "error", "details": `Neither DEVICE_UDID nor ANDROID_DEVICES environment variables were found.`};
++        throw new Error(`Neither DEVICE_UDID nor ANDROID_DEVICES environment variables were found.`);
 +      }
 +      const adbDevicesCmd = 'adb devices | grep $ANDROID_DEVICES | grep "device"';
 +      try {
 +        await executeShellWPromise(adbDevicesCmd);
 +        return {"status": "success", "details": `Connected device with name ${deviceName} is ready for execution`};
 +      } catch (error) {
-+        return {"status": "error", "details": `Connected device with name ${deviceUDID} is NOT ready for execution. Device was not returned by adb`};
++        throw new Error(`Connected device with name ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
 +      }
 +    }
 +  }
