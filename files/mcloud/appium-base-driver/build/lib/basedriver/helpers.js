@@ -385,7 +385,6 @@ async function configureApp(app, supportedAppExtensions) {
         } finally {
           if (localAppsFolder != undefined) {
             _logger.default.info(`[MCLOUD] Going to remove lock file ${lockFile}`);
-
             if (await _appiumSupport.fs.exists(lockFile)) {
               await _appiumSupport.fs.unlink(lockFile);
             } else {
