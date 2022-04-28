@@ -95,26 +95,23 @@ echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
 trap 'upload' SIGTERM
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
 
-echo "---------------------------------------------------------"
-echo "processes RIGHT AFTER START:"
-ps -ef
-echo "---------------------------------------------------------"
-
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`
 wait -n $node_pids
 
 
-echo "Exit status: $?"
-echo "---------------------------------------------------------"
-echo "processes BEFORE EXIT:"
-ps -ef
-echo "---------------------------------------------------------"
+exit_code=$?
+echo "Exit status: $exit_code"
 
-# rmove WDA_ENV if any
+# remove WDA_ENV if any
 rm -f ${WDA_ENV}
 
 
+if [ $exit_code -eq 101 ]; then
+  echo "Hub down or not responding use-case. Sleeping $UNREGISTER_IF_STILL_DOWN_AFTER and 15s..."
+  sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/10000))
+  sleep 15
+fi
 
 if [ "$REMOTE_ADB" = true ]; then
     /root/wireless_connect.sh
