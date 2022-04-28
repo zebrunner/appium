@@ -36,7 +36,7 @@ cat << EndOfMessage
     "nodeStatusCheckTimeout": 5000,
     "nodePolling": 5000,
     "role": "node",
-    "unregisterIfStillDownAfter": 60000,
+    "unregisterIfStillDownAfter": ${UNREGISTER_IF_STILL_DOWN_AFTER},
     "downPollingLimit": 2,
     "debug": false,
     "servlets" : [],

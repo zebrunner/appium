@@ -46,6 +46,9 @@ ENV AWS_ACCESS_KEY_ID=
 ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
 
+# Timeout settings
+ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
+
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip  wget curl libimobiledevice-utils libimobiledevice6 usbmuxd
 
