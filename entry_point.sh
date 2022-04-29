@@ -18,6 +18,14 @@ upload() {
   /opt/upload-artifacts.sh "${sessionId}"
 }
 
+usbreset() {
+  #let's try to do forcibly usbreset on exit when node is crashed/exited/killed
+  if [ "${PLATFORM_NAME}" == "android" ]; then
+    echo "Doing usbreset forcibly on attached device"
+    usbreset ${DEVICE_BUS}
+  fi
+}
+
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
     echo "master: ${SALT_MASTER}" >> /etc/salt/minion
@@ -39,6 +47,7 @@ fi
 
 if [ ! $? -eq 0 ]; then
     echo "Connect is unsuccessful! Exiting."
+    usbreset
     exit 0
 fi
 
@@ -121,7 +130,7 @@ fi
 
 if [ ! $? -eq 0 ]; then
     echo "Connect is unsuccessful! Exiting."
-    #TODO: #86 move usbreset onto the appium side
+    usbreset
     exit 0
 else
     # return negative state to kick off container restart

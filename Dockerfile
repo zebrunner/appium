@@ -49,6 +49,9 @@ ENV AWS_DEFAULT_REGION=
 # Timeout settings
 ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 
+# #86 move usbreset onto the appium side
+ENV DEVICE_BUS=/dev/bus/usb/003/011
+
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip  wget curl libimobiledevice-utils libimobiledevice6 usbmuxd
 
