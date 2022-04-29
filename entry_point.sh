@@ -108,7 +108,7 @@ rm -f ${WDA_ENV}
 
 
 if [ $exit_code -eq 101 ]; then
-  echo "Hub down or not responding use-case. Sleeping $UNREGISTER_IF_STILL_DOWN_AFTER and 15s..."
+  echo "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."
   sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/10000))
   sleep 15
 fi
