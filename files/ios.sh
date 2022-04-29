@@ -131,6 +131,9 @@ echo "export WDA_PORT=${WDA_PORT}" >> ${WDA_ENV}
 echo "export MJPEG_PORT=${MJPEG_PORT}" >> ${WDA_ENV}
 echo "export PLATFORM_VERSION=${PLATFORM_VERSION}" >> ${WDA_ENV}
 
+# #94: add rw permissons for everybody on WDA_ENV file
+chmod a+rw ${WDA_ENV}
+
 
 #TODO: to  improve better 1st super slow session startup we have to investigate extra xcuitest caps: https://github.com/appium/appium-xcuitest-driver
 #customSnapshotTimeout, waitForIdleTimeout, animationCoolOffTimeout etc
