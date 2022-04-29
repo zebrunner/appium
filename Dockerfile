@@ -78,6 +78,7 @@ COPY files/zbr-default-caps-gen.sh /opt
 
 # Healthcheck
 COPY files/healthcheck /usr/local/bin
+COPY files/usbreset /usr/local/bin
 
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud/

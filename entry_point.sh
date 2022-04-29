@@ -18,7 +18,7 @@ upload() {
   /opt/upload-artifacts.sh "${sessionId}"
 }
 
-usbreset() {
+reconnect() {
   #let's try to do forcibly usbreset on exit when node is crashed/exited/killed
   if [ "${PLATFORM_NAME}" == "android" ]; then
     echo "Doing usbreset forcibly on attached device"
@@ -47,7 +47,7 @@ fi
 
 if [ ! $? -eq 0 ]; then
     echo "Connect is unsuccessful! Exiting."
-    usbreset
+    reconnect
     exit 0
 fi
 
@@ -130,7 +130,7 @@ fi
 
 if [ ! $? -eq 0 ]; then
     echo "Connect is unsuccessful! Exiting."
-    usbreset
+    reconnect
     exit 0
 else
     # return negative state to kick off container restart
