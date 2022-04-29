@@ -9,8 +9,6 @@ ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Killing existing WebDriverAgent application if any"
 ios kill $WDA_BUNDLEID --udid=$DEVICE_UDID
-#kill ios wda script if any
-kill -9 -f runwda
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
 ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=WebDriverAgentRunner.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid $DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
