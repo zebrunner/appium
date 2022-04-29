@@ -22,7 +22,8 @@ if [ -f ${WDA_ENV} ]; then
     echo "WDA is up and running."
     exit 0
   else
-    echo "WDA is unhealthy!"
+    echo "WDA is unhealthy! Restarting..."
+    . /opt/start-wda.sh
     exit 1
   fi
 fi
