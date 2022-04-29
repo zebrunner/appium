@@ -69,6 +69,7 @@ COPY entry_point.sh /root
 # Zebrunner MCloud node config generator
 COPY files/android.sh /opt
 COPY files/ios.sh /opt
+COPY files/start-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 
