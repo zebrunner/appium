@@ -14,7 +14,7 @@ else
 fi
 
 #Hit the WDA status URL to see if it is available
-if [ -f ${WDA_ENV} ] && [ -s ${WDA_ENV} ];; then
+if [ -f ${WDA_ENV} ] && [ -s ${WDA_ENV} ]; then
   source ${WDA_ENV}
   #Hit WDA status URL to see if it is available
   if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status-wda" | head -1 | grep -q '200 OK'
