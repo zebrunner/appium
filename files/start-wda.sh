@@ -1,8 +1,5 @@
 #!/bin/bash
 
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
-ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
-
 # no need to launch springboard as it is already started. below command doesn't activate it!
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Activating default com.apple.springboard during WDA startup"
 #ios launch com.apple.springboard
