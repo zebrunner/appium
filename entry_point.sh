@@ -18,6 +18,14 @@ upload() {
   /opt/upload-artifacts.sh "${sessionId}"
 }
 
+usbreset() {
+  #let's try to do forcibly usbreset on exit when node is crashed/exited/killed
+  if [ "${PLATFORM_NAME}" == "android" ]; then
+    echo "Doing usbreset forcibly on attached device"
+    usbreset ${DEVICE_BUS}
+  fi
+}
+
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
     echo "master: ${SALT_MASTER}" >> /etc/salt/minion
@@ -39,6 +47,7 @@ fi
 
 if [ ! $? -eq 0 ]; then
     echo "Connect is unsuccessful! Exiting."
+    usbreset
     exit 0
 fi
 
@@ -95,26 +104,23 @@ echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
 trap 'upload' SIGTERM
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
 
-echo "---------------------------------------------------------"
-echo "processes RIGHT AFTER START:"
-ps -ef
-echo "---------------------------------------------------------"
-
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`
 wait -n $node_pids
 
 
-echo "Exit status: $?"
-echo "---------------------------------------------------------"
-echo "processes BEFORE EXIT:"
-ps -ef
-echo "---------------------------------------------------------"
+exit_code=$?
+echo "Exit status: $exit_code"
 
-# rmove WDA_ENV if any
+# remove WDA_ENV if any
 rm -f ${WDA_ENV}
 
 
+if [ $exit_code -eq 101 ]; then
+  echo "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."
+  sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/10000))
+  sleep 15
+fi
 
 if [ "$REMOTE_ADB" = true ]; then
     /root/wireless_connect.sh
@@ -124,7 +130,7 @@ fi
 
 if [ ! $? -eq 0 ]; then
     echo "Connect is unsuccessful! Exiting."
-    #TODO: #86 move usbreset onto the appium side
+    usbreset
     exit 0
 else
     # return negative state to kick off container restart
