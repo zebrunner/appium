@@ -36,8 +36,7 @@ if [ -f ${WDA_ENV} ]; then
   pid=$(ios ps --udid=$DEVICE_UDID | jq -r ".[] | select (.IsApplication==true and .Name==\"WebDriverAgentRunner-Runner\") | .Pid")
   if [ -z $pid ]; then
     echo "WDA is unhealthy! Restarting..."
-    #TODO: uncomment wda restart after confirmation that ios ps could capture problematic wda
-#    . /opt/start-wda.sh
+    /opt/start-wda.sh &
     exit 1
   else
     echo "WDA is up and running."
