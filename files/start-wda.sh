@@ -22,7 +22,7 @@ do
   then
    #{"level":"info","msg":"2021-12-08 19:26:18.502735+0300 WebDriverAgentRunner-Runner[8680:8374823] ServerURLHere-\u003ehttp://192.168.88.155:8100\u003c-ServerURLHere\n","time":"2021-12-08T16:26:18Z"}
    ip=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 7`
-   export WDA_PORT=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 8 | cut -d '\' -f 1`
+   #export WDA_PORT=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 8 | cut -d '\' -f 1`
    echo "attempt $i"
    sleep 1
   else
