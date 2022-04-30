@@ -1,13 +1,10 @@
-#!/bin/bash
-
-WDA_HOST=$1
-MJPEG_PORT=$2
+#!/bin/sh
 
 # infinite loop to restart WDA until container is alive
 while true
 do
-  echo "Connecting to WDA mjpeg: $WDA_HOST:$MJPEG_PORT"
-  telnet $WDA_HOST $MJPEG_PORT
+  echo "telnet $1 $2"
+  telnet $1 $2
 
   #TODO: analyze stdout/stderr and maybe kill appium if telnet failed on connect asap
 
