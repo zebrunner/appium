@@ -54,7 +54,7 @@ ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
 # install and launch WDA on device
 . /opt/start-wda.sh
 # start wda listener with ability to restart wda
-/opt/check-wda.sh $WDA_HOST $WDA_PORT &
+/opt/check-wda.sh $WDA_HOST $MJPEG_PORT &
 
 export AUTOMATION_NAME='XCUITest'
 
