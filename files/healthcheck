@@ -13,19 +13,20 @@ else
   exit 1
 fi
 
-#Hit the WDA status URL to see if it is available
-if [ -f ${WDA_ENV} ]; then
-  source ${WDA_ENV}
-  #Hit WDA status URL to see if it is available
-  if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status-wda" | head -1 | grep -q '200 OK'
-  then
-    echo "WDA is up and running."
-    exit 0
-  else
-    echo "WDA is unhealthy! Restarting..."
-    . /opt/start-wda.sh
-    exit 1
-  fi
-fi
+#106 status-wda call should be prohibited during the testing
+##Hit the WDA status URL to see if it is available
+#if [ -f ${WDA_ENV} ]; then
+#  source ${WDA_ENV}
+#  #Hit WDA status URL to see if it is available
+#  if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status-wda" | head -1 | grep -q '200 OK'
+#  then
+#    echo "WDA is up and running."
+#    exit 0
+#  else
+#    echo "WDA is unhealthy! Restarting..."
+#    . /opt/start-wda.sh
+#    exit 1
+#  fi
+#fi
 
 exit 0
