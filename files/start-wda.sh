@@ -33,8 +33,8 @@ done
 if [[ -z $ip ]]; then
   echo "ERROR! Unable to parse WDA_HOST ip from log file!"
   cat $WDA_LOG_FILE
-  # Below exit completely destroy stf container as there is no sense to continue with undefined WDA_HOST ip!
-  exit -1
+  # Destroy appium process as there is no sense to continue with undefined WDA_HOST ip!
+  pkill node
 fi
 
 export WDA_HOST="${ip//\//}"
