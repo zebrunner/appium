@@ -51,8 +51,10 @@ ios image mount --path=/opt/zebrunner/DeveloperDiskImages/$MAJOR_DEVICE_VERSION/
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
 ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
 
-# launch install WDA on device
+# install and launch WDA on device
 . /opt/start-wda.sh
+# start wda listener with ability to restart wda
+/opt/check-wda.sh $WDA_HOST $MJPEG_PORT &
 
 export AUTOMATION_NAME='XCUITest'
 

@@ -53,7 +53,7 @@ ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 ENV DEVICE_BUS=/dev/bus/usb/003/011
 
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip  wget curl libimobiledevice-utils libimobiledevice6 usbmuxd
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip telnet netcat wget curl libimobiledevice-utils libimobiledevice6 usbmuxd
 
 #Grab gidevice from github and extract it in a folder
 RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.69/go-ios-linux.zip
@@ -73,6 +73,7 @@ COPY entry_point.sh /root
 COPY files/android.sh /opt
 COPY files/ios.sh /opt
 COPY files/start-wda.sh /opt
+COPY files/check-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 

@@ -29,4 +29,21 @@ fi
 #  fi
 #fi
 
+#111 capture panic on wda start and exit from container with error code
+# commented healthcheck using ios ps as too fast ios ps can't communicate with device^^^
+
+##109 reuse ios ps instead http call to test wda app state
+#if [ -f ${WDA_ENV} ]; then
+#  #109 reuse ios ps instead http call to test wda app state
+#  source ${WDA_ENV}
+#  pid=$(ios ps --udid=$DEVICE_UDID | jq -r ".[] | select (.IsApplication==true and .Name==\"WebDriverAgentRunner-Runner\") | .Pid")
+#  if [ -z $pid ]; then
+#    echo "WDA is unhealthy! Restarting..."
+#    /opt/start-wda.sh &
+#    exit 1
+#  else
+#    echo "WDA is up and running."
+#  fi
+#fi
+
 exit 0
