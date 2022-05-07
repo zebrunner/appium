@@ -3,14 +3,29 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
-  #87 ios: define exit strategy from container on exit
-  ios list | grep $DEVICE_UDID
-  if [ $? == 1 ]; then
-    ios list | grep ${DEVICE_UDID/-/}
-    if [ $? == 1 ]; then
-      echo "Device is not available!"
-      exit 1
+  declare -i index=0
+  available=0
+  # as default REMOTE_ADB_POLLING_SEC is 5s then we wait for authorizing ~50 sec only
+  while [[ $available -eq 0 ]] && [[ $index -lt 10 ]]
+  do
+    #87 ios: define exit strategy from container on exit
+    available=`ios list | grep -c $DEVICE_UDID`
+    if [[ $available -eq 1 ]]; then
+      break
     fi
+    available=`ios list | grep -c ${DEVICE_UDID/-/}`
+    if [[ $available -eq 1 ]]; then
+      break
+    fi
+    sleep ${REMOTE_ADB_POLLING_SEC}
+    index+=1
+  done
+
+  if [[ $available -eq 1 ]]; then
+    echo "Device is available"
+  else
+    echo "Device is not available!"
+    exit 1
   fi
 
   # exit 0 means all good
@@ -32,7 +47,7 @@ available=0
 
 declare -i index=0
 # as default REMOTE_ADB_POLLING_SEC is 5s then we wait for authorizing ~50 sec only
-while [[ "$available" -eq 0 ]] && [[ $index -lt 10 ]]
+while [[ $available -eq 0 ]] && [[ $index -lt 10 ]]
 do
     unauthorized=`adb devices | grep -c unauthorized`
     echo "unauthorized: $unauthorized"
@@ -40,7 +55,7 @@ do
     available=`adb devices | grep -c -w device`
     echo "available: $available"
 
-    if [ "$available" -eq 1 ]; then
+    if [[ $available -eq 1 ]]; then
         # do not wait default 5 sec pause if everything is good
         break
     fi
@@ -48,12 +63,12 @@ do
     index+=1
 done
 
-if [ "$unauthorized" -eq 1 ]; then
+if [[ $unauthorized -eq 1 ]]; then
     echo "Device is not authorized!"
     exit 1
 fi
 
-if [ "$available" -eq 1 ]; then
+if [[ $available -eq 1 ]]; then
     echo "Device is available"
 else
     echo "Device is not available!"
