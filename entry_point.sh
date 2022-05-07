@@ -10,12 +10,14 @@ upload() {
   /opt/stop-capture-artifacts.sh
   sleep 0.3
   # parse current sessionId from /tmp/video.log
-  sessionId=`cat /tmp/video.log | grep "sessionId:"  | tail -1 | cut -d ":" -f 2`
-  if [ -z "${sessionId}" ]; then
-    exit 0
+  if [ -f /tmp/video.log ]; then
+    sessionId=`cat /tmp/video.log | grep "sessionId:"  | tail -1 | cut -d ":" -f 2`
+    if [ ! -z "${sessionId}" ]; then
+      # sessionId detected
+      echo sessionId: "$sessionId"
+      /opt/upload-artifacts.sh "${sessionId}"
+    fi
   fi
-  echo sessionId: "$sessionId"
-  /opt/upload-artifacts.sh "${sessionId}"
 }
 
 reconnect() {
