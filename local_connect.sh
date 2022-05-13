@@ -42,16 +42,15 @@ adb -a -P 5037 server nodaemon &
 sleep 1
 
 # wait until device is connected and authorized
-unauthorized=0
 available=0
+# to detect negative state
+unauthorized=0
+offline=0
 
 declare -i index=0
 # as default REMOTE_ADB_POLLING_SEC is 5s then we wait for authorizing ~50 sec only
 while [[ $available -eq 0 ]] && [[ $index -lt 10 ]]
 do
-    unauthorized=`adb devices | grep -c unauthorized`
-    echo "unauthorized: $unauthorized"
-
     available=`adb devices | grep -c -w device`
     echo "available: $available"
 
@@ -59,6 +58,13 @@ do
         # do not wait default 5 sec pause if everything is good
         break
     fi
+
+    unauthorized=`adb devices | grep -c unauthorized`
+    echo "unauthorized: $unauthorized"
+
+    offline=`adb devices | grep -c offline`
+    echo "offline: $offline"
+
     sleep ${REMOTE_ADB_POLLING_SEC}
     index+=1
 done
@@ -66,6 +72,11 @@ done
 if [[ $unauthorized -eq 1 ]]; then
     echo "Device is not authorized!"
     exit 1
+fi
+
+if [[ $offline -eq 1 ]]; then
+    echo "Device is offline!"
+    exit 2
 fi
 
 if [[ $available -eq 1 ]]; then

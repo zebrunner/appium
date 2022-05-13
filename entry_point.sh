@@ -47,8 +47,16 @@ else
     /root/local_connect.sh
 fi
 
-if [ ! $? -eq 0 ]; then
-    echo "Connect is unsuccessful! Exiting."
+ret=$?
+if [  $ret -eq 2 ]; then
+    # offline state
+    echo "Restarting..."
+    exit 1
+fi
+
+if [ $ret -eq 1 ]; then
+    # unauthorized state
+    echo "Reconnecting..."
     reconnect
     exit 0
 fi
@@ -125,18 +133,6 @@ if [ $exit_code -eq 101 ]; then
   sleep 15
 fi
 
-if [ "$REMOTE_ADB" = true ]; then
-    /root/wireless_connect.sh
-else
-    /root/local_connect.sh
-fi
-
-if [ ! $? -eq 0 ]; then
-    echo "Connect is unsuccessful! Exiting."
-    reconnect
-    exit 0
-else
-    # return negative state to kick off container restart
-    exit 1
-fi
+# forcibly exit with error code to initiate restart
+exit 1
 
