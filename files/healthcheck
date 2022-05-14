@@ -4,6 +4,22 @@
 # 0 - healthy
 # 1 - unhealthy
 
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "$PLATFORM_NAME" == "android" ]]; then
+  #Hit the Appium ADB status URL
+  if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status-adb" | head -1 | grep -q '200 OK'
+  then
+    echo "ADB connection is ok."
+    exit 0
+  else
+    echo "ADB connection is broken! Restarting..."
+    pkill node
+    exit 1
+  fi
+fi
+
+
 #Hit the Appium status URL to see if it is available
 if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
 then
