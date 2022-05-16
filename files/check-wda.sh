@@ -5,7 +5,7 @@ while true
 do
   echo ""
 
-  if [ -f ${WDA_ENV} ] && [ ! -s ${WDA_ENV} ]; then
+  if [ -f ${WDA_ENV} ] && [ -s ${WDA_ENV} ]; then
     # source only if exists and non-empty
     source ${WDA_ENV}
   else
