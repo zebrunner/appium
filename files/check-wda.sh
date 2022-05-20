@@ -3,10 +3,25 @@
 # infinite loop to restart WDA until container is alive
 while true
 do
-  #TODO: analyze stdout/stderr to detect if wda is listening at all and kill appium
   echo ""
-  echo "Connecting to $1 $2 using netcat..."
-  nc $1 $2
+
+  if [ -f ${WDA_ENV} ] && [ -s ${WDA_ENV} ]; then
+    # source only if exists and non-empty
+    source ${WDA_ENV}
+  else
+    echo "waiting for valid ${WDA_ENV} file content"
+    sleep 1
+    continue
+  fi
+
+  if [ "${WDA_HOST}" == "localhost" ]; then
+    echo "ERROR! WDA started using localhost! Verify device Wi-Fi connection!"
+    echo "Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms..."
+    sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/10000))
+  fi
+
+  echo "Connecting to ${WDA_HOST} ${MJPEG_PORT} using netcat..."
+  nc ${WDA_HOST} ${MJPEG_PORT}
   echo "netcat connection is closed."
 
   # as only connection corrupted start wda again
