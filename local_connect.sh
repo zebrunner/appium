@@ -71,7 +71,7 @@ done
 
 if [[ $unauthorized -eq 1 ]]; then
     echo "Device is not authorized!"
-    exit 1
+    exit 3
 fi
 
 if [[ $offline -eq 1 ]]; then

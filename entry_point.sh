@@ -48,6 +48,13 @@ else
 fi
 
 ret=$?
+if [ $ret -eq 3 ]; then
+    # unauthorized state
+    echo "Reconnecting..."
+    reconnect
+    exit 0
+fi
+
 if [  $ret -eq 2 ]; then
     # offline state
     echo "Restarting..."
@@ -55,10 +62,9 @@ if [  $ret -eq 2 ]; then
 fi
 
 if [ $ret -eq 1 ]; then
-    # unauthorized state
-    echo "Reconnecting..."
-    reconnect
-    exit 0
+    # is not available state due to the unknown reason
+    echo "Restarting..."
+    exit 1
 fi
 
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
@@ -129,7 +135,7 @@ echo "Exit status: $exit_code"
 
 if [ $exit_code -eq 101 ]; then
   echo "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."
-  sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/10000))
+  sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/1000))
   sleep 15
 fi
 

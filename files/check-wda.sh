@@ -17,7 +17,7 @@ do
   if [ "${WDA_HOST}" == "localhost" ]; then
     echo "ERROR! WDA started using localhost! Verify device Wi-Fi connection!"
     echo "Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms..."
-    sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/10000))
+    sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/1000))
   fi
 
   echo "Connecting to ${WDA_HOST} ${MJPEG_PORT} using netcat..."
