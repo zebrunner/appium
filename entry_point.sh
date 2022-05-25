@@ -58,6 +58,7 @@ fi
 if [  $ret -eq 2 ]; then
     # offline state
     echo "Restarting..."
+    reconnect
     exit 1
 fi
 
