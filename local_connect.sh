@@ -3,6 +3,10 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
+  # start containerized usbmuxd service/process
+  usbmuxd -f &
+  sleep 2
+
   declare -i index=0
   available=0
   # as default REMOTE_ADB_POLLING_SEC is 5s then we wait for authorizing ~50 sec only
