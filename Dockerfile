@@ -87,4 +87,4 @@ COPY files/mcloud/ /opt/mcloud/
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
 
-HEALTHCHECK CMD ["healthcheck"]
+HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
