@@ -12,6 +12,7 @@ ENV MCLOUD=false
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
+ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_CLI=
 RUN mkdir -p $APPIUM_APPS_DIR
 
@@ -53,7 +54,7 @@ ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 ENV DEVICE_BUS=/dev/bus/usb/003/011
 
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip telnet netcat wget curl libimobiledevice-utils libimobiledevice6 usbmuxd
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip telnet netcat wget curl libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
 RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.69/go-ios-linux.zip
@@ -87,4 +88,4 @@ COPY files/mcloud/ /opt/mcloud/
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
 
-HEALTHCHECK CMD ["healthcheck"]
+HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
