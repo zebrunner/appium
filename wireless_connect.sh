@@ -38,8 +38,8 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
 	# version: x86 + x86_64 
 	# url: https://www.apkmirror.com/apk/google-inc/chrome/chrome-99-0-4844-73-release/google-chrome-fast-secure-99-0-4844-73-10-android-apk-download/
 
-	# /opt/zebrunner/chrome/latest.apk  is default location for browser
-	adb install /opt/zebrunner/chrome/latest.apk
+	# /tmp/zebrunner/chrome/latest.apk is default shared location for chrome browser apk
+	adb install /tmp/zebrunner/chrome/latest.apk
 
 	# install appium apk
 	adb install /usr/lib/node_modules/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk
