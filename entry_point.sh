@@ -140,6 +140,8 @@ if [ $exit_code -eq 101 ]; then
   sleep 15
 fi
 
+echo exit_code: $exit_code
+
 # forcibly exit with error code to initiate restart
 exit 1
 
