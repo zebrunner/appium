@@ -20,9 +20,14 @@ for ((i=1; i<=$WDA_WAIT_TIMEOUT; i++))
 do
  if [ -z "$ip" ]
   then
+   # WebDriverAgent v4.1.4
    #{"level":"info","msg":"2021-12-08 19:26:18.502735+0300 WebDriverAgentRunner-Runner[8680:8374823] ServerURLHere-\u003ehttp://192.168.88.155:8100\u003c-ServerURLHere\n","time":"2021-12-08T16:26:18Z"}
-   ip=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 7`
-   #export WDA_PORT=`grep "ServerURLHere-" ${WDA_LOG_FILE} | cut -d ':' -f 8 | cut -d '\' -f 1`
+
+   # WebDriverAgent 4.10.12
+   # {"fields.msg":"2022-12-13 16:56:20.796411+0300 WebDriverAgentRunner-Runner[27575:4609350] ServerURLHere-\u003ehttp://192.168.89.19:8100\u003c-ServerURLHere\n","fields.time":28890969122592,"level":"info","msg":"outputReceived:fromProcess:atTime:","pid":27575,"time":"2022-12-13T05:56:20-08:00"}
+   ip=`grep -o -P '(?<=ServerURLHere).*(?=ServerURLHere)' ${WDA_LOG_FILE} | cut -d ':' -f 2`
+   # make sure to remove \\ to get clear ip from //192.168.89.19
+
    echo "attempt $i"
    sleep 1
   else
