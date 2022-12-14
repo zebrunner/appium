@@ -9,6 +9,7 @@ ENV RETAIN_TASK=true
 
 # Enable local caching for appium instances
 ENV MCLOUD=false
+ENV APPIUM_PORT=4723
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
