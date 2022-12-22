@@ -13,7 +13,7 @@ if [[ "$PLATFORM_NAME" == "android" ]]; then
     echo "Appium is up and running, adb connection is ok."
     exit 0
   else
-    echo "Appium or adb connection is unhelthy!"
+    echo "Appium or adb connection is unhealthy!"
     exit 1
   fi
 fi
