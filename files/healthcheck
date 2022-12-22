@@ -8,20 +8,19 @@
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "android" ]]; then
   #Hit the Appium ADB status URL
-  if curl -Is "http://127.0.0.1:4723/wd/hub/status-adb" | head -1 | grep -q '200 OK'
+  if curl -Is "http://127.0.0.1:${APPIUM_PORT}/wd/hub/status-adb" | head -1 | grep -q '200 OK'
   then
-    echo "ADB connection is ok."
+    echo "Appium is up and running, adb connection is ok."
     exit 0
   else
-    echo "ADB connection is broken! Restarting..."
-    pkill node
+    echo "Appium or adb connection is unhelthy!"
     exit 1
   fi
 fi
 
 
 #Hit the Appium status URL to see if it is available
-if curl -Is "http://127.0.0.1:4723/wd/hub/status" | head -1 | grep -q '200 OK'
+if curl -Is "http://127.0.0.1:${APPIUM_PORT}/wd/hub/status" | head -1 | grep -q '200 OK'
 then
   echo "Appium is up and running."
 else
@@ -29,37 +28,11 @@ else
   exit 1
 fi
 
+# wda status call moved before session startup to make it at once before testing
+
 #106 status-wda call should be prohibited during the testing
-##Hit the WDA status URL to see if it is available
-#if [ -f ${WDA_ENV} ]; then
-#  source ${WDA_ENV}
-#  #Hit WDA status URL to see if it is available
-#  if curl --retry 3 --retry-delay 10 -Is "http://127.0.0.1:4723/wd/hub/status-wda" | head -1 | grep -q '200 OK'
-#  then
-#    echo "WDA is up and running."
-#    exit 0
-#  else
-#    echo "WDA is unhealthy! Restarting..."
-#    . /opt/start-wda.sh
-#    exit 1
-#  fi
-#fi
 
 #111 capture panic on wda start and exit from container with error code
 # commented healthcheck using ios ps as too fast ios ps can't communicate with device^^^
-
-##109 reuse ios ps instead http call to test wda app state
-#if [ -f ${WDA_ENV} ]; then
-#  #109 reuse ios ps instead http call to test wda app state
-#  source ${WDA_ENV}
-#  pid=$(ios ps --udid=$DEVICE_UDID | jq -r ".[] | select (.IsApplication==true and .Name==\"WebDriverAgentRunner-Runner\") | .Pid")
-#  if [ -z $pid ]; then
-#    echo "WDA is unhealthy! Restarting..."
-#    /opt/start-wda.sh &
-#    exit 1
-#  else
-#    echo "WDA is up and running."
-#  fi
-#fi
 
 exit 0

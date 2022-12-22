@@ -53,6 +53,12 @@ ios image mount --path=/opt/zebrunner/DeveloperDiskImages/$MAJOR_DEVICE_VERSION/
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
 ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
+if [ $? == 1 ]; then
+  echo "ERROR! Unable to install WebDriverAgent.ipa!"
+  # return exit 0 to stop automatic restart of the appium container
+  exit 0
+fi
+
 
 # install and launch WDA on device
 . /opt/start-wda.sh

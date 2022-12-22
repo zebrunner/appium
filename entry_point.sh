@@ -4,7 +4,7 @@ NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp --log $APPIUM_LOG $APPIUM_CLI"
+CMD="xvfb-run appium --log-no-colors --log-timestamp --port $APPIUM_PORT --log $APPIUM_LOG $APPIUM_CLI"
 
 upload() {
   /opt/stop-capture-artifacts.sh
@@ -139,6 +139,8 @@ if [ $exit_code -eq 101 ]; then
   sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/1000))
   sleep 15
 fi
+
+echo exit_code: $exit_code
 
 # forcibly exit with error code to initiate restart
 exit 1

@@ -22,9 +22,9 @@ cat << EndOfMessage
   "configuration":
   {
     "proxy": "com.zebrunner.mcloud.grid.MobileRemoteProxy",
-    "url":"http://${STF_PROVIDER_HOST}:${STF_PROVIDER_APPIUM_PORT}/wd/hub",
+    "url":"http://${STF_PROVIDER_HOST}:${APPIUM_PORT}/wd/hub",
     "host": "${STF_PROVIDER_HOST}",
-    "port": ${STF_PROVIDER_APPIUM_PORT},
+    "port": ${APPIUM_PORT},
     "hubHost": "${SELENIUM_HOST}",
     "hubPort": ${SELENIUM_PORT},
     "maxSession": 1,

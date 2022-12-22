@@ -9,6 +9,7 @@ ENV RETAIN_TASK=true
 
 # Enable local caching for appium instances
 ENV MCLOUD=false
+ENV APPIUM_PORT=4723
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
@@ -24,6 +25,7 @@ ENV REMOTE_ADB_POLLING_SEC=5
 ENV CHROMEDRIVER_AUTODOWNLOAD=true
 
 # iOS envs
+ENV WDA_HOST=localhost
 ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
@@ -57,7 +59,7 @@ ENV DEVICE_BUS=/dev/bus/usb/003/011
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip telnet netcat wget curl libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.69/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.98/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
