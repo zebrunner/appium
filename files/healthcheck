@@ -24,7 +24,7 @@ if [[ "$PLATFORM_NAME" == "android" ]]; then
     exit 0
   else
     echo "ADB connection is unhealthy!"
-    if [[ $EXIT_ON_ADB_FAILURE -eq 1]]; then
+    if [[ $EXIT_ON_ADB_FAILURE -eq 1 ]]; then
       echo "Kill appium to initiate recovery..."
       pkill node
     fi
