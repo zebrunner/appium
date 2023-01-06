@@ -4,20 +4,6 @@
 # 0 - healthy
 # 1 - unhealthy
 
-# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
-PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
-if [[ "$PLATFORM_NAME" == "android" ]]; then
-  #Hit the Appium ADB status URL
-  if curl -Is "http://127.0.0.1:${APPIUM_PORT}/wd/hub/status-adb" | head -1 | grep -q '200 OK'
-  then
-    echo "Appium is up and running, adb connection is ok."
-    exit 0
-  else
-    echo "Appium or adb connection is unhelthy!"
-    exit 1
-  fi
-fi
-
 
 #Hit the Appium status URL to see if it is available
 if curl -Is "http://127.0.0.1:${APPIUM_PORT}/wd/hub/status" | head -1 | grep -q '200 OK'
@@ -27,6 +13,25 @@ else
   echo "Appium is unhealthy!"
   exit 1
 fi
+
+# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "$PLATFORM_NAME" == "android" ]]; then
+  #Hit the Appium ADB status URL
+  if curl -Is "http://127.0.0.1:${APPIUM_PORT}/wd/hub/status-adb" | head -1 | grep -q '200 OK'
+  then
+    echo "ADB is up and running."
+    exit 0
+  else
+    echo "ADB connection is unhealthy!"
+    if [[ $EXIT_ON_ADB_FAILURE -eq 1 ]]; then
+      echo "Kill appium to initiate recovery..."
+      pkill node
+    fi
+    exit 1
+  fi
+fi
+
 
 # wda status call moved before session startup to make it at once before testing
 
