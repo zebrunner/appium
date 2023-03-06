@@ -45,11 +45,8 @@ fi
     #"TimeZone":"Europe/Minsk",
     #"TimeZoneOffsetFromUTC":10800,
 
-#echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download DeveloperDiskImages automatically"
-#ios image auto --basedir /opt/zebrunner/DeveloperDiskImages
-MAJOR_DEVICE_VERSION=$(echo "$PLATFORM_VERSION" | cut -f1,2 -d '.')
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Mount /opt/zebrunner/DeveloperDiskImages/$MAJOR_DEVICE_VERSION/DeveloperDiskImage.dmg"
-ios image mount --path=/opt/zebrunner/DeveloperDiskImages/$MAJOR_DEVICE_VERSION/DeveloperDiskImage.dmg --udid=$DEVICE_UDID
+echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
+ios image auto --basedir /opt/zebrunner/DeveloperDiskImages --udid=$DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
 ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
