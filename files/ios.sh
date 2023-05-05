@@ -46,7 +46,7 @@ fi
     #"TimeZoneOffsetFromUTC":10800,
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
-ios image auto --basedir /opt/zebrunner/DeveloperDiskImages --udid=$DEVICE_UDID
+ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
 ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
