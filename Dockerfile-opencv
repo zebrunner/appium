@@ -37,8 +37,6 @@ ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 ENV P12FILE=/opt/zebrunner/mcloud.p12
 ENV P12PASSWORD=
 
-RUN mkdir -p /opt/zebrunner/DeveloperDiskImages
-
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
 ENV FFMPEG_OPTS=
@@ -76,7 +74,7 @@ RUN npm install opencv4nodejs
 RUN ln -s -f /root/node_modules/opencv4nodejs /usr/lib/node_modules/appium/node_modules/
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.98/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.108/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
