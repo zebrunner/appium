@@ -7,15 +7,11 @@ PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "${PLATFORM_NAME}" == "android" ]]; then
 cat << EndOfMessage
 {
- "deviceName": "${DEVICE_NAME}",
  "platformName":"${PLATFORM_NAME}",
- "platformVersion":"${PLATFORM_VERSION}",
- "udid": "${DEVICE_UDID}",
- "automationName": "${AUTOMATION_NAME}",
- "provider": "mcloud",
- "enableVideo": "true",
- "enableLog": "true",
- "enableVnc": "false"
+ "appium:platformVersion":"${PLATFORM_VERSION}",
+ "appium:deviceName": "${DEVICE_NAME}",
+ "appium:udid": "${DEVICE_UDID}",
+ "appium:automationName": "${AUTOMATION_NAME}"
 }
 EndOfMessage
 fi
@@ -27,22 +23,17 @@ fi
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
 cat << EndOfMessage
 {
- "udid":"$DEVICE_UDID",
- "mjpegServerPort": ${MJPEG_PORT},
- "clearSystemFiles": "false",
- "webDriverAgentUrl":"http://${WDA_HOST}:${WDA_PORT}",
- "preventWDAAttachments": "true",
- "simpleIsVisibleCheck": "true",
- "wdaLocalPort": "${WDA_PORT}",
- "platformVersion": "${PLATFORM_VERSION}",
- "automationName":"${AUTOMATION_NAME}",
  "platformName": "${PLATFORM_NAME}",
- "deviceName": "${DEVICE_NAME}",
- "provider": "mcloud",
- "enableVideo": "true",
- "enableLog": "true",
- "enableVnc": "false"
+ "appium:platformVersion": "${PLATFORM_VERSION}",
+ "appium:deviceName": "${DEVICE_NAME}",
+ "appium:udid":"$DEVICE_UDID",
+ "appium:automationName":"${AUTOMATION_NAME}",
+ "appium:mjpegServerPort": ${MJPEG_PORT},
+ "appium:clearSystemFiles": "false",
+ "appium:webDriverAgentUrl":"http://${WDA_HOST}:${WDA_PORT}",
+ "appium:preventWDAAttachments": "true",
+ "appium:simpleIsVisibleCheck": "true",
+ "appium:wdaLocalPort": "${WDA_PORT}"
 }
 EndOfMessage
 fi
-

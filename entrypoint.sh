@@ -4,7 +4,8 @@ NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp --port $APPIUM_PORT --log $APPIUM_LOG $APPIUM_CLI"
+CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $APPIUM_LOG $APPIUM_CLI"
+#--use-plugins=relaxed-caps
 
 upload() {
   /opt/stop-capture-artifacts.sh
@@ -41,10 +42,12 @@ if [ "$ATD" = true ]; then
     echo "[INIT] ATD is running..."
 fi
 
+#TODO: remove later
+echo ENTRYPOINT_DIR: $ENTRYPOINT_DIR
 if [ "$REMOTE_ADB" = true ]; then
-    /root/wireless_connect.sh
+    ${ENTRYPOINT_DIR}/wireless_connect.sh
 else
-    /root/local_connect.sh
+    ${ENTRYPOINT_DIR}/local_connect.sh
 fi
 
 ret=$?
@@ -107,12 +110,15 @@ if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
 
-if [ "$MCLOUD" = true ]; then
-    /opt/mcloud/appium-patch.sh
-fi
+echo "TODO: uncomment and apply patch if needed"
+#if [ "$MCLOUD" = true ]; then
+#    /opt/mcloud/appium-patch.sh
+#fi
 
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
+
+#sleep infinity
 
 echo $CMD
 $CMD &
