@@ -59,8 +59,11 @@ ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 # #86 move usbreset onto the appium side
 ENV DEVICE_BUS=/dev/bus/usb/003/011
 
+ENV LOG_DIR=/tmp/log
+ENV LOG_FILE=session.log
+
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install awscli iputils-ping ffmpeg nano jq unzip telnet netcat wget curl libimobiledevice-utils libimobiledevice6 usbmuxd socat
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq unzip telnet netcat wget curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
 RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.113/go-ios-linux.zip
@@ -68,10 +71,6 @@ RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.113/go-io
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
 COPY files/start-capture-artifacts.sh /opt
-COPY files/stop-capture-artifacts.sh /opt
-COPY files/upload-artifacts.sh /opt
-COPY files/concat-video-recordings.sh /opt
-COPY files/reset-logs.sh /opt
 
 # Zebrunner MCloud node config generator
 COPY files/android.sh /opt

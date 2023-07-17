@@ -2,24 +2,155 @@
 
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
-APPIUM_LOG="${APPIUM_LOG:-/var/log/appium.log}"
+TASK_LOG="${TASK_LOG:-/var/log/appium.log}"
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $APPIUM_LOG $APPIUM_CLI"
+CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG $APPIUM_CLI"
 #--use-plugins=relaxed-caps
 
-upload() {
-  /opt/stop-capture-artifacts.sh
-  sleep 0.3
-  # parse current sessionId from /tmp/video.log
-  if [ -f /tmp/video.log ]; then
-    sessionId=`cat /tmp/video.log | grep "sessionId:"  | tail -1 | cut -d ":" -f 2`
-    if [ ! -z "${sessionId}" ]; then
-      # sessionId detected
-      echo sessionId: "$sessionId"
-      /opt/upload-artifacts.sh "${sessionId}"
+share() {
+  local artifactId=$1
+
+  if [ -z ${artifactId} ]; then
+    echo "[warn] artifactId param is empty!"
+    return 0
+  fi
+
+  # unique folder to collect all artifacts for uploading
+  mkdir ${LOG_DIR}/${artifactId}
+
+  cp ${TASK_LOG} ${LOG_DIR}/${artifactId}/${LOG_FILE}
+  # do not move otherwise in global loop we should add extra verification on file presense
+  > ${TASK_LOG}
+
+  if [ "${PLATFORM_NAME}" == "ios" ] && [ -f /tmp/${artifactId}.mp4 ]; then
+    ls -la /tmp/${artifactId}.mp4
+    # kill ffmpeg process
+    pkill -f ffmpeg
+    #echo "kill output: $?"
+
+    # wait until ffmpeg finished normally
+    startTime=$(date +%s)
+    idleTimeout=5
+    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
+      pidof ffmpeg > /dev/null 2>&1
+      if [ $? -eq 1 ]; then
+        # no more ffmpeg commands
+        break
+      fi
+      #ps -ef | grep ffmpeg
+      sleep 0.1
+    done
+
+    # move local video recording under the session folder for publishing
+    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+  fi
+
+  if [[ "${PLATFORM_NAME}" == "android" ]]; then
+    pkill -e -f screenrecord
+    # magic pause to stop recording correctly
+    sleep 0.3
+
+    concatAndroidRecording $artifactId
+    if [ -f /tmp/${artifactId}.mp4 ]; then
+      # move local video recording under the session folder for publishing
+      mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
     fi
   fi
+
+  # register artifactId info to be able to parse by uploader
+  echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
 }
+
+concatAndroidRecording() {
+  sessionId=$1
+  echo sessionId:$sessionId
+
+  #adb shell "su root chmod a+r ${sessionId}*.mp4"
+  #adb shell "su root ls -la ${sessionId}*.mp4"
+
+  videoFiles=$sessionId.txt
+
+  # pull video artifacts until exist
+  declare -i part=0
+  while true; do
+    adb pull "/sdcard/${sessionId}_${part}.mp4" "${sessionId}_${part}.mp4" > /dev/null 2>&1
+    if [ ! -f "${sessionId}_${part}.mp4" ]; then
+      echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts!"
+      break
+    fi
+
+    # cleanup device from generated video file in bg
+    adb shell "rm -f /sdcard/${sessionId}_${part}.mp4" &
+
+    #TODO: in case of often mistakes with 0 size verification just comment it. it seems like ffmpeg can handle empty file during concantenation
+    if [ ! -s "${sessionId}_${part}.mp4" ]; then
+      echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts as ${sessionId}_${part}.mp4 already empty!!"
+      ls -la "${sessionId}_${part}.mp4"
+      break
+    fi
+    echo "file ${sessionId}_${part}.mp4" >> $videoFiles
+    part+=1
+  done
+
+  if [ $part -eq 1 ]; then
+    echo "[debug] [ConcatVideo] #12: there is no sense to concatenate video as it is single file, just rename..."
+    mv ${sessionId}_0.mp4 /tmp/$sessionId.mp4
+  else
+    if [ -f $videoFiles ]; then
+      cat $videoFiles
+      #TODO: #9 concat audio as well if appropriate artifact exists
+      ffmpeg $FFMPEG_OPTS -y -f concat -safe 0 -i $videoFiles -c copy /tmp/$sessionId.mp4
+    else
+      echo "[error] [ConcatVideo] unable to concat video as $videoFiles is absent!"
+    fi
+
+    # ffmpeg artifacts cleanup
+    rm -f $videoFiles
+  fi
+
+  if [ -f /tmp/$sessionId.mp4 ]; then
+    echo "[info] [ConcatVideo] /tmp/${sessionId}.mp4 generated successfully."
+  else
+    echo "[error] [ConcatVideo] unable to generate /tmp/${sessionId}.mp4!"
+  fi
+
+}
+
+
+
+capture_video() {
+  # use short sleep operations otherwise abort can't be handled via trap/share
+  while true; do
+    echo "waiting for the session start..."
+    while [ -z $startedSessionId ]; do
+      #capture mobile session startup for iOS and Android (appium)
+      #2023-07-04 00:31:07:624 [Appium] New AndroidUiautomator2Driver session created successfully, session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 added to master session list
+      #2023-07-04 02:50:42:543 [Appium] New XCUITestDriver session created successfully, session 6e11b4b7-2dfd-46d9-b52d-e3ea33835704 added to master session list
+      startedSessionId=`grep -E -m 1 " session created successfully, session " ${TASK_LOG} | cut -d " " -f 11 | cut -d " " -f 1`
+    done
+    echo "session started: $startedSessionId"
+
+    /opt/start-capture-artifacts.sh $startedSessionId &
+
+    # from time to time browser container exited before we able to detect finishedSessionId.
+    # make sure to have workable functionality on trap finish (abort use-case as well)
+
+    echo "waiting for the session finish..."
+    while [ -z $finishedSessionId ]; do
+      #capture mobile session finish for iOS and Android (appium)
+      #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
+      finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
+    done
+
+    echo "session finished: $finishedSessionId"
+    share $finishedSessionId
+
+    startedSessionId=
+    finishedSessionId=
+  done
+
+}
+
 
 reconnect() {
   #let's try to do forcibly usbreset on exit when node is crashed/exited/killed
@@ -126,6 +257,9 @@ $CMD &
 echo "[info] [AppiumEntryPoint] registering upload method on SIGTERM"
 trap 'upload' SIGTERM
 echo "[info] [AppiumEntryPoint] waiting until SIGTERM received"
+
+# start in background video artifacts capturing
+capture_video &
 
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`
