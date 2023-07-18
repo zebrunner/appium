@@ -30,13 +30,17 @@ ENV EXIT_ON_ADB_FAILURE=0
 
 ENV CHROMEDRIVER_AUTODOWNLOAD=true
 
+# Log settings
+ENV LOG_DIR=/tmp/log
+ENV LOG_FILE=session.log
+
 # iOS envs
 ENV WDA_HOST=localhost
 ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
-ENV WDA_ENV=/opt/zebrunner/wda.env
-ENV WDA_LOG_FILE=/opt/zebrunner/wda.log
+ENV WDA_ENV=/tmp/log/wda.env
+ENV WDA_LOG_FILE=/tmp/log/wda.log
 ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 
 ENV P12FILE=/opt/zebrunner/mcloud.p12
@@ -59,14 +63,11 @@ ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 # #86 move usbreset onto the appium side
 ENV DEVICE_BUS=/dev/bus/usb/003/011
 
-ENV LOG_DIR=/tmp/log
-ENV LOG_FILE=session.log
-
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq unzip telnet netcat wget curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.113/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.115/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
