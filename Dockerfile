@@ -39,7 +39,6 @@ ENV WDA_HOST=localhost
 ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
-ENV WDA_ENV=/tmp/log/wda.env
 ENV WDA_LOG_FILE=/tmp/log/wda.log
 ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 

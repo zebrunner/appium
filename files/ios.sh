@@ -11,9 +11,6 @@ fi
 
 echo DEVICE_UDID: $DEVICE_UDID
 
-# removing any existing env file with WDA settings...
-rm -f ${WDA_ENV}
-
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
 if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
   # #280 pair supervised iOS device

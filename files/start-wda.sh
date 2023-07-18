@@ -84,15 +84,6 @@ curl --silent --location --request DELETE "http://${WDA_HOST}:${WDA_PORT}/sessio
 
 rm -f ${sessionFile}
 
-#TODO: remove completely if reference via `appium` container name works
-# #67 start stf services only when 1st WDA session was successfully registered
-
-#echo "export WDA_HOST=${WDA_HOST}" > ${WDA_ENV}
-echo "export WDA_HOST=appium" > ${WDA_ENV}
-echo "export WDA_PORT=${WDA_PORT}" >> ${WDA_ENV}
-echo "export MJPEG_PORT=${MJPEG_PORT}" >> ${WDA_ENV}
-echo "export PLATFORM_VERSION=${PLATFORM_VERSION}" >> ${WDA_ENV}
-
 #TODO: to  improve better 1st super slow session startup we have to investigate extra xcuitest caps: https://github.com/appium/appium-xcuitest-driver
 #customSnapshotTimeout, waitForIdleTimeout, animationCoolOffTimeout etc
 
