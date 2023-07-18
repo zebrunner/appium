@@ -57,6 +57,15 @@ share() {
     fi
   fi
 
+  # share all the rest custom reports from LOG_DIR into artifactId subfolder
+  for file in ${LOG_DIR}/*; do
+    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ]; then
+      echo "Sharing file: $file"
+      # to avoid extra publishing as launch artifact for driver sessions
+      mv $file ${LOG_DIR}/${artifactId}/
+    fi
+  done
+
   # register artifactId info to be able to parse by uploader
   echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
 }
@@ -198,8 +207,8 @@ fi
 
 if [ $ret -eq 1 ]; then
     # is not available state due to the unknown reason
-    echo "Restarting..."
-    exit 1
+    echo "Exiting without restarting..."
+    exit 0
 fi
 
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
