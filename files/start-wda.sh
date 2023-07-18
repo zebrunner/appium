@@ -7,7 +7,7 @@
 # verify if wda is already started and reuse this session
 curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
 if [ $? -eq 1 ]; then
-  # existing wda not detected
+  echo "existing WDA not detected"
 
   # no sense to kill as wda not started
   #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Killing existing WebDriverAgent application if any"

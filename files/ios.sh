@@ -45,14 +45,13 @@ fi
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
 ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID
 
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
-ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
-if [ $? == 1 ]; then
-  echo "ERROR! Unable to install WebDriverAgent.ipa!"
-  # return exit 0 to stop automatic restart of the appium container
-  exit 0
-fi
-
+#echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
+#ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
+#if [ $? == 1 ]; then
+#  echo "ERROR! Unable to install WebDriverAgent.ipa!"
+#  # return exit 0 to stop automatic restart of the appium container
+#  exit 0
+#fi
 
 # install and launch WDA on device
 . /opt/start-wda.sh
