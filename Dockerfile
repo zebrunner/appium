@@ -32,6 +32,7 @@ ENV CHROMEDRIVER_AUTODOWNLOAD=true
 
 # Log settings
 ENV LOG_DIR=/tmp/log
+ENV TASK_LOG=/tmp/log/appium.log
 ENV LOG_FILE=session.log
 
 # iOS envs
