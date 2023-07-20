@@ -286,10 +286,9 @@ if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
 
-echo "TODO: uncomment and apply patch if needed"
-#if [ "$MCLOUD" = true ]; then
-#    /opt/mcloud/appium-patch.sh
-#fi
+if [ "$MCLOUD" = true ]; then
+    /opt/mcloud/appium-patch.sh
+fi
 
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
