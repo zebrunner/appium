@@ -180,7 +180,11 @@ capture_video() {
     while [ -z $finishedSessionId ]; do
       #capture mobile session finish for iOS and Android (appium)
       #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
-      finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
+      #finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
+
+      # including support of the aborted session
+      #2023-07-19 14:37:25:009 - [HTTP] [HTTP] --> DELETE /wd/hub/session/9da044cc-a96b-4052-8055-857900c6bbe8/window
+      finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/" ${TASK_LOG} | cut -d "/" -f 5`
     done
 
     echo "session finished: $finishedSessionId"
