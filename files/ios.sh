@@ -11,9 +11,6 @@ fi
 
 echo DEVICE_UDID: $DEVICE_UDID
 
-# removing any existing env file with WDA settings...
-rm -f ${WDA_ENV}
-
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
 if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
   # #280 pair supervised iOS device
@@ -48,14 +45,13 @@ fi
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
 ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID
 
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
-ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
-if [ $? == 1 ]; then
-  echo "ERROR! Unable to install WebDriverAgent.ipa!"
-  # return exit 0 to stop automatic restart of the appium container
-  exit 0
-fi
-
+#echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
+#ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
+#if [ $? == 1 ]; then
+#  echo "ERROR! Unable to install WebDriverAgent.ipa!"
+#  # return exit 0 to stop automatic restart of the appium container
+#  exit 0
+#fi
 
 # install and launch WDA on device
 . /opt/start-wda.sh
