@@ -7,7 +7,6 @@ ENV DEVICE_UDID=
 ENV RETAIN_TASK=true
 
 # Enable local caching for appium instances
-ENV MCLOUD=false
 ENV APPIUM_PORT=4723
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
@@ -81,11 +80,9 @@ COPY files/check-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 
-#TODO: review and adjust all appium 1.x diffs and patches
 # Custom mcloud patches
-#COPY files/mcloud/ /opt/mcloud/
-COPY files/mcloud/ ${APPIUM_HOME}/
-RUN ls -la ${APPIUM_HOME}/node_modules/@appium/base-driver/build/lib/protocol/routes.js
+COPY files/mcloud/ /opt/mcloud
+RUN cp -r -v --backup=numbered /opt/mcloud/* ${APPIUM_HOME}
 
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}

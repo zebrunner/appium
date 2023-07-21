@@ -8,7 +8,6 @@ ENV DEVICE_UDID=
 ENV RETAIN_TASK=true
 
 # Enable local caching for appium instances
-ENV MCLOUD=false
 ENV APPIUM_PORT=4723
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
@@ -99,7 +98,8 @@ COPY files/healthcheck /usr/local/bin
 COPY files/usbreset /usr/local/bin
 
 # Custom mcloud patches
-COPY files/mcloud/ /opt/mcloud/
+COPY files/mcloud/ /opt/mcloud
+RUN cp -r -v --backup=numbered /opt/mcloud/* ${APPIUM_HOME}
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/root/entry_point.sh"]
