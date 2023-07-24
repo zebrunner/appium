@@ -80,10 +80,6 @@ COPY files/check-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 
-# Custom mcloud patches
-COPY files/mcloud/ /opt/mcloud
-RUN cp -r -v --backup=numbered /opt/mcloud/* ${APPIUM_HOME}
-
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_DIR}
@@ -106,7 +102,11 @@ RUN appium driver list && \
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \
-	appium driver install xcuitest
+	appium driver install xcuitest@4.32.23
+
+# Custom mcloud patches
+COPY files/mcloud/ /opt/mcloud
+RUN cp -r -v --backup=numbered /opt/mcloud/* ${APPIUM_HOME}
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/opt/entrypoint/entrypoint.sh"]
