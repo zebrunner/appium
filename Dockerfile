@@ -77,6 +77,10 @@ ENV DEVICE_BUS=/dev/bus/usb/003/011
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.115/go-ios-linux.zip
+# https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
+RUN unzip go-ios-linux.zip -d /usr/local/bin
+
 COPY files/start-capture-artifacts.sh /opt
 
 # Zebrunner MCloud node config generator
