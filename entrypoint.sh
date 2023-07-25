@@ -2,6 +2,7 @@
 
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
+GO_IOS_ROUTER="/usr/local/bin/./go-ios"
 
 CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG $APPIUM_CLI"
 #--use-plugins=relaxed-caps
@@ -295,6 +296,7 @@ rm -rf /tmp/.X99-lock
 
 echo $CMD
 $CMD &
+$GO_IOS_ROUTER &
 
 trap 'finish' SIGTERM
 

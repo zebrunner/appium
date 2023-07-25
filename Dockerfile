@@ -1,4 +1,16 @@
+FROM golang:alpine AS builder
+
+RUN apk add zip
+
+WORKDIR /build
+
+RUN wget https://github.com/danielpaulus/go-ios/archive/refs/tags/v1.0.115.zip
+RUN unzip ./v1.0.115.zip -d ./
+RUN cd go-ios-1.0.115/restapi && go install github.com/swaggo/swag/cmd/swag@v1.8.12 && swag init --parseDependency && go build -o go-ios main.go
+
 FROM appium/appium:v2.0.0-p0
+
+COPY --from=builder /build/go-ios-1.0.115/restapi/go-ios /usr/local/bin/go-ios
 
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
@@ -63,12 +75,7 @@ ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 ENV DEVICE_BUS=/dev/bus/usb/003/011
 
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq unzip telnet netcat wget curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
-
-#Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.115/go-ios-linux.zip
-# https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
-RUN unzip go-ios-linux.zip -d /usr/local/bin
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 COPY files/start-capture-artifacts.sh /opt
 
