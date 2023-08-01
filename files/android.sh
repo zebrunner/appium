@@ -3,17 +3,23 @@
 # device type
 isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
 isTv=`adb shell getprop ro.build.characteristics | grep tv`
+#157: Incorrect deviceType set for devices that do not return tv for ro.build.characteristics property
+isTv2=`adb shell getprop ro.build.characteristics | grep default`
+isPhone=`adb shell getprop ro.build.characteristics | grep phone`
 
 # version
 export PLATFORM_VERSION=`adb shell getprop | grep -m 1 ro.build.version.release |  sed 's/^.*:.*\[\(.*\)\].*$/\1/g'`
 
-if [[ $isTablet ]]
-then
+if [[ $isTablet ]]; then
   export DEVICETYPE='Tablet'
-elif [[ $isTv ]]
-then
+elif [[ $isTv ]]; then
   export DEVICETYPE='TV'
+elif [[ $isTv2 ]]; then
+  export DEVICETYPE='TV'
+elif [[ $isPhone ]]; then
+  export DEVICETYPE='Phone'
 else
+  #TODO: how about echoing warn message here?
   export DEVICETYPE='Phone'
 fi
 
