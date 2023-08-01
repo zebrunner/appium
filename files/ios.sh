@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # socat server to share usbmuxd socket via TCP
 socat TCP-LISTEN:22,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
 
@@ -10,6 +11,9 @@ if [ $? == 1 ]; then
 fi
 
 echo DEVICE_UDID: $DEVICE_UDID
+
+# start go-ios api
+go-ios &
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
 if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
