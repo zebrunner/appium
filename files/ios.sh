@@ -3,7 +3,7 @@
 
 function pairDevice() {
 
-  # pair device based on parameters: 
+  # pair device based on parameters:
   #  supervised: true/false Boolean
   #  p12file: path String
   #  p12passwword: password String
@@ -17,22 +17,42 @@ function pairDevice() {
   # Example of the valid supervised device pairing
 
   # Example of the invalid non-supervised pairing (requies manual Trust dialog confirmation)
-  #  curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false | jq -r '.error'
-  #  Please accept the PairingDialog on the device and run pairing again!
+  #  curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false'
+  #  {"error":"Please accept the PairingDialog on the device and run pairing again!"}
 
   # Example of the invalid non-supervised pairing (already paired)
   #  curl -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
   #  {"error":"Lockdown error: UserDeniedPairing"}
 
   # Example of the valid non supervised device pairing
-  #  curl -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
-  #
+  #   curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
+  #   {"message":"Device paired"}
 
+  if [ "$SUPERVISED" == "false" ]; then
+    while true; do
+      echo "Executing pair request 'curl -s -X POST http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=false'"
+      local res=`curl -s -X POST http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=false`
+      #TODO: comment/remove echo res
+      echo res: $res
 
-  if [ "$SUPERVISED" = "false" ]; then
-    local error=`curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false | jq -r '.error'`
-    echo error: $error
-    # while error 
+      local error=`echo $res | jq -r '.error'`
+      local message=`echo $res | jq -r '.message'`
+
+      if [[ ! -z ${message} ]] && [[ "${message}" == "Device paired" ]]; then
+        echo message: $message
+        break
+      fi
+
+      if [[ ! -z ${error} ]] && [[ "${error}" == "Lockdown error: UserDeniedPairing" ]]; then
+        echo "Pairing is denied. Reset trusted computers in 'Settings ->Developer->Clear Trusted Computers' and reconnect device!"
+        # exit with code 0 to stop appium container and don't restart it constantly until user clear and trsut again
+        exit 0
+      fi
+
+      echo error: $error
+      echo "waiting 10 seconds..."
+      sleep 10
+   done
 
   fi
 
@@ -55,15 +75,15 @@ fi
 
 echo DEVICE_UDID: $DEVICE_UDID
 
-# start go-ios api
-go-ios &
-
 # pair iOS device if neccessary
 # if /valid/lockdown/uuid.plist
 if [ ! -f /var/lib/lockdown/${DEVICE_UDID}.plist ]; then
+  # start go-ios api
+  go-ios &
+  sleep 3
+
   echo "Device $DEVICE_UDID is not paired yet!"
-  sleep 9000
-  #TODO: implement supervised or non supervised paiting inside while cycle
+  pairDevice
 else
   echo "Device $DEVICE_UDID is already paired."
   # IMPORTANT! make sure not to execute pair again otherwise it regenerate host certificate/id and trust dialog appear!!!
