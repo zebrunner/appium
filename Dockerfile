@@ -54,6 +54,7 @@ ENV WDA_WAIT_TIMEOUT=30
 ENV WDA_LOG_FILE=/tmp/log/wda.log
 ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 
+ENV SUPERVISED=false
 ENV P12FILE=/opt/zebrunner/mcloud.p12
 ENV P12PASSWORD=
 
