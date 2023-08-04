@@ -1,16 +1,4 @@
-FROM golang:alpine AS builder
-
-RUN apk add zip
-
-WORKDIR /build
-
-RUN wget https://github.com/danielpaulus/go-ios/archive/refs/tags/v1.0.115.zip
-RUN unzip ./v1.0.115.zip -d ./
-RUN cd go-ios-1.0.115/restapi && go install github.com/swaggo/swag/cmd/swag@v1.8.12 && swag init --parseDependency && go build -o go-ios main.go
-
 FROM appium/appium:v2.0.0-p0
-
-COPY --from=builder /build/go-ios-1.0.115/restapi/go-ios /usr/local/bin/go-ios
 
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=

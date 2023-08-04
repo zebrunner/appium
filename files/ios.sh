@@ -1,44 +1,30 @@
 #!/bin/bash
 
-
 function pairDevice() {
+  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
+  if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
+    echo "Pairing supervised device..."
+    # #280 pair supervised iOS device
+    ios pair --p12file="${P12FILE}" --password="${P12PASSWORD}" --udid=$DEVICE_UDID
+  else
+    echo "Pairing non-supevised device..."
 
-  # pair device based on parameters:
-  #  supervised: true/false Boolean
-  #  p12file: path String
-  #  p12passwword: password String
+    # Examples of the command output
+    # {"err":"Please accept the PairingDialog on the device and run pairing again!","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:08Z"}
+    # {"err":"Please accept the PairingDialog on the device and run pairing again!","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:19Z"}
+    # {"err":"Lockdown error: UserDeniedPairing","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:41Z"}
+    # {"level":"info","msg":"Successfully paired d6afc6b3a65584ca0813eb8957c6479b9b6ebb11","time":"2023-08-04T11:02:59Z"}
 
-  # Analyze pair response to raise exception, wait or proceed with services startup
-
-  # Example of the invalid supervised device pairing
-  #  curl -X POST -H "Supervision-Password: mypassword" -F p12file=@/opt/zebrunner/mcloud.p12  http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=true
-  #  {"error":"received wrong error message 'UserDeniedPairing' error message should have been 'McChallengeRequired' : map[Error:UserDeniedPairing Request:Pair]"}
-
-  # Example of the valid supervised device pairing
-
-  # Example of the invalid non-supervised pairing (requies manual Trust dialog confirmation)
-  #  curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false'
-  #  {"error":"Please accept the PairingDialog on the device and run pairing again!"}
-
-  # Example of the invalid non-supervised pairing (already paired)
-  #  curl -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
-  #  {"error":"Lockdown error: UserDeniedPairing"}
-
-  # Example of the valid non supervised device pairing
-  #   curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
-  #   {"message":"Device paired"}
-
-  if [ "$SUPERVISED" == "false" ]; then
     while true; do
-      echo "Executing pair request 'curl -s -X POST http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=false'"
-      local res=`curl -s -X POST http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=false`
+      local res=$(ios pair --udid=$DEVICE_UDID 2>&1)
       #TODO: comment/remove echo res
       echo res: $res
 
-      local error=`echo $res | jq -r '.error'`
-      local message=`echo $res | jq -r '.message'`
+      local error=`echo $res | jq -r '.err'`
+      local message=`echo $res | jq -r '.msg'`
 
-      if [[ ! -z ${message} ]] && [[ "${message}" == "Device paired" ]]; then
+      # check that message string starts with appropriate words...
+      if [[ "${message}" =~ ^"Successfully paired" ]]; then
         echo message: $message
         break
       fi
@@ -52,15 +38,14 @@ function pairDevice() {
       echo error: $error
       echo "waiting 10 seconds..."
       sleep 10
-   done
-
+    done
   fi
 
-
-#ENV SUPERVISED=false
-#ENV P12FILE=/opt/zebrunner/mcloud.p12
-#ENV P12PASSWORD=
-
+  if [ $? == 1 ]; then
+    echo "ERROR! Unable to pair iOS device!"
+    # Below exit completely destroy stf container as there is no sense to continue with unpaired device
+    exit -1
+  fi
 }
 
 
@@ -71,42 +56,32 @@ ios list | grep $DEVICE_UDID
 if [ $? == 1 ]; then
   echo "WARN! Unable to detect iOS device with udid: $DEVICE_UDID."
   export DEVICE_UDID=${DEVICE_UDID/-/}
-fi
 
+  # verify that device withaout dash in udid is available
+  ios list | grep $DEVICE_UDID
+  if [ $? == 1 ]; then
+    echo "Device $DEVICE_UDID is not available!"
+    #TODO: test if "exit 0" exit containr without automatic restart
+    exit 0
+  fi
+fi
 echo DEVICE_UDID: $DEVICE_UDID
 
 # pair iOS device if neccessary
-# if /valid/lockdown/uuid.plist
 if [ ! -f /var/lib/lockdown/${DEVICE_UDID}.plist ]; then
-  # start go-ios api
-  go-ios &
-  sleep 3
-
   echo "Device $DEVICE_UDID is not paired yet!"
   pairDevice
 else
-  echo "Device $DEVICE_UDID is already paired."
   # IMPORTANT! make sure not to execute pair again otherwise it regenerate host certificate/id and trust dialog appear!!!
+  echo "Device $DEVICE_UDID is already paired."
 fi
-
-#echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
-#if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
-#  # #280 pair supervised iOS device
-#  ios pair --p12file="${P12FILE}" --password="${P12PASSWORD}" --udid=$DEVICE_UDID
-#else
-#  # #256 pair iOS device in regular way
-#  ios pair --udid=$DEVICE_UDID
-#fi
-
-#if [ $? == 1 ]; then
-#  echo "ERROR! Unable to pair iOS device!"
-#  # Below exit completely destroy stf container as there is no sense to continue with unpaired device
-#  exit -1
-#fi
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 export PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
-deviceClass=$(ios info --udid=$DEVICE_UDID | jq -r ".DeviceClass")
+deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
+echo "device info: " $deviceInfo
+
+deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass")
 export DEVICETYPE='Phone'
 if [ "$deviceClass" = "iPad" ]; then
   export DEVICETYPE='Tablet'
@@ -121,7 +96,21 @@ fi
     #"TimeZoneOffsetFromUTC":10800,
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
-ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID
+res=$(ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID 2>&1)
+echo $res
+
+# Parse error to detect anomaly with mounting and/or pairing. It might be use case when user cleared already trusted computer
+# {"err":"failed connecting to image mounter: Could not start service:com.apple.mobile.mobile_image_mounter with reason:'SessionInactive'. Have you mounted the Developer Image?","image":"/tmp/DeveloperDiskImages/16.4.1/DeveloperDiskImage.dmg","level":"error","msg":"error mounting image","time":"2023-08-04T11:25:53Z","udid":"d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"}
+
+if [[ "${res}" == *"error mounting image"* ]]; then
+  echo "ERROR! Mounting is broken due to the invalid paring. Please re pair again! Removing /var/lib/lockdown/${DEVICE_UDID}.plist"
+  # remove pairing file and exit with error code 1 to init reconnect
+  rm -f /var/lib/lockdown/${DEVICE_UDID}.plist
+  exit 1
+else
+  echo "Developer Image auto mount succeed."
+  sleep 3
+fi
 
 #TODO: let's rview how it is going with fully manual WDA ipa install step
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
