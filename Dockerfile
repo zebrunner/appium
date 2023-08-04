@@ -47,13 +47,6 @@ ENV WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
 ENV FFMPEG_OPTS=
 
-# S3 storage params for driver artifacts (video, logs etc)
-ENV BUCKET=
-ENV TENANT=
-ENV AWS_ACCESS_KEY_ID=
-ENV AWS_SECRET_ACCESS_KEY=
-ENV AWS_DEFAULT_REGION=
-
 # Timeout settings
 ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 
