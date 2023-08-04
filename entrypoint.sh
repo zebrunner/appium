@@ -27,20 +27,23 @@ share() {
     pkill -f ffmpeg
     #echo "kill output: $?"
 
-    sleep 0.1
-    #ls -la /tmp/${artifactId}.mp4
-
-    # wait until ffmpeg finished normally
+    # wait until ffmpeg finished normally and file size is greater 48 byte!
     startTime=$(date +%s)
     idleTimeout=5
     while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
+      videoFileSize=$(wc -c /tmp/${artifactId}.mp4  | awk '{print $1}')
+      #echo videoFileSize: $videoFileSize
+      if [ $videoFileSize -le 48 ]; then
+        #echo "ffmpeg flush is not finished yet"
+        continue
+      fi
+
+      #echo "detecting ffmpeg process pid..."
       pidof ffmpeg > /dev/null 2>&1
       if [ $? -eq 1 ]; then
         # no more ffmpeg commands
         break
       fi
-      #ps -ef | grep ffmpeg
-      sleep 0.1
     done
 
 
