@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export
+#export
 
 # set -e The set -e option instructs bash to immediately exit if any command [1] has a non-zero exit status.
 # option required to exit asap after kill of any screenrecord operation
