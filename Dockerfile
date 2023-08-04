@@ -43,9 +43,6 @@ ENV WDA_LOG_FILE=/tmp/log/wda.log
 ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
 ENV WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa
 
-ENV P12_FILE=/tmp/zebrunner/mcloud.p12
-ENV P12_PASSWORD=
-
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
 ENV FFMPEG_OPTS=

@@ -2,52 +2,36 @@
 
 function pairDevice() {
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
-  if [ -f ${P12_FILE} ] && [ ! -z ${P12_PASSWORD} ]; then
-    echo "Pairing supervised device..."
-    # #280 pair supervised iOS device
-    ios pair --p12file="${P12_FILE}" --password="${P12_PASSWORD}" --udid=$DEVICE_UDID
-  else
-    echo "Pairing non-supevised device..."
+  # Examples of the command output
+  # {"err":"Please accept the PairingDialog on the device and run pairing again!","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:08Z"}
+  # {"err":"Please accept the PairingDialog on the device and run pairing again!","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:19Z"}
+  # {"err":"Lockdown error: UserDeniedPairing","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:41Z"}
+  # {"level":"info","msg":"Successfully paired d6afc6b3a65584ca0813eb8957c6479b9b6ebb11","time":"2023-08-04T11:02:59Z"}
 
-    # Examples of the command output
-    # {"err":"Please accept the PairingDialog on the device and run pairing again!","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:08Z"}
-    # {"err":"Please accept the PairingDialog on the device and run pairing again!","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:19Z"}
-    # {"err":"Lockdown error: UserDeniedPairing","level":"fatal","msg":"Pairing failed","time":"2023-08-04T10:58:41Z"}
-    # {"level":"info","msg":"Successfully paired d6afc6b3a65584ca0813eb8957c6479b9b6ebb11","time":"2023-08-04T11:02:59Z"}
+  while true; do
+    local res=$(ios pair --udid=$DEVICE_UDID 2>&1)
+    #echo res: $res
 
-    while true; do
-      local res=$(ios pair --udid=$DEVICE_UDID 2>&1)
-      #TODO: comment/remove echo res
-      echo res: $res
+    local error=`echo $res | jq -r '.err'`
+    local message=`echo $res | jq -r '.msg'`
 
-      local error=`echo $res | jq -r '.err'`
-      local message=`echo $res | jq -r '.msg'`
+    # check that message string starts with appropriate words...
+    if [[ "${message}" =~ ^"Successfully paired" ]]; then
+      echo message: $message
+      break
+    fi
 
-      # check that message string starts with appropriate words...
-      if [[ "${message}" =~ ^"Successfully paired" ]]; then
-        echo message: $message
-        break
-      fi
+    if [[ ! -z ${error} ]] && [[ "${error}" == "Lockdown error: UserDeniedPairing" ]]; then
+      echo "Pairing is denied. Reset trusted computers in 'Settings ->Developer->Clear Trusted Computers' and reconnect device!"
+      # exit with code 0 to stop appium container and don't restart it constantly until user clear and trsut again
+      exit 0
+    fi
 
-      if [[ ! -z ${error} ]] && [[ "${error}" == "Lockdown error: UserDeniedPairing" ]]; then
-        echo "Pairing is denied. Reset trusted computers in 'Settings ->Developer->Clear Trusted Computers' and reconnect device!"
-        # exit with code 0 to stop appium container and don't restart it constantly until user clear and trsut again
-        exit 0
-      fi
-
-      echo error: $error
-      echo "waiting 10 seconds..."
-      sleep 10
-    done
-  fi
-
-  if [ $? == 1 ]; then
-    echo "ERROR! Unable to pair iOS device!"
-    # Below exit completely destroy stf container as there is no sense to continue with unpaired device
-    exit -1
-  fi
+    echo error: $error
+    echo "waiting 10 seconds..."
+    sleep 10
+  done
 }
-
 
 # socat server to share usbmuxd socket via TCP
 socat TCP-LISTEN:22,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
