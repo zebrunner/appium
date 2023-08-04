@@ -10,25 +10,19 @@ function pairDevice() {
 
   # Analyze pair response to raise exception, wait or proceed with services startup
 
-  # Example of the invalid supervised device pairing
-  #  curl -X POST -H "Supervision-Password: mypassword" -F p12file=@/opt/zebrunner/mcloud.p12  http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=true
-  #  {"error":"received wrong error message 'UserDeniedPairing' error message should have been 'McChallengeRequired' : map[Error:UserDeniedPairing Request:Pair]"}
-
-  # Example of the valid supervised device pairing
-
-  # Example of the invalid non-supervised pairing (requies manual Trust dialog confirmation)
-  #  curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false'
-  #  {"error":"Please accept the PairingDialog on the device and run pairing again!"}
-
-  # Example of the invalid non-supervised pairing (already paired)
-  #  curl -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
-  #  {"error":"Lockdown error: UserDeniedPairing"}
-
-  # Example of the valid non supervised device pairing
-  #   curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
-  #   {"message":"Device paired"}
-
   if [ "$SUPERVISED" == "false" ]; then
+    # Example of the invalid non-supervised pairing (requies manual Trust dialog confirmation)
+    #  curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false'
+    #  {"error":"Please accept the PairingDialog on the device and run pairing again!"}
+
+    # Example of the invalid non-supervised pairing (already paired)
+    #  curl -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
+    #  {"error":"Lockdown error: UserDeniedPairing"}
+
+    # Example of the valid non supervised device pairing
+    #   curl -s -X POST http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=false
+    #   {"message":"Device paired"}
+
     while true; do
       echo "Executing pair request 'curl -s -X POST http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=false'"
       local res=`curl -s -X POST http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=false`
@@ -53,14 +47,25 @@ function pairDevice() {
       echo "waiting 10 seconds..."
       sleep 10
    done
-
   fi
 
+  if [ "$SUPERVISED" == "true" ]; then
+    # Example of the valid supervised device pairing
 
-#ENV SUPERVISED=false
-#ENV P12FILE=/opt/zebrunner/mcloud.p12
-#ENV P12PASSWORD=
+    # Example of the invalid supervised device pairing
+    #  curl -X POST -H "Supervision-Password: mypassword" -F p12file=@/opt/zebrunner/mcloud.p12  http://localhost:8080/api/v1/device/d6afc6b3a65584ca0813eb8957c6479b9b6ebb11/pair?supervised=true
+    #  {"error":"received wrong error message 'UserDeniedPairing' error message should have been 'McChallengeRequired' : map[Error:UserDeniedPairing Request:Pair]"}
 
+    echo "Executing pair request 'curl -s -X POST -H "Supervision-Password: ${P12PASSWORD}" -F p12file=@${P12FILE}  http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=true'"
+    local res=`curl -s -X POST -H "Supervision-Password: ${P12PASSWORD}" -F p12file=@${P12FILE}  http://localhost:8080/api/v1/device/$DEVICE_UDID/pair?supervised=true`
+    #TODO: comment/remove echo res
+    echo res: $res
+
+    local error=`echo $res | jq -r '.error'`
+    local message=`echo $res | jq -r '.message'`
+
+    sleep 9000
+  fi
 }
 
 
