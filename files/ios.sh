@@ -2,10 +2,10 @@
 
 function pairDevice() {
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Pair device $DEVICE_UDID"
-  if [ -f ${P12FILE} ] && [ ! -z ${P12PASSWORD} ]; then
+  if [ -f ${P12_FILE} ] && [ ! -z ${P12_PASSWORD} ]; then
     echo "Pairing supervised device..."
     # #280 pair supervised iOS device
-    ios pair --p12file="${P12FILE}" --password="${P12PASSWORD}" --udid=$DEVICE_UDID
+    ios pair --p12file="${P12_FILE}" --password="${P12_PASSWORD}" --udid=$DEVICE_UDID
   else
     echo "Pairing non-supevised device..."
 
@@ -112,16 +112,31 @@ else
   sleep 3
 fi
 
-#TODO: let's rview how it is going with fully manual WDA ipa install step
-#echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
-#ios install --path=/opt/WebDriverAgent.ipa --udid=$DEVICE_UDID
-#if [ $? == 1 ]; then
-#  echo "ERROR! Unable to install WebDriverAgent.ipa!"
-#  # return exit 0 to stop automatic restart of the appium container
-#  exit 0
-#fi
 
-# install and launch WDA on device
+# Chekc if WDA is already installed
+ios apps --udid=$DEVICE_UDID | grep -v grep | grep $WDA_BUNDLEID > /dev/null 2>&1
+if [[ ! $? -eq 0 ]]; then
+  echo "$WDA_BUNDLEID app is not installed"
+
+  if [ ! -f $WDA_FILE ]; then
+    echo "ERROR! WebDriverAgent.ipa file is not valid!"
+    # return exit 0 to stop automatic restart of the appium container
+    exit 0
+  fi
+
+  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Installing WDA application on device"
+  ios install --path="$WDA_FILE" --udid=$DEVICE_UDID
+  if [ $? == 1 ]; then
+    echo "ERROR! Unable to install WebDriverAgent.ipa!"
+    # return exit 0 to stop automatic restart of the appium container
+    exit 0
+  fi
+else
+  echo "$WDA_BUNDLEID app is already installed"
+fi
+
+
+# launch WDA on device
 . /opt/start-wda.sh
 # start wda listener with ability to restart wda
 /opt/check-wda.sh &
