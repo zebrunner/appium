@@ -27,6 +27,9 @@ share() {
     pkill -f ffmpeg
     #echo "kill output: $?"
 
+    sleep 0.1
+    #ls -la /tmp/${artifactId}.mp4
+
     # wait until ffmpeg finished normally
     startTime=$(date +%s)
     idleTimeout=5
@@ -39,6 +42,10 @@ share() {
       #ps -ef | grep ffmpeg
       sleep 0.1
     done
+
+
+    echo "Video recording file size:"
+    ls -la /tmp/${artifactId}.mp4
 
     # move local video recording under the session folder for publishing
     mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
