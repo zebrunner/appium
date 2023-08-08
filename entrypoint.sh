@@ -172,6 +172,11 @@ concatAndroidRecording() {
 capture_video() {
   # use short sleep operations otherwise abort can't be handled via trap/share
   while true; do
+    echo "waiting for Appium start..."
+    while [ ! -f ${TASK_LOG} ]; do
+      sleep 0.1
+    done
+
     echo "waiting for the session start..."
     while [ -z $startedSessionId ]; do
       #capture mobile session startup for iOS and Android (appium)
