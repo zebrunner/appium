@@ -202,7 +202,8 @@ capture_video() {
       #2023-08-08 09:42:51:896 - [HTTP] [HTTP] --> DELETE /wd/hub/session/61e32667-a8f7-4b08-bca7-5092cbccc383
       # or
       #2023-07-20 19:29:56:534 - [HTTP] [HTTP] <-- DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a 200 1053 ms - 14
-      finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/" ${TASK_LOG} | grep $startedSessionId | cut -d "/" -f 5 | cut -d " " -f 1`
+      finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/$startedSessionId" ${TASK_LOG} | cut -d "/" -f 5 | cut -d " " -f 1`
+      #echo "finishedSessionId: $finishedSessionId"
     done
 
     echo "session finished: $finishedSessionId"
