@@ -45,7 +45,8 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
 	adb install /usr/lib/node_modules/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk
 
         # switch to root account for running adb
-        adb root
+        #201 redroid: adbd is already running as root
+        #adb root
 
         sleep 5
         ret=1
