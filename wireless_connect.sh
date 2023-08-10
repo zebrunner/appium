@@ -50,8 +50,8 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
         # switch to root account for running adb
         #201 redroid: adbd is already running as root
         #adb root
+        #sleep 5
 
-        sleep 5
         ret=1
         redroidDevice="device:5555"
         while [[ $ret -eq 1 ]]; do
