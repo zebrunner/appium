@@ -37,12 +37,15 @@ if [ ! -z "$ANDROID_DEVICES" ]; then
 	# download and install chrome apk from https://www.apkmirror.com/apk/google-inc/chrome/chrome-99-0-4844-73-release/
 	# version: x86 + x86_64 
 	# url: https://www.apkmirror.com/apk/google-inc/chrome/chrome-99-0-4844-73-release/google-chrome-fast-secure-99-0-4844-73-10-android-apk-download/
-
 	# /tmp/zebrunner/chrome/latest.apk is default shared location for chrome browser apk
-	adb install /tmp/zebrunner/chrome/latest.apk
+        if [ -f /tmp/zebrunner/chrome/latest.apk ]; then
+	    adb install /tmp/zebrunner/chrome/latest.apk
+        fi
 
 	# install appium apk
-	adb install /usr/lib/node_modules/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk
+        if [ -f /usr/lib/node_modules/appium/node_modules/appium-uiautomator2-driver/node_modules/io.appium.settings/apks/settings_apk-debug.apk ]; then
+            adb install /usr/lib/node_modules/appium/node_modules/appium-uiautomator2-driver/node_modules/io.appium.settings/apks/settings_apk-debug.apk
+        fi
 
         # switch to root account for running adb
         #201 redroid: adbd is already running as root
