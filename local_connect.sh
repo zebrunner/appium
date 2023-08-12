@@ -3,9 +3,13 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
-  # start containerized usbmuxd service/process
-  usbmuxd -f &
-  sleep 2
+  if [[ -z $USBMUXD_SOCKET_ADDRESS ]]; then
+    echo "start containerized usbmuxd service/process"
+    usbmuxd -f &
+    sleep 2
+  else
+    socat UNIX-LISTEN:/var/run/usbmuxd,fork,reuseaddr,mode=777 TCP:$USBMUXD_SOCKET_ADDRESS &
+  fi
 
   declare -i index=0
   available=0

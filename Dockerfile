@@ -53,6 +53,9 @@ ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
 # #86 move usbreset onto the appium side
 ENV DEVICE_BUS=/dev/bus/usb/003/011
 
+# Usbmuxd settings "host:port"
+ENV USBMUXD_SOCKET_ADDRESS=
+
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
