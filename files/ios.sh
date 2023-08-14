@@ -70,6 +70,10 @@ export DEVICETYPE='Phone'
 if [ "$deviceClass" = "iPad" ]; then
   export DEVICETYPE='Tablet'
 fi
+if [ "$deviceClass" = "AppleTV" ]; then
+  export DEVICETYPE='tvOS'
+fi
+
 # TODO: detect tablet and TV for iOS, also review `ios info` output data like below
     #"DeviceClass":"iPhone",
     #"ProductName":"iPhone OS",
