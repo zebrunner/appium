@@ -96,7 +96,7 @@ RUN appium driver list && \
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \
-	appium driver install xcuitest@4.32.23
+	appium driver install xcuitest@4.33.2
 
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud
