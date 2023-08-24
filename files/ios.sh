@@ -5,16 +5,9 @@ socat TCP-LISTEN:22,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
 
 ios list | grep $DEVICE_UDID
 if [ $? == 1 ]; then
-  echo "WARN! Unable to detect iOS device with udid: $DEVICE_UDID."
-  export DEVICE_UDID=${DEVICE_UDID/-/}
-
-  # verify that device withaout dash in udid is available
-  ios list | grep $DEVICE_UDID
-  if [ $? == 1 ]; then
-    echo "Device $DEVICE_UDID is not available!"
-    #TODO: test if "exit 0" exit containr without automatic restart
-    exit 0
-  fi
+  echo "Device $DEVICE_UDID is not available!"
+  #TODO: test if "exit 0" exit containr without automatic restart
+  exit 0
 fi
 echo DEVICE_UDID: $DEVICE_UDID
 

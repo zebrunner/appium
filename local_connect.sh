@@ -21,10 +21,6 @@ if [[ "$PLATFORM_NAME" == "ios" ]]; then
     if [[ $available -eq 1 ]]; then
       break
     fi
-    available=`ios list | grep -c ${DEVICE_UDID/-/}`
-    if [[ $available -eq 1 ]]; then
-      break
-    fi
     sleep ${REMOTE_ADB_POLLING_SEC}
     index+=1
   done
