@@ -237,13 +237,7 @@ if [ "$ATD" = true ]; then
     echo "[INIT] ATD is running..."
 fi
 
-#TODO: remove later
-echo ENTRYPOINT_DIR: $ENTRYPOINT_DIR
-if [ "$REMOTE_ADB" = true ]; then
-    ${ENTRYPOINT_DIR}/wireless_connect.sh
-else
-    ${ENTRYPOINT_DIR}/local_connect.sh
-fi
+${ENTRYPOINT_DIR}/local_connect.sh
 
 ret=$?
 if [ $ret -eq 3 ]; then

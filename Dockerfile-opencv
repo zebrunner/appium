@@ -22,9 +22,8 @@ RUN mkdir -p $APPIUM_APPS_DIR && \
 	chown androidusr:androidusr $APPIUM_APPS_DIR
 
 # Android envs
-ENV REMOTE_ADB=false
-ENV ANDROID_DEVICES=android:5555
-ENV REMOTE_ADB_POLLING_SEC=5
+ENV ANDROID_DEVICE=
+ENV ADB_POLLING_SEC=5
 ENV EXIT_ON_ADB_FAILURE=0
 
 ENV CHROMEDRIVER_AUTODOWNLOAD=true
@@ -98,7 +97,6 @@ COPY files/zbr-default-caps-gen.sh /opt
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_DIR}
-COPY wireless_connect.sh ${ENTRYPOINT_DIR}
 COPY local_connect.sh ${ENTRYPOINT_DIR}
 
 #TODO: think about entrypoint container usage to apply permission fixes
