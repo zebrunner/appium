@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# print all settings 
+adb shell getprop ro.build.characteristics
+
 # device type
 isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
 isTv=`adb shell getprop ro.build.characteristics | grep tv`
