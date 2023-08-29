@@ -42,7 +42,7 @@ fi
 # 2016-07-02 Due to internal ADB changes our previous start command no longer works in the latest version.
 # The command has been updated, but if you were specifying it yourself, make sure you're using adb -a -P 5037 server nodaemon.
 # Do NOT use the fork-server argument anymore.
-adb -a -P 5037 server nodaemon &
+adb -a -P $ADB_PORT server nodaemon &
 sleep 1
 
 # ADB connect (via wireless network or via tcp for redroid emulator)
