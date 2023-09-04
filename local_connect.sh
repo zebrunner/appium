@@ -8,7 +8,7 @@ if [[ "$PLATFORM_NAME" == "ios" ]]; then
     usbmuxd -f &
     sleep 2
     # socat server to share usbmuxd socket via TCP to STF (mcloud-device)
-    socat TCP-LISTEN:2222,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
+    socat TCP-LISTEN:22,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
   else
     # rm /var/run/usbmuxd in advance to be able to start socat and join it to $USBMUXD_SOCKET_ADDRESS
     rm -f /var/run/usbmuxd
