@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# socat server to share usbmuxd socket via TCP
-socat TCP-LISTEN:22,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
-
 ios list | grep $DEVICE_UDID
 if [ $? == 1 ]; then
   echo "Device $DEVICE_UDID is not available!"
