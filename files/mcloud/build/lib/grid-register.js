@@ -112,7 +112,6 @@ async function isAlreadyRegistered(configHolder) {
     //check if node is already registered
     const id = configHolder.configuration.id;
     try {
-        logger_1.default.debug(`url: ${hubUri(configHolder.configuration)}/grid/api/proxy?id=${id}`);
         const { data, status } = await (0, axios_1.default)({
             url: `${hubUri(configHolder.configuration)}/grid/api/proxy?id=${id}`,
             timeout: 10000,
