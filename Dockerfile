@@ -14,6 +14,8 @@ ENV APPIUM_APP_WAITING_TIMEOUT=600
 ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_CLI=
 
+ENV CHECK_APP_SIZE_OPTIONALLY=false
+
 # Default appium 2.0 ueser:
 # uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
 

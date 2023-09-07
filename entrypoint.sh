@@ -194,8 +194,6 @@ capture_video() {
     echo "waiting for the session finish..."
     while [ -z $finishedSessionId ]; do
       #capture mobile session finish for iOS and Android (appium)
-      #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
-      #finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
 
       # including support of the aborted session
       #2023-07-19 14:37:25:009 - [HTTP] [HTTP] --> DELETE /wd/hub/session/9da044cc-a96b-4052-8055-857900c6bbe8/window
@@ -204,6 +202,15 @@ capture_video() {
       #2023-07-20 19:29:56:534 - [HTTP] [HTTP] <-- DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a 200 1053 ms - 14
       finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/$startedSessionId" ${TASK_LOG} | cut -d "/" -f 5 | cut -d " " -f 1`
       #echo "finishedSessionId: $finishedSessionId"
+
+      if [ ! -z $finishedSessionId ]; then
+        break
+      fi
+
+      #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
+      #finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
+      # -m 1 is not valid for the from our master session list pattern!
+      finishedSessionId=`grep -E " from our master session list" ${TASK_LOG} | grep $startedSessionId | cut -d " " -f 7 | cut -d " " -f 1`
     done
 
     echo "session finished: $finishedSessionId"
