@@ -56,8 +56,17 @@ share() {
 
   if [[ "${PLATFORM_NAME}" == "android" ]]; then
     pkill -e -f screenrecord
-    # magic pause to stop recording correctly
-    sleep 0.3
+    # wait until screenrecord finished normally
+    startTime=$(date +%s)
+    idleTimeout=5
+    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
+      echo "detecting screenrecord process pid..."
+      screenrecordState=`adb shell "pgrep -l screenrecord" | grep -c screenrecord`
+      if [ $screenrecordState -eq 0 ]; then
+        echo "# no more screenrecord process on device"
+        break
+      fi
+    done
 
     concatAndroidRecording $artifactId
     if [ -f /tmp/${artifactId}.mp4 ]; then
