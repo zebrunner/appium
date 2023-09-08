@@ -3,8 +3,8 @@ FROM appium/appium:v2.0.1-p1
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
 
-# Tasks management setting allowing serving several sequent requests.
-ENV RETAIN_TASK=true
+# Integration UUID for ReDroid integration
+ENV ROUTER_UUID=
 
 # Enable local caching for appium instances
 ENV APPIUM_PORT=4723
