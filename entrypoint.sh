@@ -3,7 +3,7 @@
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG $APPIUM_CLI"
+CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI"
 #--use-plugins=relaxed-caps
 
 share() {
@@ -56,8 +56,17 @@ share() {
 
   if [[ "${PLATFORM_NAME}" == "android" ]]; then
     pkill -e -f screenrecord
-    # magic pause to stop recording correctly
-    sleep 0.3
+    # wait until screenrecord finished normally
+    startTime=$(date +%s)
+    idleTimeout=5
+    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
+      echo "detecting screenrecord process pid..."
+      screenrecordState=`adb shell "pgrep -l screenrecord" | grep -c screenrecord`
+      if [ $screenrecordState -eq 0 ]; then
+        echo "# no more screenrecord process on device"
+        break
+      fi
+    done
 
     concatAndroidRecording $artifactId
     if [ -f /tmp/${artifactId}.mp4 ]; then
@@ -77,35 +86,28 @@ share() {
 
   # register artifactId info to be able to parse by uploader
   echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
+
+  # remove lock file when artifacts are shared for uploader
+  rm -f ${LOG_DIR}/.recording-artifact-$artifactId
 }
 
 finish() {
   echo "on finish begin"
 
-  startTime=$(date +%s)
-  local taskId=$1
-
-  if [ -z ${taskId} ]; then
-    if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-      #detect sessionId by existing ffmpeg process
-      sessionId=`ps -ef | grep ffmpeg | grep -v grep | cut -d "/" -f 3 | cut -d "." -f 1` > /dev/null 2>&1
-    elif [[ "${PLATFORM_NAME}" == "android" ]]; then
-      # detect sessionId by start-capture-artifacts.sh
-      # /bin/bash /opt/start-capture-artifacts.sh 31d625c4-2810-426d-a40f-9fe14cf3260a
-      sessionId=`ps -ef | grep start-capture-artifacts.sh | grep -v grep | cut -d "/" -f 5 | cut -d " " -f 2` > /dev/null 2>&1
-    fi
-
-    if [ ! -z ${sessionId} ]; then
-      echo "detected existing video recording: $sessionId"
-      # seems like abort for up and running ffmpeg which should be killed and shared
-      taskId=${sessionId}
-    fi
+  if [[ "${PLATFORM_NAME}" == "ios" ]]; then
+    #detect sessionId by existing ffmpeg process
+    sessionId=`ps -ef | grep ffmpeg | grep -v grep | cut -d "/" -f 3 | cut -d "." -f 1` > /dev/null 2>&1
+  elif [[ "${PLATFORM_NAME}" == "android" ]]; then
+    # detect sessionId by start-capture-artifacts.sh
+    # /bin/bash /opt/start-capture-artifacts.sh 31d625c4-2810-426d-a40f-9fe14cf3260a
+    sessionId=`ps -ef | grep start-capture-artifacts.sh | grep -v grep | cut -d "/" -f 5 | cut -d " " -f 2` > /dev/null 2>&1
   fi
 
-  if [ ! -z ${taskId} ]; then
-    share ${taskId}
+  if [ ! -z ${sessionId} ]; then
+    echo "detected existing video recording: $sessionId"
+    share ${sessionId}
   else
-    echo "[warn] taskId is empty!"
+    echo "[warn] sessionId is empty on finish!"
   fi
 
   echo "on finish end"
@@ -186,7 +188,15 @@ capture_video() {
     done
     echo "session started: $startedSessionId"
 
-    /opt/start-capture-artifacts.sh $startedSessionId &
+    if [ -z $ROUTER_UUID ]; then
+      recordArtifactId=$startedSessionId
+    else
+      recordArtifactId=$ROUTER_UUID
+    fi
+
+    /opt/start-capture-artifacts.sh $recordArtifactId &
+    # create .recording-artifact-* file, so uploader would know that recorder is still in process
+    echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
 
     # from time to time browser container exited before we able to detect finishedSessionId.
     # make sure to have workable functionality on trap finish (abort use-case as well)
@@ -214,10 +224,11 @@ capture_video() {
     done
 
     echo "session finished: $finishedSessionId"
-    share $finishedSessionId
+    share $recordArtifactId
 
     startedSessionId=
     finishedSessionId=
+    recordArtifactId=
   done
 
 }
@@ -323,9 +334,11 @@ capture_video &
 node_pids=`pidof node`
 wait -n $node_pids
 
-
 exit_code=$?
 echo "Exit status: $exit_code"
+
+# TODO: do we need explicit finish call to publish recorded artifacts when RETAIL_TASK is false?
+#finish
 
 if [ $exit_code -eq 101 ]; then
   echo "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."
