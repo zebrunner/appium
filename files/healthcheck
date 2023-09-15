@@ -14,6 +14,20 @@ else
   exit 1
 fi
 
+#214 capture offline state and reconnect
+offline=`adb devices | grep -c offline`
+if [[ $offline -eq 1 ]]; then
+  echo "Device is offline!"
+  adb reconnect
+
+  available=`adb devices | grep -c -w device`
+  if [[ $available -eq 0 ]]; then
+    echo "Device is not accessible after reconnect!"
+    exit 1
+  fi
+fi
+
+
 # adb status call with ability to exit with error code moved onto he appium
 
 # wda status call moved before session startup to make it at once before testing
