@@ -8,6 +8,7 @@ if [[ "${PLATFORM_NAME}" == "android" ]]; then
 cat << EndOfMessage
 {
  "platformName":"${PLATFORM_NAME}",
+ "browserName":"chrome",
  "appium:platformVersion":"${PLATFORM_VERSION}",
  "appium:deviceName": "${DEVICE_NAME}",
  "appium:udid": "${DEVICE_UDID}",
@@ -24,6 +25,7 @@ if [[ "${PLATFORM_NAME}" == "ios" ]]; then
 cat << EndOfMessage
 {
  "platformName": "${PLATFORM_NAME}",
+ "browserName":"safari",
  "appium:platformVersion": "${PLATFORM_VERSION}",
  "appium:deviceName": "${DEVICE_NAME}",
  "appium:udid":"$DEVICE_UDID",
