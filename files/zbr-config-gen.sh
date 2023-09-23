@@ -2,7 +2,11 @@
 
 #IMPORTANT!!! Don't do any echo otherwise you corrupt generated nodeconfig.json
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
+BROWSER_NAME=chrome
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+if [[ "${PLATFORM_NAME}" == "ios" ]]; then
+  BROWSER_NAME=safari
+fi
 cat << EndOfMessage
 {
   "capabilities":
@@ -13,6 +17,7 @@ cat << EndOfMessage
           "deviceType": "${DEVICETYPE}",
           "platformName":"${PLATFORM_NAME}",
           "platformVersion":"${PLATFORM_VERSION}",
+          "browserName": "${BROWSER_NAME}",
 	  "udid": "${DEVICE_UDID}",
 	  "adb_port": ${ADB_PORT},
 	  "proxy_port": ${PROXY_PORT},
