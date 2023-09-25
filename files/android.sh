@@ -7,7 +7,7 @@ adb shell getprop ro.build.characteristics
 isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
 isTv=`adb shell getprop ro.build.characteristics | grep tv`
 #157: Incorrect deviceType set for devices that do not return tv for ro.build.characteristics property
-isTv2=`adb shell getprop ro.build.characteristics | grep default`
+isDefault=`adb shell getprop ro.build.characteristics | grep default`
 isPhone=`adb shell getprop ro.build.characteristics | grep phone`
 
 # version
@@ -17,8 +17,12 @@ if [[ $isTablet ]]; then
   export DEVICETYPE='Tablet'
 elif [[ $isTv ]]; then
   export DEVICETYPE='TV'
-elif [[ $isTv2 ]]; then
-  export DEVICETYPE='TV'
+elif [[ $isDefault ]]; then
+  if [[ $(adb shell getprop ro.hardware) = "redroid" ]]; then
+    export DEVICETYPE='Phone'
+  else
+    export DEVICETYPE='TV'
+  fi
 elif [[ $isPhone ]]; then
   export DEVICETYPE='Phone'
 else
