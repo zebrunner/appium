@@ -40,6 +40,15 @@ fi
     #"TimeZone":"Europe/Minsk",
     #"TimeZoneOffsetFromUTC":10800,
 
+
+
+deviceVersion=$(echo $deviceInfo | jq -r ".ProductVersion")
+if [[ "${deviceVersion}" == "17."* ]]; then
+  echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
+  echo "wda install and startup steps will be skipped from appium container..."
+  return 0
+fi
+
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
 res=$(ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID 2>&1)
 echo $res
