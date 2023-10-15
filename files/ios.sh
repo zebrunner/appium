@@ -43,9 +43,13 @@ fi
 
 
 deviceVersion=$(echo $deviceInfo | jq -r ".ProductVersion")
-if [[ "${deviceVersion}" == "17."* ]]; then
+if [[ "${deviceVersion}" == "17."* ]] || [[ "${deviceClass}" == "AppleTV" ]]; then
   echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
   echo "wda install and startup steps will be skipped from appium container..."
+
+  # start proxy forward to device
+  ios forward $WDA_PORT $WDA_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
+  ios forward $MJPEG_PORT $MJPEG_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
   return 0
 fi
 
