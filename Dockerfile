@@ -9,7 +9,6 @@ ENV ROUTER_UUID=
 # Enable local caching for appium instances
 ENV APPIUM_PORT=4723
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
-ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
 ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_APP_FETCH_RETRIES=0
@@ -21,8 +20,9 @@ ENV CHECK_APP_SIZE_OPTIONALLY=false
 # uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
 
 USER root
-RUN mkdir -p $APPIUM_APPS_DIR && \
-	chown androidusr:androidusr $APPIUM_APPS_DIR
+#ENV APPIUM_APPS_DIR=/opt/appium-storage
+#RUN mkdir -p $APPIUM_APPS_DIR && \
+#	chown androidusr:androidusr $APPIUM_APPS_DIR
 
 # Android envs
 ENV ADB_PORT=5037
