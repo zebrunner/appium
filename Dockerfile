@@ -12,6 +12,7 @@ ENV APPIUM_HOME=/usr/lib/node_modules/appium
 ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
 ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
+ENV APPIUM_APP_FETCH_RETRIES=0
 ENV APPIUM_CLI=
 
 ENV CHECK_APP_SIZE_OPTIONALLY=false
@@ -64,7 +65,7 @@ ENV USBMUXD_SOCKET_ADDRESS=
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.115/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.117/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 

@@ -9,9 +9,18 @@ fi
 echo DEVICE_UDID: $DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
-export PLATFORM_VERSION=$(ios info --udid=$DEVICE_UDID | jq -r ".ProductVersion")
 deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
 echo "device info: " $deviceInfo
+
+# Parse output to detect Timeoud out error.
+# {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
+
+if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
+  echo "ERROR! Timed out waiting for response detected. Reboot is required!"
+  exit 0
+fi
+
+export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion")
 
 deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass")
 export DEVICETYPE='Phone'
