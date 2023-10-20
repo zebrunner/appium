@@ -1,5 +1,4 @@
-FROM appium/appium:v2.0.1-p1
-
+FROM appium/appium:v2.1.3-p2
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
 
@@ -100,7 +99,7 @@ RUN appium driver list && \
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \
-	appium driver install xcuitest@4.33.2
+	appium driver install xcuitest@5.7.0
 
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud
