@@ -21,6 +21,12 @@ share() {
   # do not move otherwise in global loop we should add extra verification on file presense
   > ${TASK_LOG}
 
+  if [[ -f ${WDA_LOG_FILE} ]]; then
+    echo "Sharing file: ${WDA_LOG_FILE}"
+    cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
+    > ${WDA_LOG_FILE}
+  fi
+
   if [ "${PLATFORM_NAME}" == "ios" ] && [ -f /tmp/${artifactId}.mp4 ]; then
     ls -la /tmp/${artifactId}.mp4
     # kill ffmpeg process
@@ -77,7 +83,7 @@ share() {
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
-    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ]; then
+    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
       echo "Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
       mv $file ${LOG_DIR}/${artifactId}/
@@ -89,6 +95,7 @@ share() {
 
   # remove lock file when artifacts are shared for uploader
   rm -f ${LOG_DIR}/.recording-artifact-$artifactId
+
 }
 
 finish() {
