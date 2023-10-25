@@ -16,8 +16,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   <a href="https://zebrunner.com/"><img alt="Zebrunner" src="https://github.com/zebrunner/zebrunner/raw/master/docs/img/zebrunner_intro.png"></a>
 </p>
 
-
 > Follow the installation and configuration guide in [MCloud](https://github.com/zebrunner/mcloud) to reuse this image effectively.
+
+### Patch local appium
+* Clone Zebrunner Appium and patch sources:
+  ```
+  git clone https://github.com/zebrunner/appium.git
+  cd appium
+  export APPIUM_HOME=/usr/local/lib/node_modules/appium
+  cp -R -v ./files/mcloud/* ${APPIUM_HOME}/
+  ```
 
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
