@@ -14,6 +14,25 @@ share() {
     return 0
   fi
 
+  idleTimeout=5
+  # check if .share-artifact-* file was already moved by other thread
+  mv ${LOG_DIR}/.share-artifact-$artifactId ${LOG_DIR}/.sharing-artifact-$artifactId >> /dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo "waiting for other thread to share $artifactId files"
+    # if we can't move this file -> other thread already moved it
+    # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
+    waitStartTime=$(date +%s)
+    while [ $((waitStartTime + idleTimeout)) -gt "$(date +%s)" ]; do
+      if [ ! -f ${LOG_DIR}/.recording-artifact-$artifactId ]; then
+        echo "other thread shared artifacts for $artifactId"
+        return 0
+      fi
+      sleep 0.1
+    done
+    echo "timedout waiting for other thead to share artifacts for $artifactId"
+    return 0
+  fi
+
   # unique folder to collect all artifacts for uploading
   mkdir ${LOG_DIR}/${artifactId}
 
@@ -29,7 +48,6 @@ share() {
 
     # wait until ffmpeg finished normally and file size is greater 48 byte!
     startTime=$(date +%s)
-    idleTimeout=5
     while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
       videoFileSize=$(wc -c /tmp/${artifactId}.mp4  | awk '{print $1}')
       #echo videoFileSize: $videoFileSize
@@ -58,7 +76,6 @@ share() {
     pkill -e -f screenrecord
     # wait until screenrecord finished normally
     startTime=$(date +%s)
-    idleTimeout=5
     while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
       echo "detecting screenrecord process pid..."
       screenrecordState=`adb shell "pgrep -l screenrecord" | grep -c screenrecord`
@@ -87,7 +104,9 @@ share() {
   # register artifactId info to be able to parse by uploader
   echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
 
-  # remove lock file when artifacts are shared for uploader
+  # remove lock file (for other threads) when artifacts are shared for uploader
+  rm -f ${LOG_DIR}/.sharing-artifact-$artifactId
+  # remove lock file (for uploader) when artifacts are shared for uploader
   rm -f ${LOG_DIR}/.recording-artifact-$artifactId
 }
 
@@ -197,6 +216,8 @@ capture_video() {
     /opt/start-capture-artifacts.sh $recordArtifactId &
     # create .recording-artifact-* file, so uploader would know that recorder is still in process
     echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
+    # create .share-artifact-* file, so share would be performed only once for session
+    touch ${LOG_DIR}/.share-artifact-$recordArtifactId
 
     # from time to time browser container exited before we able to detect finishedSessionId.
     # make sure to have workable functionality on trap finish (abort use-case as well)
