@@ -37,8 +37,10 @@ share() {
   mkdir ${LOG_DIR}/${artifactId}
 
   cp ${TASK_LOG} ${LOG_DIR}/${artifactId}/${LOG_FILE}
+  cp ${VIDEO_LOG} ${LOG_DIR}/${artifactId}/${VIDEO_LOG_FILE}
   # do not move otherwise in global loop we should add extra verification on file presense
   > ${TASK_LOG}
+  > ${VIDEO_LOG}
 
   if [[ -f ${WDA_LOG_FILE} ]]; then
     echo "Sharing file: ${WDA_LOG_FILE}"
@@ -100,7 +102,7 @@ share() {
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
-    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
+    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${VIDEO_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
       echo "Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
       mv $file ${LOG_DIR}/${artifactId}/

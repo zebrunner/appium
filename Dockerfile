@@ -37,6 +37,8 @@ ENV LOG_LEVEL=info
 ENV LOG_DIR=/tmp/log
 ENV TASK_LOG=/tmp/log/appium.log
 ENV LOG_FILE=session.log
+ENV VIDEO_LOG=/tmp/log/appium-video.log
+ENV VIDEO_LOG_FILE=video.log
 
 # iOS envs
 ENV WDA_HOST=localhost
@@ -106,7 +108,8 @@ COPY files/mcloud/ /opt/mcloud
 # do not make backups because unpatched js files in the same folder might be used by Appium
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
+COPY docker-entrypoint.sh /
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-CMD ["/opt/entrypoint/entrypoint.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
