@@ -100,7 +100,7 @@ share() {
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
-    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
+    if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${VIDEO_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
       echo "Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
       mv $file ${LOG_DIR}/${artifactId}/
@@ -110,11 +110,14 @@ share() {
   # register artifactId info to be able to parse by uploader
   echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
 
+  # share video log file
+  cp ${VIDEO_LOG} ${LOG_DIR}/${artifactId}/${VIDEO_LOG_FILE}
+  > ${VIDEO_LOG}
+
   # remove lock file (for other threads) when artifacts are shared for uploader
   rm -f ${LOG_DIR}/.sharing-artifact-$artifactId
   # remove lock file (for uploader) when artifacts are shared for uploader
   rm -f ${LOG_DIR}/.recording-artifact-$artifactId
-
 }
 
 finish() {
