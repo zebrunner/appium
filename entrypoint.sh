@@ -37,10 +37,8 @@ share() {
   mkdir ${LOG_DIR}/${artifactId}
 
   cp ${TASK_LOG} ${LOG_DIR}/${artifactId}/${LOG_FILE}
-  cp ${VIDEO_LOG} ${LOG_DIR}/${artifactId}/${VIDEO_LOG_FILE}
   # do not move otherwise in global loop we should add extra verification on file presense
   > ${TASK_LOG}
-  > ${VIDEO_LOG}
 
   if [[ -f ${WDA_LOG_FILE} ]]; then
     echo "Sharing file: ${WDA_LOG_FILE}"
@@ -112,11 +110,14 @@ share() {
   # register artifactId info to be able to parse by uploader
   echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
 
+  # share video log file
+  cp ${VIDEO_LOG} ${LOG_DIR}/${artifactId}/${VIDEO_LOG_FILE}
+  > ${VIDEO_LOG}
+
   # remove lock file (for other threads) when artifacts are shared for uploader
   rm -f ${LOG_DIR}/.sharing-artifact-$artifactId
   # remove lock file (for uploader) when artifacts are shared for uploader
   rm -f ${LOG_DIR}/.recording-artifact-$artifactId
-
 }
 
 finish() {

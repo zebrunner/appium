@@ -108,8 +108,7 @@ COPY files/mcloud/ /opt/mcloud
 # do not make backups because unpatched js files in the same folder might be used by Appium
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
-COPY docker-entrypoint.sh /
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/bin/sh", "-c", "exec ${ENTRYPOINT_DIR}/entrypoint.sh >> ${VIDEO_LOG}"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
