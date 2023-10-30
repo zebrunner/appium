@@ -12,13 +12,6 @@ echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
 echo "device info: " $deviceInfo
 
-# Parse output to detect Timeoud out error.
-# {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
-
-if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
-  echo "ERROR! Timed out waiting for response detected. Reboot is required!"
-  exit 0
-fi
 
 export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion")
 
@@ -39,6 +32,14 @@ fi
     #"SerialNumber":"C38V961BJCM2",
     #"TimeZone":"Europe/Minsk",
     #"TimeZoneOffsetFromUTC":10800,
+
+# Parse output to detect Timeoud out error.
+# {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
+
+if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]] && [[ "${DEVICETYPE}" == "tvOS" ]]; then
+  echo "ERROR! Timed out waiting for response detected. TV reboot is required!"
+  exit 0
+fi
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
 res=$(ios image auto --basedir /tmp/DeveloperDiskImages --udid=$DEVICE_UDID 2>&1)
