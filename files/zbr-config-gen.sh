@@ -29,7 +29,7 @@ cat << EndOfMessage
     "hubPort": ${SELENIUM_PORT},
     "maxSession": 1,
     "register": true,
-    "registerCycle": 5000,
+    "registerCycle": 300000,
     "cleanUpCycle": 5000,
     "timeout": 180,
     "browserTimeout": 0,
