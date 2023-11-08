@@ -97,7 +97,9 @@ COPY files/usbreset /usr/local/bin
 
 
 RUN appium driver list && \
-	appium plugin list
+	appium plugin list && \
+	appium plugin install images
+
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \
