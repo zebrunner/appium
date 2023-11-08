@@ -12,7 +12,6 @@ echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
 echo "device info: " $deviceInfo
 
-
 export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion")
 
 deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass")
@@ -38,6 +37,11 @@ fi
 
 if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]] && [[ "${DEVICETYPE}" == "tvOS" ]]; then
   echo "ERROR! Timed out waiting for response detected. TV reboot is required!"
+  exit 0
+fi
+
+if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
+  echo "ERROR! failed getting info. No sense to proceed with services startup!"
   exit 0
 fi
 
