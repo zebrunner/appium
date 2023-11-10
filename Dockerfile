@@ -1,5 +1,4 @@
-FROM appium/appium:v2.0.1-p1
-
+FROM appium/appium:v2.1.3-p2
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
 
@@ -38,6 +37,8 @@ ENV LOG_LEVEL=info
 ENV LOG_DIR=/tmp/log
 ENV TASK_LOG=/tmp/log/appium.log
 ENV LOG_FILE=session.log
+ENV VIDEO_LOG=/tmp/log/appium-video.log
+ENV VIDEO_LOG_FILE=video.log
 
 # iOS envs
 ENV WDA_HOST=localhost
@@ -65,7 +66,7 @@ ENV USBMUXD_SOCKET_ADDRESS=
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.117/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
@@ -96,11 +97,13 @@ COPY files/usbreset /usr/local/bin
 
 
 RUN appium driver list && \
-	appium plugin list
+	appium plugin list && \
+	appium plugin install images
+
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \
-	appium driver install xcuitest@4.33.2
+	appium driver install xcuitest@5.7.0
 
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud
@@ -108,6 +111,6 @@ COPY files/mcloud/ /opt/mcloud
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-CMD ["/opt/entrypoint/entrypoint.sh"]
+CMD ["/bin/sh", "-c", "exec ${ENTRYPOINT_DIR}/entrypoint.sh >> ${VIDEO_LOG}"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]

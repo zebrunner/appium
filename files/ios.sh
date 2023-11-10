@@ -3,7 +3,6 @@
 ios list | grep $DEVICE_UDID
 if [ $? == 1 ]; then
   echo "Device $DEVICE_UDID is not available!"
-  #TODO: test if "exit 0" exit containr without automatic restart
   exit 0
 fi
 echo DEVICE_UDID: $DEVICE_UDID
@@ -15,8 +14,13 @@ echo "device info: " $deviceInfo
 # Parse output to detect Timeoud out error.
 # {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
 
-if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
-  echo "ERROR! Timed out waiting for response detected. Reboot is required!"
+if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]] && [[ "${DEVICETYPE}" == "tvOS" ]]; then
+  echo "ERROR! Timed out waiting for response detected. TV reboot is required!"
+  exit 0
+fi
+
+if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
+  echo "ERROR! failed getting info. No sense to proceed with services startup!"
   exit 0
 fi
 
@@ -39,8 +43,6 @@ fi
     #"SerialNumber":"C38V961BJCM2",
     #"TimeZone":"Europe/Minsk",
     #"TimeZoneOffsetFromUTC":10800,
-
-
 
 deviceVersion=$(echo $deviceInfo | jq -r ".ProductVersion")
 if [[ "${deviceVersion}" == "17."* ]] || [[ "${deviceClass}" == "AppleTV" ]]; then
@@ -69,7 +71,7 @@ else
 fi
 
 
-# Chekc if WDA is already installed
+# Check if WDA is already installed
 ios apps --udid=$DEVICE_UDID | grep -v grep | grep $WDA_BUNDLEID > /dev/null 2>&1
 if [[ ! $? -eq 0 ]]; then
   echo "$WDA_BUNDLEID app is not installed"
