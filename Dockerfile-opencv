@@ -1,4 +1,4 @@
-FROM public.ecr.aws/zebrunner/appium:2.0.9-beta1
+FROM public.ecr.aws/zebrunner/appium:2.0.9-beta2
 
 # Install OpenCV prerequisites
 RUN apt-get update && apt-get -y install git cmake build-essential libopencv-dev python3-opencv
