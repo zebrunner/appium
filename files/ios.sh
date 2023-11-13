@@ -1,23 +1,10 @@
 #!/bin/bash
 
-ios list | grep $DEVICE_UDID
-if [ $? == 1 ]; then
-  echo "Device $DEVICE_UDID is not available!"
-  exit 0
-fi
 echo DEVICE_UDID: $DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
 echo "device info: $deviceInfo"
-
-# Parse output to detect Timeoud out error.
-# {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
-
-if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]] && [[ "${DEVICETYPE}" == "tvOS" ]]; then
-  echo "ERROR! Timed out waiting for response detected. TV reboot is required!"
-  exit 0
-fi
 
 if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
   echo "ERROR! failed getting info. No sense to proceed with services startup!"
@@ -25,7 +12,6 @@ if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
 fi
 
 export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion | select( . != null )")
-
 deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass | select( . != null )")
 export DEVICETYPE='Phone'
 if [ "$deviceClass" = "iPad" ]; then
@@ -35,14 +21,18 @@ if [ "$deviceClass" = "AppleTV" ]; then
   export DEVICETYPE='tvOS'
 fi
 
-# TODO: detect tablet and TV for iOS, also review `ios info` output data like below
-    #"DeviceClass":"iPhone",
-    #"ProductName":"iPhone OS",
-    #"ProductType":"iPhone10,5",
-    #"ProductVersion":"14.7.1",
-    #"SerialNumber":"C38V961BJCM2",
-    #"TimeZone":"Europe/Minsk",
-    #"TimeZoneOffsetFromUTC":10800,
+# Parse output to detect Timeoud out error.
+# {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
+
+if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
+  echo "ERROR! Timed out waiting for response detected."
+  if [[ "${DEVICETYPE}" == "tvOS" ]]; then
+    echo "ERROR! TV reboot is required! Exiting without restart..."
+    exit 0
+  else
+    echo "WARN! device reboot is recommended!"
+  fi
+fi
 
 if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${PLATFORM_VERSION}" == "AppleTV" ]]; then
   echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
