@@ -9,7 +9,7 @@ echo DEVICE_UDID: $DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
-echo "device info: " $deviceInfo
+echo "device info: $deviceInfo"
 
 # Parse output to detect Timeoud out error.
 # {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
@@ -24,9 +24,9 @@ if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
   exit 0
 fi
 
-export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion")
+export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion | select( . != null )")
 
-deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass")
+deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass | select( . != null )")
 export DEVICETYPE='Phone'
 if [ "$deviceClass" = "iPad" ]; then
   export DEVICETYPE='Tablet'
@@ -44,8 +44,7 @@ fi
     #"TimeZone":"Europe/Minsk",
     #"TimeZoneOffsetFromUTC":10800,
 
-deviceVersion=$(echo $deviceInfo | jq -r ".ProductVersion")
-if [[ "${deviceVersion}" == "17."* ]] || [[ "${deviceClass}" == "AppleTV" ]]; then
+if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${PLATFORM_VERSION}" == "AppleTV" ]]; then
   echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
   echo "wda install and startup steps will be skipped from appium container..."
 
