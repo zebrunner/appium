@@ -354,14 +354,9 @@ fi
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 
-#sleep infinity
-
-touch $TASK_LOG
+touch ${TASK_LOG}
 echo $CMD
 $CMD &
-
-# show appium task log in the docker console
-tail -f $TASK_LOG &
 
 trap 'finish' SIGTERM
 
