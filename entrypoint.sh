@@ -223,7 +223,7 @@ capture_video() {
       recordArtifactId=$ROUTER_UUID
     fi
 
-    /opt/start-capture-artifacts.sh $recordArtifactId &
+    /opt/start-capture-artifacts.sh $recordArtifactId >> ${VIDEO_LOG} &
     # create .recording-artifact-* file, so uploader would know that recorder is still in process
     echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
     # create .share-artifact-* file, so share would be performed only once for session
