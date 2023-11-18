@@ -21,7 +21,8 @@ echo "[info] [CaptureArtifacts] videoFile: $videoFile"
 
 captureAndroidArtifacts() {
   declare -i part=0
-  while true; do
+  #297: limit android screenrecord by 1 hour (20*3m)
+  while [ $part -le 20 ]; do
      #TODO: #9 integrate audio capturing for android devices
      echo "[info] [CaptureArtifacts] generating video file ${videoFile}_${part}.mp4..."
      adb shell "screenrecord --verbose ${SCREENRECORD_OPTS} /sdcard/${videoFile}_${part}.mp4"
