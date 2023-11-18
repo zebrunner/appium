@@ -111,6 +111,6 @@ COPY files/mcloud/ /opt/mcloud
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-CMD ["/bin/sh", "-c", "exec ${ENTRYPOINT_DIR}/entrypoint.sh >> ${VIDEO_LOG}"]
+CMD ["/opt/entrypoint/entrypoint.sh"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
