@@ -4,6 +4,7 @@
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Activating default com.apple.springboard during WDA startup"
 #ios launch com.apple.springboard
 
+touch ${WDA_LOG_FILE}
 # verify if wda is already started and reuse this session
 curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
 if [ $? -eq 1 ]; then
@@ -22,6 +23,8 @@ if [ $? -eq 1 ]; then
   ios forward $WDA_PORT $WDA_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
   ios forward $MJPEG_PORT $MJPEG_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
 fi
+
+tail -f ${WDA_LOG_FILE} &
 
 # wait until WDA starts
 startTime=$(date +%s)
