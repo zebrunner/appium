@@ -3,9 +3,13 @@
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
+# show list of plugins including installed ones
+appium plugin list
+
 plugins_cli=
 if [[ -n $APPIUM_PLUGINS ]]; then
-  plugins_cli=--use-plugins $APPIUM_PLUGINS
+  plugins_cli="--use-plugins $APPIUM_PLUGINS"
+  echo "plugins_cli: $plugins_cli"
 fi
 
 CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
