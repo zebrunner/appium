@@ -16,6 +16,8 @@ ENV APPIUM_CLI=
 
 ENV APPIUM_APP_SIZE_DISABLE=false
 
+ENV APPIUM_PLUGINS=
+
 # Default appium 2.0 ueser:
 # uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
 
@@ -97,9 +99,7 @@ COPY files/usbreset /usr/local/bin
 
 
 RUN appium driver list && \
-	appium plugin list && \
-	appium plugin install images
-
+	appium plugin list
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \

@@ -1,4 +1,9 @@
-FROM public.ecr.aws/zebrunner/appium:2.0.9-beta8
+FROM public.ecr.aws/zebrunner/appium:2.0.9-beta9
+
+ENV APPIUM_PLUGINS=images
+
+RUN appium plugin list && \
+        appium plugin install images
 
 # Install OpenCV prerequisites
 RUN apt-get update && apt-get -y install git cmake build-essential libopencv-dev python3-opencv

@@ -3,7 +3,12 @@
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI --use-plugins images"
+plugins_cli=
+if [[ -n $APPIUM_PLUGINS ]]; then
+  plugins_cli=--use-plugins "$APPIUM_PLUGINS"
+fi
+
+CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
 share() {
