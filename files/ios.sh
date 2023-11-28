@@ -1,5 +1,12 @@
 #!/bin/bash
 
+export AUTOMATION_NAME='XCUITest'
+
+if [[ ! "${WDA_HOST}" == "localhost" ]]; then
+  echo "External WDA is used. Nothing to start."
+  return 0
+fi
+
 echo DEVICE_UDID: $DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
@@ -13,7 +20,6 @@ fi
 
 export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion | select( . != null )")
 deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass | select( . != null )")
-export DEVICETYPE='Phone'
 if [ "$deviceClass" = "iPad" ]; then
   export DEVICETYPE='Tablet'
 fi
@@ -32,11 +38,6 @@ if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
   else
     echo "WARN! device reboot is recommended!"
   fi
-fi
-
-if [[ ! "${WDA_HOST}" == "localhost" ]]; then
-  echo "External WDA is used. Nothing to start."
-  exit 0
 fi
 
 if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${PLATFORM_VERSION}" == "AppleTV" ]]; then
@@ -92,6 +93,4 @@ fi
 . /opt/start-wda.sh
 # start wda listener with ability to restart wda
 /opt/check-wda.sh &
-
-export AUTOMATION_NAME='XCUITest'
 

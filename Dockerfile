@@ -1,6 +1,7 @@
 FROM appium/appium:v2.1.3-p2
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
+ENV DEVICETYPE=Phone
 
 # Integration UUID for ReDroid integration
 ENV ROUTER_UUID=
