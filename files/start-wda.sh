@@ -4,6 +4,7 @@
 #echo "[$(date +'%d/%m/%Y %H:%M:%S')] Activating default com.apple.springboard during WDA startup"
 #ios launch com.apple.springboard
 
+touch ${WDA_LOG_FILE}
 # verify if wda is already started and reuse this session
 curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
 if [ $? -eq 1 ]; then
@@ -17,12 +18,13 @@ if [ $? -eq 1 ]; then
   #Start the WDA service on the device using the WDA bundleId
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
   ios runwda --bundleid=$WDA_BUNDLEID --testrunnerbundleid=$WDA_BUNDLEID --xctestconfig=${schema}.xctest --env USE_PORT=$WDA_PORT --env MJPEG_SERVER_PORT=$MJPEG_PORT --env UITEST_DISABLE_ANIMATIONS=YES --udid=$DEVICE_UDID > ${WDA_LOG_FILE} 2>&1 &
-  tail -n 100 -f ${WDA_LOG_FILE} &
 
   # #148: ios: reuse proxy for redirecting wda requests through appium container
   ios forward $WDA_PORT $WDA_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
   ios forward $MJPEG_PORT $MJPEG_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
 fi
+
+tail -f ${WDA_LOG_FILE} &
 
 # wait until WDA starts
 startTime=$(date +%s)

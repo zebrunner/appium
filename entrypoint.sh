@@ -3,7 +3,16 @@
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
-CMD="xvfb-run appium --use-plugins images --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI"
+# show list of plugins including installed ones
+appium plugin list
+
+plugins_cli=
+if [[ -n $APPIUM_PLUGINS ]]; then
+  plugins_cli="--use-plugins $APPIUM_PLUGINS"
+  echo "plugins_cli: $plugins_cli"
+fi
+
+CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
 share() {
@@ -223,7 +232,7 @@ capture_video() {
       recordArtifactId=$ROUTER_UUID
     fi
 
-    /opt/start-capture-artifacts.sh $recordArtifactId &
+    /opt/start-capture-artifacts.sh $recordArtifactId >> ${VIDEO_LOG} &
     # create .recording-artifact-* file, so uploader would know that recorder is still in process
     echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
     # create .share-artifact-* file, so share would be performed only once for session
@@ -289,7 +298,8 @@ if [ "$ATD" = true ]; then
     echo "[INIT] ATD is running..."
 fi
 
-${ENTRYPOINT_DIR}/local_connect.sh
+# starting adb for android when device attached via usb, starting usbmuxd if iOS device connected via usb on Linux and starting socat if iOS device connected via usb to MacOS.
+${ENTRYPOINT_DIR}/device_connect.sh
 
 ret=$?
 if [ $ret -eq 3 ]; then
@@ -354,8 +364,7 @@ fi
 pkill -x xvfb-run
 rm -rf /tmp/.X99-lock
 
-#sleep infinity
-
+touch ${TASK_LOG}
 echo $CMD
 $CMD &
 

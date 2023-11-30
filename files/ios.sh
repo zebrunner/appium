@@ -1,20 +1,18 @@
 #!/bin/bash
 
-ios list | grep $DEVICE_UDID
-if [ $? == 1 ]; then
-  echo "Device $DEVICE_UDID is not available!"
-  #TODO: test if "exit 0" exit containr without automatic restart
-  exit 0
-fi
 echo DEVICE_UDID: $DEVICE_UDID
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] populating device info"
 deviceInfo=$(ios info --udid=$DEVICE_UDID 2>&1)
-echo "device info: " $deviceInfo
+echo "device info: $deviceInfo"
 
-export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion")
+if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
+  echo "ERROR! failed getting info. No sense to proceed with services startup!"
+  exit 0
+fi
 
-deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass")
+export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion | select( . != null )")
+deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass | select( . != null )")
 export DEVICETYPE='Phone'
 if [ "$deviceClass" = "iPad" ]; then
   export DEVICETYPE='Tablet'
@@ -23,26 +21,27 @@ if [ "$deviceClass" = "AppleTV" ]; then
   export DEVICETYPE='tvOS'
 fi
 
-# TODO: detect tablet and TV for iOS, also review `ios info` output data like below
-    #"DeviceClass":"iPhone",
-    #"ProductName":"iPhone OS",
-    #"ProductType":"iPhone10,5",
-    #"ProductVersion":"14.7.1",
-    #"SerialNumber":"C38V961BJCM2",
-    #"TimeZone":"Europe/Minsk",
-    #"TimeZoneOffsetFromUTC":10800,
-
 # Parse output to detect Timeoud out error.
 # {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
 
-if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]] && [[ "${DEVICETYPE}" == "tvOS" ]]; then
-  echo "ERROR! Timed out waiting for response detected. TV reboot is required!"
-  exit 0
+if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
+  echo "ERROR! Timed out waiting for response detected."
+  if [[ "${DEVICETYPE}" == "tvOS" ]]; then
+    echo "ERROR! TV reboot is required! Exiting without restart..."
+    exit 0
+  else
+    echo "WARN! device reboot is recommended!"
+  fi
 fi
 
-if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
-  echo "ERROR! failed getting info. No sense to proceed with services startup!"
-  exit 0
+if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${PLATFORM_VERSION}" == "AppleTV" ]]; then
+  echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
+  echo "wda install and startup steps will be skipped from appium container..."
+
+  # start proxy forward to device
+  ios forward $WDA_PORT $WDA_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
+  ios forward $MJPEG_PORT $MJPEG_PORT --udid=$DEVICE_UDID > /dev/null 2>&1 &
+  return 0
 fi
 
 echo "[$(date +'%d/%m/%Y %H:%M:%S')] Allow to download and mount DeveloperDiskImages automatically"
@@ -61,7 +60,7 @@ else
 fi
 
 
-# Chekc if WDA is already installed
+# Check if WDA is already installed
 ios apps --udid=$DEVICE_UDID | grep -v grep | grep $WDA_BUNDLEID > /dev/null 2>&1
 if [[ ! $? -eq 0 ]]; then
   echo "$WDA_BUNDLEID app is not installed"

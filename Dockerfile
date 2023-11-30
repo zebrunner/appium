@@ -14,7 +14,9 @@ ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_APP_FETCH_RETRIES=0
 ENV APPIUM_CLI=
 
-ENV CHECK_APP_SIZE_OPTIONALLY=false
+ENV APPIUM_APP_SIZE_DISABLE=false
+
+ENV APPIUM_PLUGINS=
 
 # Default appium 2.0 ueser:
 # uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
@@ -83,7 +85,7 @@ COPY files/zbr-default-caps-gen.sh /opt
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_DIR}
-COPY local_connect.sh ${ENTRYPOINT_DIR}
+COPY device_connect.sh ${ENTRYPOINT_DIR}
 
 #TODO: think about entrypoint container usage to apply permission fixes
 #RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
@@ -97,9 +99,7 @@ COPY files/usbreset /usr/local/bin
 
 
 RUN appium driver list && \
-	appium plugin list && \
-	appium plugin install images
-
+	appium plugin list
 
 #TODO:/ think about different images per each device platform
 RUN appium driver install uiautomator2 && \
@@ -111,6 +111,6 @@ COPY files/mcloud/ /opt/mcloud
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
-CMD ["/bin/sh", "-c", "exec ${ENTRYPOINT_DIR}/entrypoint.sh >> ${VIDEO_LOG}"]
+CMD ["/opt/entrypoint/entrypoint.sh"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
