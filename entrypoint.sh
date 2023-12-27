@@ -298,7 +298,8 @@ if [ "$ATD" = true ]; then
     echo "[INIT] ATD is running..."
 fi
 
-${ENTRYPOINT_DIR}/local_connect.sh
+# starting adb for android when device attached via usb, starting usbmuxd if iOS device connected via usb on Linux and starting socat if iOS device connected via usb to MacOS.
+${ENTRYPOINT_DIR}/device_connect.sh
 
 ret=$?
 if [ $ret -eq 3 ]; then

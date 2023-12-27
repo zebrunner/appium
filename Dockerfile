@@ -85,7 +85,7 @@ COPY files/zbr-default-caps-gen.sh /opt
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_DIR}
-COPY local_connect.sh ${ENTRYPOINT_DIR}
+COPY device_connect.sh ${ENTRYPOINT_DIR}
 
 #TODO: think about entrypoint container usage to apply permission fixes
 #RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
