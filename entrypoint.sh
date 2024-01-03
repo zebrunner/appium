@@ -251,7 +251,7 @@ capture_video() {
       # or
       #2023-07-20 19:29:56:534 [HTTP] <-- DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a 200 1053 ms - 14
       # make sure to skip cookie DELETE call adding space after startedSessionId value!
-      # 2023-11-02 02:33:46:996 [HTTP] --> DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a/cookie/id-experiences
+      #2023-11-02 02:33:46:996 [HTTP] --> DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a/cookie/id-experiences
 
       finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/$startedSessionId " ${TASK_LOG} | cut -d "/" -f 5 | cut -d " " -f 1`
       #echo "finishedSessionId: $finishedSessionId"
