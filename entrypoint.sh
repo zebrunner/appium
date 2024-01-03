@@ -222,7 +222,7 @@ capture_video() {
       #capture mobile session startup for iOS and Android (appium)
       #2023-07-04 00:31:07:624 [Appium] New AndroidUiautomator2Driver session created successfully, session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 added to master session list
       #2023-07-04 02:50:42:543 [Appium] New XCUITestDriver session created successfully, session 6e11b4b7-2dfd-46d9-b52d-e3ea33835704 added to master session list
-      startedSessionId=`grep -E -m 1 " session created successfully, session " ${TASK_LOG} | cut -d " " -f 11 | cut -d " " -f 1`
+      startedSessionId=`grep -E -m 1 " session created successfully, session " ${TASK_LOG} | cut -d " " -f 10 | cut -d " " -f 1`
     done
     echo "session started: $startedSessionId"
 
@@ -263,7 +263,7 @@ capture_video() {
       #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
       #finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
       # -m 1 is not valid for the from our master session list pattern!
-      finishedSessionId=`grep -E " from our master session list" ${TASK_LOG} | grep $startedSessionId | cut -d " " -f 7 | cut -d " " -f 1`
+      finishedSessionId=`grep -E " from our master session list" ${TASK_LOG} | grep $startedSessionId | cut -d " " -f 6 | cut -d " " -f 1`
     done
 
     echo "session finished: $finishedSessionId"
