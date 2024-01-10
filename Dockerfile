@@ -1,4 +1,4 @@
-FROM appium/appium:v2.1.3-p2
+FROM appium/appium:v2.2.2-p2
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
 

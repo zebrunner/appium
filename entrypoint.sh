@@ -222,7 +222,7 @@ capture_video() {
       #capture mobile session startup for iOS and Android (appium)
       #2023-07-04 00:31:07:624 [Appium] New AndroidUiautomator2Driver session created successfully, session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 added to master session list
       #2023-07-04 02:50:42:543 [Appium] New XCUITestDriver session created successfully, session 6e11b4b7-2dfd-46d9-b52d-e3ea33835704 added to master session list
-      startedSessionId=`grep -E -m 1 " session created successfully, session " ${TASK_LOG} | cut -d " " -f 11 | cut -d " " -f 1`
+      startedSessionId=`grep -E -m 1 " session created successfully, session " ${TASK_LOG} | cut -d " " -f 10 | cut -d " " -f 1`
     done
     echo "session started: $startedSessionId"
 
@@ -246,12 +246,12 @@ capture_video() {
       #capture mobile session finish for iOS and Android (appium)
 
       # including support of the aborted session
-      #2023-07-19 14:37:25:009 - [HTTP] [HTTP] --> DELETE /wd/hub/session/9da044cc-a96b-4052-8055-857900c6bbe8/window
-      #2023-08-08 09:42:51:896 - [HTTP] [HTTP] --> DELETE /wd/hub/session/61e32667-a8f7-4b08-bca7-5092cbccc383
+      #2023-07-19 14:37:25:009 [HTTP] --> DELETE /wd/hub/session/9da044cc-a96b-4052-8055-857900c6bbe8/window
+      #2023-08-08 09:42:51:896 [HTTP] --> DELETE /wd/hub/session/61e32667-a8f7-4b08-bca7-5092cbccc383
       # or
-      #2023-07-20 19:29:56:534 - [HTTP] [HTTP] <-- DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a 200 1053 ms - 14
+      #2023-07-20 19:29:56:534 [HTTP] <-- DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a 200 1053 ms - 14
       # make sure to skip cookie DELETE call adding space after startedSessionId value!
-      # 2023-11-02 02:33:46:996 [HTTP] [HTTP] --> DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a/cookie/id-experiences
+      #2023-11-02 02:33:46:996 [HTTP] --> DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a/cookie/id-experiences
 
       finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/$startedSessionId " ${TASK_LOG} | cut -d "/" -f 5 | cut -d " " -f 1`
       #echo "finishedSessionId: $finishedSessionId"
@@ -263,7 +263,7 @@ capture_video() {
       #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
       #finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
       # -m 1 is not valid for the from our master session list pattern!
-      finishedSessionId=`grep -E " from our master session list" ${TASK_LOG} | grep $startedSessionId | cut -d " " -f 7 | cut -d " " -f 1`
+      finishedSessionId=`grep -E " from our master session list" ${TASK_LOG} | grep $startedSessionId | cut -d " " -f 6 | cut -d " " -f 1`
     done
 
     echo "session finished: $finishedSessionId"
