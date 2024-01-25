@@ -16,7 +16,8 @@ cat << EndOfMessage
 	  "udid": "${DEVICE_UDID}",
 	  "adb_port": ${ADB_PORT},
 	  "proxy_port": ${PROXY_PORT},
-          "automationName": "${AUTOMATION_NAME}"
+          "automationName": "${AUTOMATION_NAME}",
+          "server_proxy_port": ${SERVER_PROXY_PORT}
         }
       ],
   "configuration":
