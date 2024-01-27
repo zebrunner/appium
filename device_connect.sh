@@ -3,6 +3,35 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
+  if [[ ! "${WDA_HOST}" == "localhost" ]]; then
+    echo "Continue without ios device verification... Just verify external wda state using http://${WDA_HOST}:${WDA_PORT}/status"
+
+
+    # wait until external WDA is healthy
+    startTime=$(date +%s)
+    idleTimeout=$WDA_WAIT_TIMEOUT
+    wdaStarted=0
+    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
+      curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
+      if [ $? -eq 0 ]; then
+        echo "wda status is ok."
+        wdaStarted=1
+        break
+      fi
+      sleep 1
+    done
+
+    if [ $wdaStarted -eq 0 ]; then
+      echo "External WDA is unhealthy!"
+      # Destroy appium process as there is no sense to continue with undefined WDA_HOST ip!
+      pkill node
+      exit 1
+    fi
+
+    # no sense to verify device availability and start wda. exiting...
+    exit 0
+  fi
+
   if [[ -z $USBMUXD_SOCKET_ADDRESS ]]; then
     echo "start containerized usbmuxd service/process"
     usbmuxd -f &
