@@ -12,18 +12,29 @@ if [[ "${deviceInfo}" == *"failed getting info"* ]]; then
 fi
 
 export PLATFORM_VERSION=$(echo $deviceInfo | jq -r ".ProductVersion | select( . != null )")
-export DEVICETYPE='tvOS'
+deviceClass=$(echo $deviceInfo | jq -r ".DeviceClass | select( . != null )")
+export DEVICETYPE='Phone'
+if [ "$deviceClass" = "iPad" ]; then
+  export DEVICETYPE='Tablet'
+fi
+if [ "$deviceClass" = "AppleTV" ]; then
+  export DEVICETYPE='tvOS'
+fi
 
 # Parse output to detect Timeoud out error.
 # {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
 
 if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
   echo "ERROR! Timed out waiting for response detected."
-  echo "ERROR! TV reboot is required! Exiting without restart..."
-  exit 0
+  if [[ "${DEVICETYPE}" == "tvOS" ]]; then
+    echo "ERROR! TV reboot is required! Exiting without restart..."
+    exit 0
+  else
+    echo "WARN! device reboot is recommended!"
+  fi
 fi
 
-if [[ "${PLATFORM_VERSION}" == "17."* ]]; then
+if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${DEVICETYPE}" == "tvOS" ]]; then
   echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
   echo "wda install and startup steps will be skipped from appium container..."
 
