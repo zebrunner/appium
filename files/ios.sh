@@ -34,7 +34,7 @@ if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
   fi
 fi
 
-if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${DEVICETYPE}" == "tvOS" ]]; then
+if [[ "${PLATFORM_VERSION}" == "17."* ]]; then
   echo "Mounting iOS via Linux container not supported! WDA should be compiled and started via xcode!"
   echo "wda install and startup steps will be skipped from appium container..."
 
