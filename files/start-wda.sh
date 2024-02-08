@@ -10,10 +10,7 @@ curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
 if [ $? -eq 1 ]; then
   echo "existing WDA not detected"
 
-  schema=WebDriverAgentRunner
-  if [ "$DEVICETYPE" == "tvOS" ]; then
-    schema=WebDriverAgentRunner_tvOS
-  fi
+  schema=WebDriverAgentRunner_tvOS
 
   #Start the WDA service on the device using the WDA bundleId
   echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent application on port $WDA_PORT"
