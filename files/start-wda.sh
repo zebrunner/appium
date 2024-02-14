@@ -42,44 +42,10 @@ done
 
 if [ $wdaStarted -eq 0 ]; then
   echo "WDA is unhealthy!"
-  cat $WDA_LOG_FILE
   # Destroy appium process as there is no sense to continue with undefined WDA_HOST ip!
   pkill node
   exit 1
 fi
-
-# #247: right after the WDA startup it should load SNAPSHOT of com.apple.springboard default screen and default timeout is 60 sec for 1st start.
-# We have to start this session at once and till next restart WDA sessions might be stopped/started asap.
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Starting WebDriverAgent 1st session"
-# start new WDA session with default 60 sec snapshot timeout
-sessionFile=/tmp/${DEVICE_UDID}.txt
-curl --silent --location --request POST "http://${WDA_HOST}:${WDA_PORT}/session" --header 'Content-Type: application/json' --data-raw '{"capabilities": {"waitForQuiescence": false}}' > ${sessionFile}
-
-echo "WDA session response:"
-cat ${sessionFile}
-
-bundleId=`cat $sessionFile | grep "CFBundleIdentifier" | cut -d '"' -f 4`
-echo bundleId: $bundleId
-
-sessionId=`cat $sessionFile | grep -m 1 "sessionId" | cut -d '"' -f 4`
-echo sessionId: $sessionId
-
-#TODO: test default bundleId for AppleTV
-if [[ "$bundleId" != "com.apple.springboard" ]]; then
-  echo "[$(date +'%d/%m/%Y %H:%M:%S')] Activating springboard app forcibly"
-  curl --silent --location --request POST "http://${WDA_HOST}:${WDA_PORT}/session/$sessionId/wda/apps/launch" --header 'Content-Type: application/json' --data-raw '{"bundleId": "com.apple.springboard"}'
-  sleep 1
-  curl --silent --location --request POST "http://${WDA_HOST}:${WDA_PORT}/session" --header 'Content-Type: application/json' --data-raw '{"capabilities": {"waitForQuiescence": false}}'
-fi
-
-# #285 do stop for default wda session to improve homescreen activation during usage in STF
-echo "[$(date +'%d/%m/%Y %H:%M:%S')] Stopping 1st default WebDriverAgent session"
-curl --silent --location --request GET "http://${WDA_HOST}:${WDA_PORT}/status"  > ${sessionFile}
-sessionId=`cat $sessionFile | grep -m 1 "sessionId" | cut -d '"' -f 4`
-echo sessionId: $sessionId
-curl --silent --location --request DELETE "http://${WDA_HOST}:${WDA_PORT}/session/${sessionId}"
-
-rm -f ${sessionFile}
 
 #TODO: to  improve better 1st super slow session startup we have to investigate extra xcuitest caps: https://github.com/appium/appium-xcuitest-driver
 #customSnapshotTimeout, waitForIdleTimeout, animationCoolOffTimeout etc
