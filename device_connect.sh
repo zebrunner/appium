@@ -84,50 +84,33 @@ if [ "$ANDROID_DEVICE" == "device:5555" ]; then
     fi
 fi
 
-# wait until device is connected and authorized
-available=0
-# to detect negative state
-unauthorized=0
-offline=0
-
 declare -i index=0
 # as default ADB_POLLING_SEC is 5s then we wait for authorizing ~50 sec only
-while [[ $available -eq 0 ]] && [[ $index -lt 10 ]]
+while [[ $index -lt 10 ]]
 do
-    available=`adb devices | grep -c -w device`
-    echo "available: $available"
-
-    if [[ $available -eq 1 ]]; then
-        # do not wait default 5 sec pause if everything is good
-        break
-    fi
-
-    unauthorized=`adb devices | grep -c unauthorized`
-    echo "unauthorized: $unauthorized"
-
-    offline=`adb devices | grep -c offline`
-    echo "offline: $offline"
+    state=$(adb get-state)
+    case $state in
+        "device")
+            echo "Device connected successfully."
+            break
+        ;;
+        "offline" | "authorizing" | "connecting" | "unknown")
+            echo "Device state: '$state'. One more attempt in $ADB_POLLING_SEC seconds."
+            exit 2
+        ;;
+        "bootloader" | "host" | "recovery" | "rescue" | "sideload" | "unauthorized" | "no permissions"*)
+            echo "Device state: '$state'. There is no reason to try to reconnect."
+            exit 1
+        ;;
+        *)
+            echo "Not documented device state: '$state'. One more attempt in $ADB_POLLING_SEC seconds."
+            exit 2
+        ;;
+    esac
 
     sleep ${ADB_POLLING_SEC}
     index+=1
 done
-
-if [[ $unauthorized -eq 1 ]]; then
-    echo "Device is not authorized!"
-    exit 3
-fi
-
-if [[ $offline -eq 1 ]]; then
-    echo "Device is offline!"
-    exit 2
-fi
-
-if [[ $available -eq 1 ]]; then
-    echo "Device is available"
-else
-    echo "Device is not available!"
-    exit 1
-fi
 
 info=""
 # to support device reboot as device is available by adb but not functionaning correctly.

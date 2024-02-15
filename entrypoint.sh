@@ -302,14 +302,6 @@ fi
 ${ENTRYPOINT_DIR}/device_connect.sh
 
 ret=$?
-if [ $ret -eq 3 ]; then
-    # unauthorized state
-    echo "Reconnecting..."
-    reconnect
-    exit 0
-fi
-
-if [  $ret -eq 2 ]; then
     # offline state
     echo "Restarting..."
     reconnect
