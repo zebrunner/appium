@@ -88,6 +88,9 @@ declare -i index=0
 # as default ADB_POLLING_SEC is 5s then we wait for authorizing ~50 sec only
 while [[ $index -lt 10 ]]
 do
+    # Possible adb statuses - https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/adb.cpp#118
+    # Possible adb statuses2 - https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/proto/devices.proto#25
+    # UsbNoPermissionsShortHelpText https://android.googlesource.com/platform/system/core/+/refs/heads/main/diagnose_usb/diagnose_usb.cpp#83
     state=$(adb get-state)
     case $state in
         "device")
