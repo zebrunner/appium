@@ -113,7 +113,7 @@ do
 done
 
 info=""
-# to support device reboot as device is available by adb but not functionaning correctly.
+# to support device reboot as device is available by adb but not functioning correctly.
 # this extra dumpsys display call guarantees that android is fully booted
 while [[ "$info" == "" ]]
 do
