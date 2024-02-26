@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. /opt/debug.sh
+
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
