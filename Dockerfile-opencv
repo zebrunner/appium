@@ -1,4 +1,4 @@
-FROM public.ecr.aws/zebrunner/appium:2.0.10
+FROM public.ecr.aws/zebrunner/appium:2.0.11
 
 ENV APPIUM_PLUGINS=images
 
