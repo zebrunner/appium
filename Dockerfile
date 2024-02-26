@@ -65,6 +65,11 @@ ENV DEVICE_BUS=/dev/bus/usb/003/011
 # Usbmuxd settings "host:port"
 ENV USBMUXD_SOCKET_ADDRESS=
 
+# Debug mode vars
+ENV DEBUG=false
+ENV DEBUG_TIMEOUT=3600
+ENV VERBOSE=false
+
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
