@@ -81,6 +81,7 @@ RUN unzip go-ios-linux.zip -d /usr/local/bin
 COPY files/start-capture-artifacts.sh /opt
 
 # Zebrunner MCloud node config generator
+COPY files/debug.sh /opt
 COPY files/android.sh /opt
 COPY files/ios.sh /opt
 COPY files/start-wda.sh /opt
