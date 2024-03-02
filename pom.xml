@@ -10,7 +10,7 @@
 	<name>Zebrunner Device Farm (Selenium Grid Node)</name>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<selenium.version>4.13.0</selenium.version>
+		<selenium.version>4.18.1</selenium.version>
 		<commons-logging.version>1.2</commons-logging.version>
 		<commons-lang3.version>3.14.0</commons-lang3.version>
 		<jackson-databind.version>2.16.0</jackson-databind.version>
