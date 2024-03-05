@@ -34,7 +34,7 @@ session-timeout = $GRID_BROWSER_TIMEOUT
 
 [relay]
 # URL for connecting to the service that supports WebDriver commands like an Appium server or a cloud service.
-url = "http://localhost:4723/wd/hub"
+url = "http://host.docker.internal:4723/wd/hub"
 
 # Optional, endpoint to query the WebDriver service status, an HTTP 200 response is expected
 status-endpoint = "/status"
