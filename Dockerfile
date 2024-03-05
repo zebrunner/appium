@@ -94,18 +94,18 @@ ENV HTTP_LOGS false
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 
 RUN mkdir -p $APPIUM_APPS_DIR && \
-	chown androidusr:androidusr $APPIUM_APPS_DIR \
+	chown androidusr:androidusr $APPIUM_APPS_DIR && \
 #Setup libimobile device, usbmuxd and some tools
- export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat \
+ export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat && \
 #Grab gidevice from github and extract it in a folder
-wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip \
+wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip && \
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
-unzip go-ios-linux.zip -d /usr/local/bin \
- mkdir -p ${ENTRYPOINT_DIR} \
+unzip go-ios-linux.zip -d /usr/local/bin && \
+ mkdir -p ${ENTRYPOINT_DIR} && \
 #TODO: migrate everything to androiduser
 #USER androidusr
  appium driver list && \
- appium plugin list \
+ appium plugin list && \
 #TODO:/ think about different images per each device platform
  appium driver install uiautomator2 && \
  appium driver install xcuitest@5.7.0
