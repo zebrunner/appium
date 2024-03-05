@@ -360,7 +360,7 @@ touch ${TASK_LOG}
 echo $CMD
 
 $CMD &
-java ${JAVA_OPTS} -cp /opt/mcloud-node-1.0.jar:/opt/mcloud-node.jar -javaagent:/opt/mcloud-node-agent.jar org.openqa.selenium.grid.Bootstrap node \
+java ${JAVA_OPTS} -Djava.security.egd=file:/dev/./urandom -cp /opt/mcloud-node-1.0.jar:/opt/mcloud-node.jar -javaagent:/opt/mcloud-node-agent.jar org.openqa.selenium.grid.Bootstrap node \
   --port 7777 \
   --config $NODE_CONFIG_JSON  &
 trap 'finish' SIGTERM
