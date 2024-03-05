@@ -65,6 +65,11 @@ ENV DEVICE_BUS=/dev/bus/usb/003/011
 # Usbmuxd settings "host:port"
 ENV USBMUXD_SOCKET_ADDRESS=
 
+# Debug mode vars
+ENV DEBUG=false
+ENV DEBUG_TIMEOUT=3600
+ENV VERBOSE=false
+
 #Setup libimobile device, usbmuxd and some tools
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
@@ -76,6 +81,7 @@ RUN unzip go-ios-linux.zip -d /usr/local/bin
 COPY files/start-capture-artifacts.sh /opt
 
 # Zebrunner MCloud node config generator
+COPY files/debug.sh /opt
 COPY files/android.sh /opt
 COPY files/ios.sh /opt
 COPY files/start-wda.sh /opt

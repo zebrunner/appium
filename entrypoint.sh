@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. /opt/debug.sh
+
 NODE_CONFIG_JSON="/root/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
@@ -208,7 +210,6 @@ concatAndroidRecording() {
 }
 
 
-
 capture_video() {
   # use short sleep operations otherwise abort can't be handled via trap/share
   while true; do
@@ -302,22 +303,13 @@ fi
 ${ENTRYPOINT_DIR}/device_connect.sh
 
 ret=$?
-if [ $ret -eq 3 ]; then
-    # unauthorized state
-    echo "Reconnecting..."
-    reconnect
-    exit 0
-fi
-
-if [  $ret -eq 2 ]; then
-    # offline state
+if [ $ret -eq 2 ]; then
     echo "Restarting..."
     reconnect
     exit 1
 fi
 
 if [ $ret -eq 1 ]; then
-    # is not available state due to the unknown reason
     echo "Exiting without restarting..."
     exit 0
 fi
