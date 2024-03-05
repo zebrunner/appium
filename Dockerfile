@@ -91,7 +91,7 @@ ENV SUBSCRIBE_EVENTS_PORT 4443
 ENV NODE_LOG_LEVEL INFO
 ENV HTTP_LOGS false
 ################################################
-ENV ENTRYPOINT_DIR=/opt/entrypoint
+ENV ENTRYPOINT_DIR=/opt/entrypoint/
 
 RUN mkdir -p $APPIUM_APPS_DIR && \
 	chown androidusr:androidusr $APPIUM_APPS_DIR && \
