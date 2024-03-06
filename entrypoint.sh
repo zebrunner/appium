@@ -2,7 +2,7 @@
 
 . /opt/debug.sh
 
-NODE_CONFIG_JSON="/root/nodeconfig.json"
+NODE_CONFIG_JSON="/root/nodeconfig.toml"
 DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
 
 # show list of plugins including installed ones
@@ -14,7 +14,7 @@ if [[ -n $APPIUM_PLUGINS ]]; then
   echo "plugins_cli: $plugins_cli"
 fi
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
+CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port 4723 --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
 share() {
@@ -334,7 +334,7 @@ if [ "$CONNECT_TO_GRID" = true ]; then
     else
         /root/generate_config.sh $NODE_CONFIG_JSON
     fi
-    CMD+=" --nodeconfig $NODE_CONFIG_JSON"
+#    CMD+=" --nodeconfig $NODE_CONFIG_JSON"
 fi
 
 if [ "$DEFAULT_CAPABILITIES" = true ]; then
@@ -358,8 +358,11 @@ rm -rf /tmp/.X99-lock
 
 touch ${TASK_LOG}
 echo $CMD
-$CMD &
 
+$CMD &
+java ${JAVA_OPTS} -cp /opt/mcloud-node-1.0.jar:/opt/mcloud-node.jar -javaagent:/opt/mcloud-node-agent.jar org.openqa.selenium.grid.Bootstrap node \
+  --port 7777 \
+  --config $NODE_CONFIG_JSON  &
 trap 'finish' SIGTERM
 
 # start in background video artifacts capturing

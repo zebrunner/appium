@@ -12,11 +12,34 @@ ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
 ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_APP_FETCH_RETRIES=0
-ENV APPIUM_CLI=
-
 ENV APPIUM_APP_SIZE_DISABLE=false
 
-ENV APPIUM_PLUGINS=
+################################################
+######### NODE CONFIGURATION VARIABLES #########
+# Hub hostname or IP address
+ENV SELENIUM_HOST localhost
+# Hub port
+ENV SELENIUM_PORT 4444
+# How often, in seconds, the Node will try to register itself for the first time to the Distributor.
+ENV REGISTER_CYCLE 300
+# How long, in seconds, will the Node try to register to the Distributor for the first time.
+# After this period is completed, the Node will not attempt to register again.
+ENV REGISTER_PERIOD 1000
+# How often, in seconds, will the Node send heartbeat events to the Distributor to inform it that the Node is up.
+ENV HEARTBEAT_PERIOD 5
+# Let X be the session-timeout in seconds.
+# The Node will automatically kill a session that has not had any activity in the last X seconds.
+# This will release the slot for other tests.
+ENV GRID_BROWSER_TIMEOUT 180
+#todo add description
+ENV PUBLISH_EVENTS_PORT 4442
+#todo add description
+ENV SUBSCRIBE_EVENTS_PORT 4443
+# Log level. Default logging level is INFO. Log levels are described here
+# https://docs.oracle.com/javase/7/docs/api/java/util/logging/Level.html
+ENV NODE_LOG_LEVEL INFO
+ENV HTTP_LOGS false
+################################################
 
 # Default appium 2.0 ueser:
 # uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
@@ -88,6 +111,16 @@ COPY files/start-wda.sh /opt
 COPY files/check-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
+
+COPY target/mcloud-node-1.0.jar \
+    /opt
+COPY target/mcloud-node.jar \
+    /opt
+
+COPY agent/target/mcloud-node-agent-1.0.jar \
+    /opt
+COPY agent/target/mcloud-node-agent.jar \
+    /opt
 
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
