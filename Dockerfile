@@ -115,7 +115,8 @@ RUN appium driver install uiautomator2 && \
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud
 # do not make backups because unpatched js files in the same folder might be used by Appium
-RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
+RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME} && \
+    npm install --prefix ${APPIUM_HOME}
 
 #override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/opt/entrypoint/entrypoint.sh"]
