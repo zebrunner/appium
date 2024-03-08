@@ -14,35 +14,32 @@
  * limitations under the License.
  *******************************************************************************/
 
-package com.zebrunner.mcloud.grid.models.stf;
-
-import java.util.HashMap;
-import java.util.Map;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Battery {
+public class Browser {
 
-    private String health;
-    private Double level;
-    private Double scale;
-    private String source;
-    private String status;
-    private String temp;
-    private Double voltage;
+    private List<App> apps = new ArrayList<App>();
+    private Boolean selected;
+
     @JsonIgnore
-    private Map<String, Object> additionalProperties = new HashMap<>();
+    private Map<String, Object> additionalProperties = new HashMap<String, Object>();
 
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {

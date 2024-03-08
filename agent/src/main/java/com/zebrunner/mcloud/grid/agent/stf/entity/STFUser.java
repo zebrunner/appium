@@ -14,30 +14,31 @@
  * limitations under the License.
  *******************************************************************************/
 
-package com.zebrunner.mcloud.grid.models.stf;
-
-import java.util.HashMap;
-import java.util.Map;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Device {
+public class STFUser {
 
-    private STFDevice device;
-    private Boolean success;
+    private String email;
+    private String name;
+    private String privilege;
+
     @JsonIgnore
-    private Map<String, Object> additionalProperties = new HashMap<String, Object>();
+    private Map<String, Object> additionalProperties = new HashMap<>();
 
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {

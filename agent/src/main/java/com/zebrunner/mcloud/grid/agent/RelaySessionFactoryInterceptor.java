@@ -17,4 +17,5 @@ public class RelaySessionFactoryInterceptor {
             @SuperCall final Callable<Object> proxy, @Argument(0) Capabilities capabilities) throws Exception {
         return CAPABILITY_MATCHER.matches(factory.getStereotype(), capabilities);
     }
+
 }

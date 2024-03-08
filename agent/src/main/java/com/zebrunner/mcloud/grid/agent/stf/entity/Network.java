@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
-package com.zebrunner.mcloud.grid.models.stf;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
@@ -31,18 +30,18 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class App {
+public class Network {
 
-    private String developer;
-    private String id;
-    private String name;
-    private Boolean selected;
-    private Boolean system;
-
+    private Boolean connected;
+    private Boolean failover;
+    private Boolean manual;
+    private String operator;
+    private Boolean roaming;
+    private String state;
+    private String subtype;
     private String type;
     @JsonIgnore
     private Map<String, Object> additionalProperties = new HashMap<>();
-
 
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {

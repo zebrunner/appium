@@ -28,7 +28,7 @@ import org.openqa.selenium.remote.CapabilityType;
 import java.util.List;
 import java.util.logging.Logger;
 
-import static com.zebrunner.mcloud.grid.agent.utils.CapabilityUtils.getAppiumCapability;
+import static com.zebrunner.mcloud.grid.agent.util.CapabilityUtils.getAppiumCapability;
 
 @SuppressWarnings("unused")
 public final class MobileCapabilityMatcher extends DefaultSlotMatcher {

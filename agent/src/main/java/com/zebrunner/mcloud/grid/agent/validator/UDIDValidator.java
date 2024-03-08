@@ -1,6 +1,6 @@
 package com.zebrunner.mcloud.grid.agent.validator;
 
-import com.zebrunner.mcloud.grid.agent.utils.CapabilityUtils;
+import com.zebrunner.mcloud.grid.agent.util.CapabilityUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.openqa.selenium.Capabilities;
 

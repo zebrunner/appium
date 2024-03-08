@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-package com.zebrunner.mcloud.grid.models.stf;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
@@ -31,19 +31,10 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Display {
+public class Device {
 
-    private Double density;
-    private Double fps;
-    private Double height;
-    private Double id;
-    private Double rotation;
-    private Boolean secure;
-    private Double size;
-    private String url;
-    private Double width;
-    private Double xdpi;
-    private Double ydpi;
+    private STFDevice device;
+    private Boolean success;
     @JsonIgnore
     private Map<String, Object> additionalProperties = new HashMap<String, Object>();
 

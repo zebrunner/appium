@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-package com.zebrunner.mcloud.grid.models.stf;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;

@@ -13,14 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-package com.zebrunner.mcloud.grid.util;
+package com.zebrunner.mcloud.grid.agent.util;
 
-import java.io.IOException;
-import java.net.URI;
-import java.time.Duration;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import com.zebrunner.mcloud.grid.agent.stf.entity.Path;
 import org.apache.hc.client5.http.classic.methods.HttpDelete;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -36,8 +31,11 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.util.Timeout;
 
-import com.zebrunner.mcloud.grid.integration.client.Path;
-import com.zebrunner.mcloud.grid.util.HttpClient.Response;
+import java.io.IOException;
+import java.net.URI;
+import java.time.Duration;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class HttpClientApache {
 
@@ -66,7 +64,7 @@ public final class HttpClientApache {
         return this;
     }
 
-    public Response<String> get() {
+    public HttpClient.Response<String> get() {
         if (url == null) {
             LOGGER.log(Level.WARNING, "url should be specified!");
             return null;
@@ -87,7 +85,7 @@ public final class HttpClientApache {
         }
     }
 
-    public Response<String> get(HttpEntity entity) {
+    public HttpClient.Response<String> get(HttpEntity entity) {
         if (url == null) {
             LOGGER.log(Level.WARNING, "url should be specified!");
             return null;
@@ -97,7 +95,7 @@ public final class HttpClientApache {
         return execute(get);
     }
 
-    public Response<String> post(HttpEntity entity) {
+    public HttpClient.Response<String> post(HttpEntity entity) {
         if (url == null) {
             LOGGER.log(Level.WARNING, "url should be specified!");
             return null;
@@ -107,7 +105,7 @@ public final class HttpClientApache {
         return execute(post);
     }
 
-    public Response<String> put(HttpEntity entity) {
+    public HttpClient.Response<String> put(HttpEntity entity) {
         if (url == null) {
             LOGGER.log(Level.WARNING, "url should be specified!");
             return null;
@@ -117,7 +115,7 @@ public final class HttpClientApache {
         return execute(put);
     }
 
-    public Response<String> delete() {
+    public HttpClient.Response<String> delete() {
         if (url == null) {
             LOGGER.log(Level.WARNING, "url should be specified!");
             return null;
@@ -126,8 +124,8 @@ public final class HttpClientApache {
         return execute(delete);
     }
 
-    private Response<String> execute(HttpUriRequest req) {
-        Response<String> result = new Response<>();
+    private HttpClient.Response<String> execute(HttpUriRequest req) {
+        HttpClient.Response<String> result = new HttpClient.Response<>();
         try (CloseableHttpClient httpClient = HttpClientBuilder.create()
                 .setDefaultRequestConfig(requestConfig)
                 .build();

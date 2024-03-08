@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-package com.zebrunner.mcloud.grid.integration.client;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 public enum Path {
 

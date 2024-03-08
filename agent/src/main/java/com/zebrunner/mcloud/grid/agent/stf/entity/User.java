@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-package com.zebrunner.mcloud.grid.models.stf;
+package com.zebrunner.mcloud.grid.agent.stf.entity;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
@@ -31,15 +31,12 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Phone {
+public class User {
 
-    private Object iccid;
-    private String imei;
-    private String network;
-    private Object phoneNumber;
+    private STFUser user;
+    private Boolean success;
     @JsonIgnore
-    private Map<String, Object> additionalProperties = new HashMap<>();
-
+    private Map<String, Object> additionalProperties = new HashMap<String, Object>();
 
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {

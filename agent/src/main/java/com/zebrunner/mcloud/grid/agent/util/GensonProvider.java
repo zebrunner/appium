@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-package com.zebrunner.mcloud.grid.util;
+package com.zebrunner.mcloud.grid.agent.util;
 
 import com.owlike.genson.Genson;
 import com.owlike.genson.GensonBuilder;
