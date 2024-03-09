@@ -5,7 +5,7 @@
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 cat << EndOfMessage
 [server]
-host = "${STF_PROVIDER_HOST}"
+bind-host = true
 
 [node]
 # Autodetect which drivers are available on the current system, and add them to the Node.
