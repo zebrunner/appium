@@ -30,12 +30,7 @@ else
   export DEVICETYPE='Phone'
 fi
 
-if [[ ${PLATFORM_VERSION} == 4* ]] || [[ ${PLATFORM_VERSION} == 5* ]] || [[ ${PLATFORM_VERSION} == 6* ]]
-then
-  export AUTOMATION_NAME='Appium'
-else
-  export AUTOMATION_NAME='uiautomator2'
-fi
+export AUTOMATION_NAME='uiautomator2'
 
 # there is no sense to clean something for scalable one-time redroid container
 if [ "$ANDROID_DEVICE" != "device:5555" ]; then

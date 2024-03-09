@@ -11,7 +11,14 @@ cat << EndOfMessage
  "appium:platformVersion":"${PLATFORM_VERSION}",
  "appium:deviceName": "${DEVICE_NAME}",
  "appium:udid": "${DEVICE_UDID}",
- "appium:automationName": "${AUTOMATION_NAME}"
+ "appium:automationName": "${AUTOMATION_NAME}",
+  "zebrunner:slotCapabilities": {
+    "deviceName": "${DEVICE_NAME}",
+    "platformName": "${PLATFORM_NAME}",
+    "platformVersion": "${PLATFORM_VERSION}",
+    "deviceType": "${DEVICETYPE}",
+    "udid":"$DEVICE_UDID"
+  }
 }
 EndOfMessage
 fi
@@ -33,7 +40,14 @@ cat << EndOfMessage
  "appium:webDriverAgentUrl":"http://${WDA_HOST}:${WDA_PORT}",
  "appium:preventWDAAttachments": "true",
  "appium:simpleIsVisibleCheck": "true",
- "appium:wdaLocalPort": "${WDA_PORT}"
+ "appium:wdaLocalPort": "${WDA_PORT}",
+ "zebrunner:slotCapabilities": {
+    "deviceName": "${DEVICE_NAME}",
+    "platformName": "${PLATFORM_NAME}",
+    "platformVersion": "${PLATFORM_VERSION}",
+    "deviceType": "${DEVICETYPE}",
+    "udid":"$DEVICE_UDID"
+ }
 }
 EndOfMessage
 fi

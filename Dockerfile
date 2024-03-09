@@ -1,4 +1,9 @@
 FROM appium/appium:v2.2.2-p2
+
+# Default appium 2.0 ueser:
+# uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
+USER root
+
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
 
@@ -12,19 +17,9 @@ ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
 ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_APP_FETCH_RETRIES=0
-ENV APPIUM_CLI=
-
 ENV APPIUM_APP_SIZE_DISABLE=false
-
-ENV APPIUM_PLUGINS=
-
-# Default appium 2.0 ueser:
-# uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
-
-USER root
-RUN mkdir -p $APPIUM_APPS_DIR && \
-	chown androidusr:androidusr $APPIUM_APPS_DIR
-
+################################################
+######## APPIUM CONFIGURATION VARIABLES ########
 # Android envs
 ENV ADB_PORT=5037
 ENV ANDROID_DEVICE=
@@ -70,48 +65,60 @@ ENV DEBUG=false
 ENV DEBUG_TIMEOUT=3600
 ENV VERBOSE=false
 
+################################################
+######### NODE CONFIGURATION VARIABLES #########
+# Hub hostname or IP address
+ENV SELENIUM_HOST localhost
+# Hub port
+ENV SELENIUM_PORT 4444
+# How often, in seconds, the Node will try to register itself for the first time to the Distributor.
+ENV REGISTER_CYCLE 300
+# How long, in seconds, will the Node try to register to the Distributor for the first time.
+# After this period is completed, the Node will not attempt to register again.
+ENV REGISTER_PERIOD 1000
+# How often, in seconds, will the Node send heartbeat events to the Distributor to inform it that the Node is up.
+ENV HEARTBEAT_PERIOD 5
+# Let X be the session-timeout in seconds.
+# The Node will automatically kill a session that has not had any activity in the last X seconds.
+# This will release the slot for other tests.
+ENV GRID_BROWSER_TIMEOUT 180
+#todo add description
+ENV PUBLISH_EVENTS_PORT 4442
+#todo add description
+ENV SUBSCRIBE_EVENTS_PORT 4443
+# Log level. Default logging level is INFO. Log levels are described here
+# https://docs.oracle.com/javase/7/docs/api/java/util/logging/Level.html
+ENV NODE_LOG_LEVEL INFO
+ENV HTTP_LOGS false
+################################################
+ENV ENTRYPOINT_DIR=/opt/entrypoint/
+
+RUN mkdir -p $APPIUM_APPS_DIR && \
+	chown androidusr:androidusr $APPIUM_APPS_DIR && \
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
-
+ export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat && \
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip
+wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip && \
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
-RUN unzip go-ios-linux.zip -d /usr/local/bin
-
-COPY files/start-capture-artifacts.sh /opt
+unzip go-ios-linux.zip -d /usr/local/bin && \
+ mkdir -p ${ENTRYPOINT_DIR} && \
+#TODO: migrate everything to androiduser
+#USER androidusr
+ appium driver list && \
+ appium plugin list && \
+#TODO:/ think about different images per each device platform
+ appium driver install uiautomator2 && \
+ appium driver install xcuitest@5.7.0
 
 # Zebrunner MCloud node config generator
-COPY files/debug.sh /opt
-COPY files/android.sh /opt
-COPY files/ios.sh /opt
-COPY files/start-wda.sh /opt
-COPY files/check-wda.sh /opt
-COPY files/zbr-config-gen.sh /opt
-COPY files/zbr-default-caps-gen.sh /opt
-
-ENV ENTRYPOINT_DIR=/opt/entrypoint
-RUN mkdir -p ${ENTRYPOINT_DIR}
-COPY entrypoint.sh ${ENTRYPOINT_DIR}
-COPY device_connect.sh ${ENTRYPOINT_DIR}
+COPY files/debug.sh files/start-capture-artifacts.sh files/android.sh files/ios.sh files/start-wda.sh files/check-wda.sh files/zbr-config-gen.sh files/zbr-default-caps-gen.sh target/mcloud-node-1.0.jar target/mcloud-node.jar agent/target/mcloud-node-agent-1.0.jar agent/target/mcloud-node-agent.jar /opt/
+COPY entrypoint.sh device_connect.sh ${ENTRYPOINT_DIR}
 
 #TODO: think about entrypoint container usage to apply permission fixes
 #RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
 
 # Healthcheck
-COPY files/healthcheck /usr/local/bin
-COPY files/usbreset /usr/local/bin
-
-#TODO: migrate everything to androiduser
-#USER androidusr
-
-
-RUN appium driver list && \
-	appium plugin list
-
-#TODO:/ think about different images per each device platform
-RUN appium driver install uiautomator2 && \
-	appium driver install xcuitest@5.7.0
-
+COPY files/healthcheck files/usbreset /usr/local/bin/
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud
 # do not make backups because unpatched js files in the same folder might be used by Appium
