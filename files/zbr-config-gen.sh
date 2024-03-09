@@ -4,6 +4,9 @@
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 cat << EndOfMessage
+[server]
+host = "${STF_PROVIDER_HOST}"
+
 [node]
 # Autodetect which drivers are available on the current system, and add them to the Node.
 detect-drivers = false
