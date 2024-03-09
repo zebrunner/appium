@@ -5,7 +5,7 @@
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 cat << EndOfMessage
 [server]
-host = "${STF_PROVIDER_HOST}"
+external-url = "http://${STF_PROVIDER_HOST}:${APPIUM_PORT}"
 bind-host = true
 
 [node]
