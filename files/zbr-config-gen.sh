@@ -6,7 +6,6 @@ PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 cat << EndOfMessage
 [server]
 external-url = "http://${STF_PROVIDER_HOST}:${APPIUM_PORT}"
-bind-host = true
 
 [node]
 # Autodetect which drivers are available on the current system, and add them to the Node.
