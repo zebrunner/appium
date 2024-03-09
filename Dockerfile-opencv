@@ -1,21 +1,25 @@
 FROM public.ecr.aws/zebrunner/appium:3.0-beta39
 
 ENV APPIUM_PLUGINS=images
+
+RUN appium plugin list && \
+        appium plugin install $APPIUM_PLUGINS
+
+# Install OpenCV prerequisites
+RUN apt-get update && apt-get -y install git cmake build-essential libopencv-dev python3-opencv
+
+## Install OpenCV
 ENV OPENCV4NODEJS_AUTOBUILD_FLAGS=-DBUILD_LIST=core,imgproc,imgcodecs,videoio,highgui,video,calib3d,features2d,objdetect,dnn,ml,flann,photo,stitching,gapi
+RUN npm install opencv-build@0.1.9
+
 ENV OPENCV_INCLUDE_DIR=/root/node_modules/opencv-build/opencv/build/include
 ENV OPENCV_LIB_DIR=/root/node_modules/opencv-build/opencv/build/lib
 ENV OPENCV_BIN_DIR=/root/node_modules/opencv-build/opencv/build/bin
 ENV PATH=$OPENCV_BIN_DIR:$PATH
 ENV OPENCV4NODEJS_AUTOBUILD_OPENCV_VERSION=5.6.0
+RUN npm install opencv4nodejs
 
-RUN appium plugin list && \
-        appium plugin install $APPIUM_PLUGINS && \
-# Install OpenCV prerequisites
-apt-get update && apt-get -y install git cmake build-essential libopencv-dev python3-opencv && \
-## Install OpenCV
-npm install opencv-build@0.1.9 && \
-npm install opencv4nodejs && \
-ln -s -f /home/androidusr/node_modules/opencv4nodejs /usr/lib/node_modules/appium/node_modules/
+RUN ln -s -f /home/androidusr/node_modules/opencv4nodejs /usr/lib/node_modules/appium/node_modules/
 
 # to verify opencv4nodejs is accessible run below command inside appium conatiner:
 #node
