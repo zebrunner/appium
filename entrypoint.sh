@@ -220,6 +220,7 @@ capture_video() {
 
     echo "waiting for the session start..."
     while [ -z $startedSessionId ]; do
+      sleep 0.1
       #capture mobile session startup for iOS and Android (appium)
       #2023-07-04 00:31:07:624 [Appium] New AndroidUiautomator2Driver session created successfully, session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 added to master session list
       #2023-07-04 02:50:42:543 [Appium] New XCUITestDriver session created successfully, session 6e11b4b7-2dfd-46d9-b52d-e3ea33835704 added to master session list
@@ -244,6 +245,7 @@ capture_video() {
 
     echo "waiting for the session finish..."
     while [ -z $finishedSessionId ]; do
+      sleep 0.1
       #capture mobile session finish for iOS and Android (appium)
 
       # including support of the aborted session
