@@ -50,9 +50,9 @@ fi
 adb -a -P 5037 server nodaemon &
 sleep 1
 
-isConnected=0
 # ADB connect (via wireless network or via tcp for redroid emulator)
 if [ ! -z "$ANDROID_DEVICE" ]; then
+  isConnected=0
   declare -i index=0
   while [[ $index -lt 10 ]]; do
     echo "Connecting to: ${ANDROID_DEVICE}"
