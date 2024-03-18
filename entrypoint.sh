@@ -14,7 +14,7 @@ if [[ -n $APPIUM_PLUGINS ]]; then
   echo "plugins_cli: $plugins_cli"
 fi
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
+CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
 share() {
@@ -339,9 +339,6 @@ fi
 if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
-
-pkill -x xvfb-run
-rm -rf /tmp/.X99-lock
 
 touch ${TASK_LOG}
 echo $CMD
