@@ -296,11 +296,6 @@ fi
 ${ENTRYPOINT_DIR}/device_connect.sh
 
 ret=$?
-if [ $ret -eq 2 ]; then
-    echo "Restarting..."
-    exit 1
-fi
-
 if [ $ret -eq 1 ]; then
     echo "Exiting without restarting..."
     exit 0
