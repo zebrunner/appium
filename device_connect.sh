@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# exit with code 1 make container quit without restarting
+# exit with code 0 means all good
+
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [[ "$PLATFORM_NAME" == "ios" ]]; then
@@ -36,7 +39,6 @@ if [[ "$PLATFORM_NAME" == "ios" ]]; then
     exit 1
   fi
 
-  # exit 0 means all good
   exit 0
 fi
 
@@ -86,9 +88,6 @@ do
   echo state: $state
   echo
 
-  # exit with code 1 make container quit without restarting
-  # exit with code 2 init device reconnect using usbreset
-
   #TODO: let's test release completely without usbreset binary usage
   case $state in
     "device")
@@ -105,8 +104,12 @@ do
       exit 1
     ;;
     *"offline"*)
-      # try to reconnect right here
+      echo "Device is offline, performing adb reconnect."
       adb reconnect
+    ;;
+    *"no devices/emulators found"*)
+      echo "Device not found, performing usb port reset."
+      usbreset "${DEVICE_BUS}"
     ;;
     *)
       # it should cover such state as: host, recovery, rescue, sideload, no permissions
