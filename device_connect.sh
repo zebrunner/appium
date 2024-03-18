@@ -105,8 +105,12 @@ do
       exit 1
     ;;
     *"offline"*)
-      # try to reconnect right here
+      echo "Device is offline, performing adb reconnect."
       adb reconnect
+    ;;
+    *"no devices/emulators found"*)
+      echo "Device not found, performing usb port reset."
+      exit 2
     ;;
     *)
       # it should cover such state as: host, recovery, rescue, sideload, no permissions

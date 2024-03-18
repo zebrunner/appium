@@ -281,11 +281,8 @@ capture_video() {
 
 
 reconnect() {
-  #let's try to do forcibly usbreset on exit when node is crashed/exited/killed
-  if [ "${PLATFORM_NAME}" == "android" ]; then
-    echo "Doing usbreset forcibly on attached device"
-    usbreset ${DEVICE_BUS}
-  fi
+  echo "Doing usbreset forcibly on attached device ${DEVICE_BUS}"
+  usbreset "${DEVICE_BUS}"
 }
 
 if [ ! -z "${SALT_MASTER}" ]; then
