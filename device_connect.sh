@@ -87,7 +87,7 @@ do
   echo
 
   # exit with code 1 make container quit without restarting
-  # exit with code 2 init device reconnect using usbreset
+  # exit with code 2 make container restart
 
   #TODO: let's test release completely without usbreset binary usage
   case $state in
@@ -110,6 +110,7 @@ do
     ;;
     *"no devices/emulators found"*)
       echo "Device not found, performing usb port reset."
+      usbreset "${DEVICE_BUS}"
       exit 2
     ;;
     *)

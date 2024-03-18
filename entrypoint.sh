@@ -279,12 +279,6 @@ capture_video() {
 
 }
 
-
-reconnect() {
-  echo "Doing usbreset forcibly on attached device ${DEVICE_BUS}"
-  usbreset "${DEVICE_BUS}"
-}
-
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
     echo "master: ${SALT_MASTER}" >> /etc/salt/minion
@@ -304,7 +298,6 @@ ${ENTRYPOINT_DIR}/device_connect.sh
 ret=$?
 if [ $ret -eq 2 ]; then
     echo "Restarting..."
-    reconnect
     exit 1
 fi
 
