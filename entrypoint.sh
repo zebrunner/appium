@@ -14,7 +14,7 @@ if [[ -n $APPIUM_PLUGINS ]]; then
   echo "plugins_cli: $plugins_cli"
 fi
 
-CMD="xvfb-run appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
+CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
 share() {
@@ -279,15 +279,6 @@ capture_video() {
 
 }
 
-
-reconnect() {
-  #let's try to do forcibly usbreset on exit when node is crashed/exited/killed
-  if [ "${PLATFORM_NAME}" == "android" ]; then
-    echo "Doing usbreset forcibly on attached device"
-    usbreset ${DEVICE_BUS}
-  fi
-}
-
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
     echo "master: ${SALT_MASTER}" >> /etc/salt/minion
@@ -305,12 +296,6 @@ fi
 ${ENTRYPOINT_DIR}/device_connect.sh
 
 ret=$?
-if [ $ret -eq 2 ]; then
-    echo "Restarting..."
-    reconnect
-    exit 1
-fi
-
 if [ $ret -eq 1 ]; then
     echo "Exiting without restarting..."
     exit 0
@@ -354,9 +339,6 @@ fi
 if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
-
-pkill -x xvfb-run
-rm -rf /tmp/.X99-lock
 
 touch ${TASK_LOG}
 echo $CMD
