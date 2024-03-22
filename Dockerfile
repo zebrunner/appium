@@ -49,8 +49,6 @@ ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
 ENV WDA_LOG_FILE=/tmp/log/wda.log
-ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
-ENV WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa
 
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
@@ -83,16 +81,12 @@ COPY files/start-capture-artifacts.sh /opt
 # Zebrunner MCloud node config generator
 COPY files/debug.sh /opt
 COPY files/android.sh /opt
-COPY files/ios.sh /opt
-COPY files/start-wda.sh /opt
-COPY files/check-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_DIR}
-COPY device_connect.sh ${ENTRYPOINT_DIR}
 
 #TODO: think about entrypoint container usage to apply permission fixes
 #RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
