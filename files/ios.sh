@@ -25,13 +25,7 @@ fi
 # {"channel_id":"com.apple.instruments.server.services.deviceinfo","error":"Timed out waiting for response for message:5 channel:0","level":"error","msg":"failed requesting channel","time":"2023-09-05T15:19:27Z"}
 
 if [[ "${deviceInfo}" == *"Timed out waiting for response for message"* ]]; then
-  echo "ERROR! Timed out waiting for response detected."
-  if [[ "${DEVICETYPE}" == "tvOS" ]]; then
-    echo "ERROR! TV reboot is required! Exiting without restart..."
-    exit 0
-  else
-    echo "WARN! device reboot is recommended!"
-  fi
+  echo "ERROR! Timed out waiting for response detected. Device reboot is recommended!"
 fi
 
 if [[ "${PLATFORM_VERSION}" == "17."* ]] || [[ "${DEVICETYPE}" == "tvOS" ]]; then
