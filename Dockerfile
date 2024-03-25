@@ -44,7 +44,7 @@ ENV VIDEO_LOG=/tmp/log/appium-video.log
 ENV VIDEO_LOG_FILE=video.log
 
 # iOS envs
-ENV WDA_HOST=localhost
+ENV WDA_HOST=connector
 ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
@@ -72,7 +72,7 @@ ENV VERBOSE=false
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.121/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
