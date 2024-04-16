@@ -292,21 +292,12 @@ if [ "$ATD" = true ]; then
     echo "[INIT] ATD is running..."
 fi
 
-# starting adb for android when device attached via usb, starting usbmuxd if iOS device connected via usb on Linux and starting socat if iOS device connected via usb to MacOS.
-${ENTRYPOINT_DIR}/device_connect.sh
-
-ret=$?
-if [ $ret -eq 1 ]; then
-    echo "Exiting without restarting..."
-    exit 0
-fi
-
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [ "${PLATFORM_NAME}" = "android" ]; then
     . /opt/android.sh
 elif [ "${PLATFORM_NAME}" = "ios" ]; then
-    . /opt/ios.sh
+    export AUTOMATION_NAME='XCUITest'
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then

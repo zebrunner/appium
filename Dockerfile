@@ -44,13 +44,11 @@ ENV VIDEO_LOG=/tmp/log/appium-video.log
 ENV VIDEO_LOG_FILE=video.log
 
 # iOS envs
-ENV WDA_HOST=localhost
+ENV WDA_HOST=connector
 ENV WDA_PORT=8100
 ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
 ENV WDA_LOG_FILE=/tmp/log/wda.log
-ENV WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner
-ENV WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa
 
 # Screenrecord params
 ENV SCREENRECORD_OPTS="--bit-rate 2000000"
@@ -74,7 +72,7 @@ ENV VERBOSE=false
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.120/go-ios-linux.zip
+RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.121/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
 RUN unzip go-ios-linux.zip -d /usr/local/bin
 
@@ -83,16 +81,12 @@ COPY files/start-capture-artifacts.sh /opt
 # Zebrunner MCloud node config generator
 COPY files/debug.sh /opt
 COPY files/android.sh /opt
-COPY files/ios.sh /opt
-COPY files/start-wda.sh /opt
-COPY files/check-wda.sh /opt
 COPY files/zbr-config-gen.sh /opt
 COPY files/zbr-default-caps-gen.sh /opt
 
 ENV ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_DIR}
-COPY device_connect.sh ${ENTRYPOINT_DIR}
 
 #TODO: think about entrypoint container usage to apply permission fixes
 #RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
