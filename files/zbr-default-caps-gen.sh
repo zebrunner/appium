@@ -11,7 +11,8 @@ cat << EndOfMessage
  "appium:platformVersion":"${PLATFORM_VERSION}",
  "appium:deviceName": "${DEVICE_NAME}",
  "appium:udid": "${DEVICE_UDID}",
- "appium:automationName": "${AUTOMATION_NAME}"
+ "appium:automationName": "${AUTOMATION_NAME}",
+ "appium:remoteAdbHost": "${REMOTE_ADB_HOST}"
 }
 EndOfMessage
 fi
