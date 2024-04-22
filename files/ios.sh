@@ -23,11 +23,11 @@ deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)
 PLATFORM_VERSION=$(echo "$deviceInfo" | jq -r '.value.os.version')
 export PLATFORM_VERSION
 
-deviceClass=$(echo "$deviceInfo" | jq -r '.value.device')
+deviceClass=$(echo "$deviceInfo" | jq -r '.value.os.name')
 export DEVICETYPE='Phone'
-if [ "$deviceClass" = "ipad" ]; then
+if [ "$deviceClass" = "iPadOS" ]; then
   export DEVICETYPE='Tablet'
 fi
-if [ "$deviceClass" = "appletv" ]; then
+if [ "$deviceClass" = "tvOS" ]; then
   export DEVICETYPE='tvOS'
 fi
