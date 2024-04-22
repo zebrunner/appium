@@ -18,7 +18,7 @@ fi
 
 
 #### Detect device type and platform version
-deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT})
+deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)
 
 PLATFORM_VERSION=$(echo "$deviceInfo" | jq -r '.value.os.version')
 export PLATFORM_VERSION
