@@ -18,6 +18,7 @@ fi
 
 
 #### Detect device type and platform version
+# TODO: handle negative cases when we can't recognize device type and version
 deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)
 
 PLATFORM_VERSION=$(echo "$deviceInfo" | jq -r '.value.os.version')
