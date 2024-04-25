@@ -25,6 +25,10 @@ share() {
     return 0
   fi
 
+  # send signal to stop streaming of the screens from device (applicable only for android so far)
+  echo -n off | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
+
+
   idleTimeout=5
   # check if .share-artifact-* file was already moved by other thread
   mv ${LOG_DIR}/.share-artifact-$artifactId ${LOG_DIR}/.sharing-artifact-$artifactId >> /dev/null 2>&1
@@ -57,7 +61,7 @@ share() {
     > ${WDA_LOG_FILE}
   fi
 
-  if [ "${PLATFORM_NAME}" == "ios" ] && [ -f /tmp/${artifactId}.mp4 ]; then
+  if [ -f /tmp/${artifactId}.mp4 ]; then
     ls -la /tmp/${artifactId}.mp4
     # kill ffmpeg process
     pkill -f ffmpeg
@@ -87,26 +91,6 @@ share() {
 
     # move local video recording under the session folder for publishing
     mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
-  fi
-
-  if [[ "${PLATFORM_NAME}" == "android" ]]; then
-    pkill -e -f screenrecord
-    # wait until screenrecord finished normally
-    startTime=$(date +%s)
-    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
-      echo "detecting screenrecord process pid..."
-      screenrecordState=`adb shell "pgrep -l screenrecord" | grep -c screenrecord`
-      if [ $screenrecordState -eq 0 ]; then
-        echo "# no more screenrecord process on device"
-        break
-      fi
-    done
-
-    concatAndroidRecording $artifactId
-    if [ -f /tmp/${artifactId}.mp4 ]; then
-      # move local video recording under the session folder for publishing
-      mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
-    fi
   fi
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
@@ -152,63 +136,6 @@ finish() {
 
   echo "on finish end"
 }
-
-
-concatAndroidRecording() {
-  sessionId=$1
-  echo sessionId:$sessionId
-
-  #adb shell "su root chmod a+r ${sessionId}*.mp4"
-  #adb shell "su root ls -la ${sessionId}*.mp4"
-
-  videoFiles=$sessionId.txt
-
-  # pull video artifacts until exist
-  declare -i part=0
-  while true; do
-    adb pull "/sdcard/${sessionId}_${part}.mp4" "${sessionId}_${part}.mp4" > /dev/null 2>&1
-    if [ ! -f "${sessionId}_${part}.mp4" ]; then
-      echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts!"
-      break
-    fi
-
-    # cleanup device from generated video file in bg
-    adb shell "rm -f /sdcard/${sessionId}_${part}.mp4" &
-
-    #TODO: in case of often mistakes with 0 size verification just comment it. it seems like ffmpeg can handle empty file during concantenation
-    if [ ! -s "${sessionId}_${part}.mp4" ]; then
-      echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts as ${sessionId}_${part}.mp4 already empty!!"
-      ls -la "${sessionId}_${part}.mp4"
-      break
-    fi
-    echo "file ${sessionId}_${part}.mp4" >> $videoFiles
-    part+=1
-  done
-
-  if [ $part -eq 1 ]; then
-    echo "[debug] [ConcatVideo] #12: there is no sense to concatenate video as it is single file, just rename..."
-    mv ${sessionId}_0.mp4 /tmp/$sessionId.mp4
-  else
-    if [ -f $videoFiles ]; then
-      cat $videoFiles
-      #TODO: #9 concat audio as well if appropriate artifact exists
-      ffmpeg $FFMPEG_OPTS -y -f concat -safe 0 -i $videoFiles -c copy /tmp/$sessionId.mp4
-    else
-      echo "[error] [ConcatVideo] unable to concat video as $videoFiles is absent!"
-    fi
-
-    # ffmpeg artifacts cleanup
-    rm -f $videoFiles
-  fi
-
-  if [ -f /tmp/$sessionId.mp4 ]; then
-    echo "[info] [ConcatVideo] /tmp/${sessionId}.mp4 generated successfully."
-  else
-    echo "[error] [ConcatVideo] unable to generate /tmp/${sessionId}.mp4!"
-  fi
-
-}
-
 
 capture_video() {
   # use short sleep operations otherwise abort can't be handled via trap/share

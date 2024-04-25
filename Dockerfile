@@ -50,8 +50,9 @@ ENV MJPEG_PORT=8101
 ENV WDA_WAIT_TIMEOUT=30
 ENV WDA_LOG_FILE=/tmp/log/wda.log
 
-# Screenrecord params
-ENV SCREENRECORD_OPTS="--bit-rate 2000000"
+# Video recording params
+ENV BROADCAST_HOST=device
+ENV BROADCAST_PORT=2223
 ENV FFMPEG_OPTS=
 
 # Timeout settings

@@ -18,33 +18,10 @@ echo sessionId:$sessionId
 videoFile=${sessionId}
 echo "[info] [CaptureArtifacts] videoFile: $videoFile"
 
+# send signal to start streaming of the screens from device
+echo -n on | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
-captureAndroidArtifacts() {
-  declare -i part=0
-  #297: limit android screenrecord by 1 hour (20*3m)
-  while [ $part -le 20 ]; do
-     #TODO: #9 integrate audio capturing for android devices
-     echo "[info] [CaptureArtifacts] generating video file ${videoFile}_${part}.mp4..."
-     adb shell "screenrecord --verbose ${SCREENRECORD_OPTS} /sdcard/${videoFile}_${part}.mp4"
-     part+=1
-  done
-}
-
-captureIOSArtifacts() {
-  # example of the video recording command is below where ip is iPhone address and 20022 is MJPEG port started by WDA
-  # ffmpeg -f mjpeg -r 10 -i http://169.254.231.124:20022 -vf scale="-2:720" -vcodec libx264 -y video.mp4
-  echo "[info] [CaptureArtifacts] generating video file ${videoFile}.mp4..."
-  ffmpeg -f mjpeg -r 10 -i http://${WDA_HOST}:${MJPEG_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} /tmp/${sessionId}.mp4 > /dev/null 2>&1
-}
-
-# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
-PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
-if [[ "${PLATFORM_NAME}" == "android" ]]; then
-  captureAndroidArtifacts
-fi
-
-if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-  captureIOSArtifacts
-fi
+echo "[info] [CaptureArtifacts] generating video file ${videoFile}.mp4..."
+ffmpeg -v trace -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} /tmp/${sessionId}.mp4 > /dev/null 2>&1
 
 exit 0
