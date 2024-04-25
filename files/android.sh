@@ -36,16 +36,3 @@ then
 else
   export AUTOMATION_NAME='uiautomator2'
 fi
-
-# there is no sense to clean something for scalable one-time redroid container
-if [ "$ANDROID_DEVICE" != "device:5555" ]; then
-  #365: skip io.appium.* apps uninstall on restart
-#  # uninstall appium specific applications
-#  adb uninstall io.appium.uiautomator2.server.test
-#  adb uninstall io.appium.uiautomator2.server
-#  adb uninstall io.appium.settings
-#  adb uninstall io.appium.unlock
-
-  #127: android: clear /sdcard/*.mp4
-  adb shell "rm -rf /sdcard/*.mp4"
-fi
