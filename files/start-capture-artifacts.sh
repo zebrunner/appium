@@ -16,6 +16,6 @@ echo "[info] [CaptureArtifacts] videoFile: ${sessionId}.mp4"
 echo -n on | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
 echo "[info] [CaptureArtifacts] generating video file ${videoFile}.mp4..."
-nohup ffmpeg -v trace -f mjpeg -r 10 -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} -vf scale="-2:720" -vcodec libx264 ${FFMPEG_OPTS} -y /tmp/${sessionId}.mp4 &
+ffmpeg -v trace -f mjpeg -r 10 -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} -vf scale="-2:720" -vcodec libx264 ${FFMPEG_OPTS} -y /tmp/${sessionId}.mp4 &
 
 exit 0

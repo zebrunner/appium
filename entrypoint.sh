@@ -17,9 +17,7 @@ fi
 CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
-share() {
-  local artifactId=$1
-
+stop_video() {
   if [ -z ${artifactId} ]; then
     echo "[warn] artifactId param is empty!"
     return 0
@@ -28,6 +26,55 @@ share() {
   # send signal to stop streaming of the screens from device (applicable only for android so far)
   echo -n off | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
+
+  if [ -f /tmp/${artifactId}.mp4 ]; then
+    ls -la /tmp/${artifactId}.mp4
+    pkill -e -f ffmpeg
+    echo "kill output: $?"
+    #ps -ef | grep ffmpeg
+
+    # wait until ffmpeg finished normally and file size is greater 48 byte! Time limit is 5 sec
+    idleTimeout=30
+    startTime=$(date +%s)
+    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
+      videoFileSize=$(wc -c /tmp/${artifactId}.mp4  | awk '{print $1}')
+      echo videoFileSize: $videoFileSize
+      ps -ef | grep ffmpeg
+      #echo videoFileSize: $videoFileSize
+      #TODO: remove comparison with 48 bytes after finishing with valid verification
+      if [ $videoFileSize -le 48 ] || [ -z $videoFileSize ]; then
+        #echo "ffmpeg flush is not finished yet"
+        sleep 0.1
+        continue
+      fi
+
+      #echo "detecting ffmpeg process pid..."
+      pidof ffmpeg > /dev/null 2>&1
+      if [ $? -eq 1 ]; then
+        echo "no more ffmpeg commands..."
+        break
+      else
+        echo "WARN ffmpeg still exists!"
+        sleep 0.1
+      fi
+    done
+
+    #TODO: do we need pause here? we expect to see "Exiting normally, received signal 2."
+
+    echo "Video recording file size:"
+    ls -la /tmp/${artifactId}.mp4
+
+    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+  fi
+}
+
+share() {
+  local artifactId=$1
+
+  if [ -z ${artifactId} ]; then
+    echo "[warn] artifactId param is empty!"
+    return 0
+  fi
 
   idleTimeout=5
   # check if .share-artifact-* file was already moved by other thread
@@ -59,38 +106,6 @@ share() {
     echo "Sharing file: ${WDA_LOG_FILE}"
     cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
     > ${WDA_LOG_FILE}
-  fi
-
-  if [ -f /tmp/${artifactId}.mp4 ]; then
-    ls -la /tmp/${artifactId}.mp4
-    # kill ffmpeg process
-    pkill -f ffmpeg
-    #echo "kill output: $?"
-
-    # wait until ffmpeg finished normally and file size is greater 48 byte!
-    startTime=$(date +%s)
-    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
-      videoFileSize=$(wc -c /tmp/${artifactId}.mp4  | awk '{print $1}')
-      #echo videoFileSize: $videoFileSize
-      if [ $videoFileSize -le 48 ]; then
-        #echo "ffmpeg flush is not finished yet"
-        continue
-      fi
-
-      #echo "detecting ffmpeg process pid..."
-      pidof ffmpeg > /dev/null 2>&1
-      if [ $? -eq 1 ]; then
-        # no more ffmpeg commands
-        break
-      fi
-    done
-
-
-    echo "Video recording file size:"
-    ls -la /tmp/${artifactId}.mp4
-
-    # move local video recording under the session folder for publishing
-    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
   fi
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
@@ -264,6 +279,27 @@ echo $CMD
 $CMD &
 
 trap 'finish' SIGTERM
+
+# Background process to control video recording
+# REPLY example: ./ DELETE .recording-artifact-123321123
+inotifywait -e create,delete --monitor "${LOG_DIR}" |
+while read -r REPLY; do
+  if [[ $REPLY == *.recording-artifact* ]]; then
+    # Extract all text after '*recording-artifact-'
+    inwRecordArtifactId="${REPLY//*recording-artifact-/}"
+    echo "inwRecordArtifactId=$inwRecordArtifactId"
+  else
+    continue
+  fi
+
+  if [[ $REPLY == *CREATE* ]]; then
+    echo "start recording..."
+    /opt/start-capture-artifacts.sh $inwRecordArtifactId
+  elif [[ $REPLY == *DELETE* ]]; then
+    echo "stop recording..."
+    stop_video $inwRecordArtifactId
+  fi
+done &
 
 # start in background video artifacts capturing
 capture_video &
