@@ -70,12 +70,21 @@ ENV DEBUG_TIMEOUT=3600
 ENV VERBOSE=false
 
 #Setup libimobile device, usbmuxd and some tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat psmisc
 
 #Grab gidevice from github and extract it in a folder
 RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.121/go-ios-linux.zip
 # https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
-RUN unzip go-ios-linux.zip -d /usr/local/bin
+RUN unzip go-ios-linux.zip -d /usr/local/bin && rm -f go-ios-linux.zip
+
+
+RUN appium driver list && \
+        appium plugin list
+
+#TODO:/ think about different images per each device platform
+RUN appium driver install uiautomator2 && \
+        appium driver install xcuitest@5.7.0
+
 
 COPY files/start-capture-artifacts.sh /opt
 
@@ -99,14 +108,6 @@ COPY files/usbreset /usr/local/bin
 
 #TODO: migrate everything to androiduser
 #USER androidusr
-
-
-RUN appium driver list && \
-	appium plugin list
-
-#TODO:/ think about different images per each device platform
-RUN appium driver install uiautomator2 && \
-	appium driver install xcuitest@5.7.0
 
 # Custom mcloud patches
 COPY files/mcloud/ /opt/mcloud
