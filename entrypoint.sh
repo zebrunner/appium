@@ -30,7 +30,7 @@ stop_video() {
 
   if [ -f /tmp/${artifactId}.mp4 ]; then
     ls -la /tmp/${artifactId}.mp4
-    pkill -e -f ffmpeg
+    sudo pkill -e -f ffmpeg
     echo "kill output: $?"
     #ps -ef | grep ffmpeg
 
