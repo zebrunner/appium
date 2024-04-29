@@ -17,6 +17,58 @@ fi
 CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
+stop_video() {
+  local artifactId=$1
+  if [ -z ${artifactId} ]; then
+    echo "[warn] [Stop Video] artifactId param is empty!"
+    exit 0
+  fi
+
+  if [ -f /tmp/${artifactId}.mp4 ]; then
+    ls -la /tmp/${artifactId}.mp4
+    ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
+    kill -2 $ffmpeg_pid
+    echo "kill output: $?"
+
+    # wait until ffmpeg finished normally and file size is greater 48 byte! Time limit is 5 sec
+    idleTimeout=30
+    startTime=$(date +%s)
+    while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
+      videoFileSize=$(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}')
+      echo videoFileSize: $videoFileSize
+      echo -e "Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
+      #echo videoFileSize: $videoFileSize
+      #TODO: remove comparison with 48 bytes after finishing with valid verification
+      if [ $videoFileSize -le 48 ] || [ -z $videoFileSize ]; then
+        #echo "ffmpeg flush is not finished yet"
+        sleep 0.1
+        continue
+      fi
+
+      #echo "detecting ffmpeg process pid..."
+      pidof ffmpeg > /dev/null 2>&1
+      if [ $? -eq 1 ]; then
+        echo "no more ffmpeg commands..."
+        break
+      else
+        echo "WARN ffmpeg still exists!"
+        sleep 0.1
+      fi
+    done
+
+    # send signal to stop streaming of the screens from device (applicable only for android so far)
+    echo "trying to off: nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
+
+    #TODO: do we need pause here? we expect to see "Exiting normally, received signal 2."
+
+    echo "Video recording file size:"
+    ls -la /tmp/${artifactId}.mp4
+
+    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+  fi
+}
+
 share() {
   local artifactId=$1
 
@@ -56,6 +108,8 @@ share() {
     cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
     > ${WDA_LOG_FILE}
   fi
+
+  stop_video $artifactId
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
@@ -101,7 +155,7 @@ finish() {
   echo "on finish end"
 }
 
-capture_video() {
+capture_session_state() {
   # use short sleep operations otherwise abort can't be handled via trap/share
   while true; do
     echo "waiting for Appium start..."
@@ -245,12 +299,12 @@ while read -r REPLY; do
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop recording artifact $inwRecordArtifactId"
-    /opt/stop-capture-artifacts.sh $inwRecordArtifactId
+
   fi
 done &
 
 # start in background video artifacts capturing
-capture_video &
+capture_session_state &
 
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`
