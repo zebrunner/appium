@@ -3,18 +3,14 @@
 artifactId=$1
 if [ -z ${artifactId} ]; then
   echo "[warn] [Stop Video] artifactId param is empty!"
-  return 0
+  exit 0
 fi
-
-# send signal to stop streaming of the screens from device (applicable only for android so far)
-echo "trying to off: nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
 if [ -f /tmp/${artifactId}.mp4 ]; then
   ls -la /tmp/${artifactId}.mp4
-  pkill -e -f ffmpeg
+  ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
+  kill -2 $ffmpeg_pid
   echo "kill output: $?"
-  #ps -ef | grep ffmpeg
 
   # wait until ffmpeg finished normally and file size is greater 48 byte! Time limit is 5 sec
   idleTimeout=30
@@ -22,7 +18,7 @@ if [ -f /tmp/${artifactId}.mp4 ]; then
   while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
     videoFileSize=$(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}')
     echo videoFileSize: $videoFileSize
-    ps -ef | grep ffmpeg
+    echo -e "Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
     #echo videoFileSize: $videoFileSize
     #TODO: remove comparison with 48 bytes after finishing with valid verification
     if [ $videoFileSize -le 48 ] || [ -z $videoFileSize ]; then
@@ -41,6 +37,10 @@ if [ -f /tmp/${artifactId}.mp4 ]; then
       sleep 0.1
     fi
   done
+
+  # send signal to stop streaming of the screens from device (applicable only for android so far)
+  echo "trying to off: nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+  echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
   #TODO: do we need pause here? we expect to see "Exiting normally, received signal 2."
 
