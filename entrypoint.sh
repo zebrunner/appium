@@ -18,6 +18,7 @@ CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --lo
 #--use-plugins=relaxed-caps
 
 stop_video() {
+  local artifactId=$1
   if [ -z ${artifactId} ]; then
     echo "[warn] [Stop Video] artifactId param is empty!"
     return 0
