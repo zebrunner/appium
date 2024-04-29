@@ -19,7 +19,7 @@ CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --lo
 
 stop_video() {
   if [ -z ${artifactId} ]; then
-    echo "[warn] artifactId param is empty!"
+    echo "[warn] [Stop Video] artifactId param is empty!"
     return 0
   fi
 
@@ -72,7 +72,7 @@ share() {
   local artifactId=$1
 
   if [ -z ${artifactId} ]; then
-    echo "[warn] artifactId param is empty!"
+    echo "[warn] [Share] artifactId param is empty!"
     return 0
   fi
 
@@ -176,7 +176,6 @@ capture_video() {
       recordArtifactId=$ROUTER_UUID
     fi
 
-    /opt/start-capture-artifacts.sh $recordArtifactId >> ${VIDEO_LOG} &
     # create .recording-artifact-* file, so uploader would know that recorder is still in process
     echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
     # create .share-artifact-* file, so share would be performed only once for session
@@ -293,10 +292,10 @@ while read -r REPLY; do
   fi
 
   if [[ $REPLY == *CREATE* ]]; then
-    echo "start recording..."
+    echo "start recording artifact $inwRecordArtifactId"
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
-    echo "stop recording..."
+    echo "stop recording artifact $inwRecordArtifactId"
     stop_video $inwRecordArtifactId
   fi
 done &
