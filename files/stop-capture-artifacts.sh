@@ -7,7 +7,8 @@ if [ -z ${artifactId} ]; then
 fi
 
 # send signal to stop streaming of the screens from device (applicable only for android so far)
-echo -n off | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
+echo "trying to off: nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
 if [ -f /tmp/${artifactId}.mp4 ]; then
   ls -la /tmp/${artifactId}.mp4
