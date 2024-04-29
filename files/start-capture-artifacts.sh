@@ -17,6 +17,7 @@ echo "trying to on: nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
 echo -n "on" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
 
 echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4..."
-ffmpeg -v trace -f mjpeg -r 10 -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} /tmp/${sessionId}.mp4 > ${VIDEO_LOG} 2>&1 &
+ffmpeg -v trace -f mjpeg -r 10 -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} /tmp/${sessionId}.mp4 &
+# > ${VIDEO_LOG} 2>&1
 
 exit 0

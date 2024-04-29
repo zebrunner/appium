@@ -21,12 +21,13 @@ stop_video() {
   local artifactId=$1
   if [ -z ${artifactId} ]; then
     echo "[warn] [Stop Video] artifactId param is empty!"
-    exit 0
+    return 0
   fi
 
   if [ -f /tmp/${artifactId}.mp4 ]; then
     ls -la /tmp/${artifactId}.mp4
     ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
+    echo "ffmpeg_pid=$ffmpeg_pid"
     kill -2 $ffmpeg_pid
     echo "kill output: $?"
 
