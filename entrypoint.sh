@@ -58,8 +58,8 @@ stop_video() {
     done
 
     # send signal to stop streaming of the screens from device (applicable only for android so far)
-    echo "trying to off: nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0
+    echo "trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
 
     #TODO: do we need pause here? we expect to see "Exiting normally, received signal 2."
 
