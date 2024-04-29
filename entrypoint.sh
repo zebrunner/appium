@@ -245,7 +245,7 @@ while read -r REPLY; do
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop recording artifact $inwRecordArtifactId"
-    sudo -E /opt/stop-capture-artifacts.sh $inwRecordArtifactId
+    /opt/stop-capture-artifacts.sh $inwRecordArtifactId
   fi
 done &
 
