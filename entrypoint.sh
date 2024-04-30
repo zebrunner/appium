@@ -57,11 +57,16 @@ stop_video() {
       fi
     done
 
+    if ps -p $ffmpeg_pid; then
+      echo "ffmpeg finished correctly"
+    else
+      echo "ffmpeg not finished correctly, trying to kill it forcibly"
+      kill -2 $ffmpeg_pid
+    fi
+
     # send signal to stop streaming of the screens from device (applicable only for android so far)
     echo "trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
     echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
-
-    #TODO: do we need pause here? we expect to see "Exiting normally, received signal 2."
 
     echo "Video recording file size:"
     ls -la /tmp/${artifactId}.mp4
