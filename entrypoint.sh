@@ -17,7 +17,7 @@ fi
 CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
-stop_video() {
+stop_ffmpeg() {
   local artifactId=$1
   if [ -z ${artifactId} ]; then
     echo "[warn] [Stop Video] artifactId param is empty!"
@@ -31,7 +31,7 @@ stop_video() {
     kill -2 $ffmpeg_pid
     echo "[info] [Stop Video] kill output: $?"
 
-    # wait until ffmpeg finished normally and file size is greater 48 byte! Time limit is 5 sec
+    # wait until ffmpeg finished normally
     idleTimeout=30
     startTime=$(date +%s)
     while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
@@ -40,16 +40,17 @@ stop_video() {
 
       if ps -p $ffmpeg_pid > /dev/null 2>&1; then
         echo "[info] [Stop Video] ffmpeg not finished yet"
-        sleep 0.5
+        sleep 0.3
       else
         echo "[info] [Stop Video] ffmpeg finished correctly"
         break
       fi
     done
 
+    # TODO: try to heal video file using https://video.stackexchange.com/a/18226
     if ps -p $ffmpeg_pid > /dev/null 2>&1; then
-      echo "[info] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
-      kill -2 $ffmpeg_pid
+      echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
+      kill -9 $ffmpeg_pid
     fi
 
     # It is important to stop streaming only after ffmpeg recording has completed,
@@ -108,7 +109,7 @@ share() {
     > ${WDA_LOG_FILE}
   fi
 
-  stop_video $artifactId
+  stop_ffmpeg $artifactId
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
@@ -154,7 +155,7 @@ finish() {
   echo "on finish end"
 }
 
-capture_session_state() {
+capture_artifacts() {
   # use short sleep operations otherwise abort can't be handled via trap/share
   while true; do
     echo "waiting for Appium start..."
@@ -302,7 +303,7 @@ while read -r REPLY; do
 done &
 
 # start in background video artifacts capturing
-capture_session_state &
+capture_artifacts &
 
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`
