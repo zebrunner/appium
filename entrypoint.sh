@@ -61,11 +61,6 @@ stop_ffmpeg() {
     # send signal to stop streaming of the screens from device (applicable only for android so far)
     echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
     echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
-
-    echo "[info] [Stop Video] Video recording file:"
-    ls -lah /tmp/${artifactId}.mp4
-
-    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
   fi
 }
 
@@ -110,6 +105,10 @@ share() {
   fi
 
   stop_ffmpeg $artifactId
+  echo "[info] [Share] Video recording file:"
+  ls -lah /tmp/${artifactId}.mp4
+
+  mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
