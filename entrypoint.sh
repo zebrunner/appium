@@ -27,9 +27,9 @@ stop_video() {
   if [ -f /tmp/${artifactId}.mp4 ]; then
     ls -la /tmp/${artifactId}.mp4
     ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
-    echo "ffmpeg_pid=$ffmpeg_pid"
+    echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
     kill -2 $ffmpeg_pid
-    echo "kill output: $?"
+    echo "[info] [Stop Video] kill output: $?"
 
     # wait until ffmpeg finished normally and file size is greater 48 byte! Time limit is 5 sec
     idleTimeout=30
@@ -37,38 +37,32 @@ stop_video() {
     while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
       videoFileSize=$(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}')
       echo videoFileSize: $videoFileSize
-      echo -e "Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
-      #echo videoFileSize: $videoFileSize
-      #TODO: remove comparison with 48 bytes after finishing with valid verification
-      if [ $videoFileSize -le 48 ] || [ -z $videoFileSize ]; then
-        #echo "ffmpeg flush is not finished yet"
-        sleep 0.1
-        continue
-      fi
+      echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
 
-      #echo "detecting ffmpeg process pid..."
-      pidof ffmpeg > /dev/null 2>&1
-      if [ $? -eq 1 ]; then
-        echo "no more ffmpeg commands..."
-        break
+      if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+        echo "[info] [Stop Video] ffmpeg not finished yet"
+        sleep 0.5
       else
-        echo "WARN ffmpeg still exists!"
-        sleep 0.1
+        echo "[info] [Stop Video] ffmpeg finished correctly"
+        break
       fi
     done
 
-    if ps -p $ffmpeg_pid; then
-      echo "ffmpeg finished correctly"
-    else
-      echo "ffmpeg not finished correctly, trying to kill it forcibly"
+    if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+      echo "[info] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
       kill -2 $ffmpeg_pid
     fi
 
+    # It is important to stop streaming only after ffmpeg recording has completed,
+    # since ffmpeg recording requires an image stream to complete normally.
+    # Otherwise (if ffmpeg doesn't have any new frames) it will wait for a new
+    # frame to properly finalize the video.
+
     # send signal to stop streaming of the screens from device (applicable only for android so far)
-    echo "trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+    echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
     echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
 
-    echo "Video recording file size:"
+    echo "[info] [Stop Video] Video recording file size:"
     ls -la /tmp/${artifactId}.mp4
 
     mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
@@ -87,18 +81,18 @@ share() {
   # check if .share-artifact-* file was already moved by other thread
   mv ${LOG_DIR}/.share-artifact-$artifactId ${LOG_DIR}/.sharing-artifact-$artifactId >> /dev/null 2>&1
   if [ $? -ne 0 ]; then
-    echo "waiting for other thread to share $artifactId files"
+    echo "[info] [Share] waiting for other thread to share $artifactId files"
     # if we can't move this file -> other thread already moved it
     # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
     waitStartTime=$(date +%s)
     while [ $((waitStartTime + idleTimeout)) -gt "$(date +%s)" ]; do
       if [ ! -f ${LOG_DIR}/.recording-artifact-$artifactId ]; then
-        echo "other thread shared artifacts for $artifactId"
+        echo "[info] [Share] other thread shared artifacts for $artifactId"
         return 0
       fi
       sleep 0.1
     done
-    echo "timedout waiting for other thead to share artifacts for $artifactId"
+    echo "[warn] [Share] timeout waiting for other thread to share artifacts for $artifactId"
     return 0
   fi
 
@@ -110,7 +104,7 @@ share() {
   > ${TASK_LOG}
 
   if [[ -f ${WDA_LOG_FILE} ]]; then
-    echo "Sharing file: ${WDA_LOG_FILE}"
+    echo "[info] [Share] Sharing file: ${WDA_LOG_FILE}"
     cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
     > ${WDA_LOG_FILE}
   fi
@@ -120,7 +114,7 @@ share() {
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
     if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${VIDEO_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
-      echo "Sharing file: $file"
+      echo "[info] [Share] Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
       mv $file ${LOG_DIR}/${artifactId}/
     fi
@@ -305,7 +299,6 @@ while read -r REPLY; do
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop recording artifact $inwRecordArtifactId"
-
   fi
 done &
 
