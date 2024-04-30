@@ -25,7 +25,7 @@ stop_video() {
   fi
 
   if [ -f /tmp/${artifactId}.mp4 ]; then
-    ls -la /tmp/${artifactId}.mp4
+    ls -lah /tmp/${artifactId}.mp4
     ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
     echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
     kill -2 $ffmpeg_pid
@@ -35,8 +35,7 @@ stop_video() {
     idleTimeout=30
     startTime=$(date +%s)
     while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
-      videoFileSize=$(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}')
-      echo videoFileSize: $videoFileSize
+      echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
       echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
 
       if ps -p $ffmpeg_pid > /dev/null 2>&1; then
@@ -62,8 +61,8 @@ stop_video() {
     echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
     echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
 
-    echo "[info] [Stop Video] Video recording file size:"
-    ls -la /tmp/${artifactId}.mp4
+    echo "[info] [Stop Video] Video recording file:"
+    ls -lah /tmp/${artifactId}.mp4
 
     mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
   fi
