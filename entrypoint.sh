@@ -17,11 +17,58 @@ fi
 CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
 #--use-plugins=relaxed-caps
 
+stop_ffmpeg() {
+  local artifactId=$1
+  if [ -z ${artifactId} ]; then
+    echo "[warn] [Stop Video] artifactId param is empty!"
+    return 0
+  fi
+
+  if [ -f /tmp/${artifactId}.mp4 ]; then
+    ls -lah /tmp/${artifactId}.mp4
+    ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
+    echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
+    kill -2 $ffmpeg_pid
+    echo "[info] [Stop Video] kill output: $?"
+
+    # wait until ffmpeg finished normally
+    idleTimeout=30
+    startTime=$(date +%s)
+    while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
+      echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
+      echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
+
+      if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+        echo "[info] [Stop Video] ffmpeg not finished yet"
+        sleep 0.3
+      else
+        echo "[info] [Stop Video] ffmpeg finished correctly"
+        break
+      fi
+    done
+
+    # TODO: try to heal video file using https://video.stackexchange.com/a/18226
+    if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+      echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
+      kill -9 $ffmpeg_pid
+    fi
+
+    # It is important to stop streaming only after ffmpeg recording has completed,
+    # since ffmpeg recording requires an image stream to complete normally.
+    # Otherwise (if ffmpeg doesn't have any new frames) it will wait for a new
+    # frame to properly finalize the video.
+
+    # send signal to stop streaming of the screens from device (applicable only for android so far)
+    echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
+  fi
+}
+
 share() {
   local artifactId=$1
 
   if [ -z ${artifactId} ]; then
-    echo "[warn] artifactId param is empty!"
+    echo "[warn] [Share] artifactId param is empty!"
     return 0
   fi
 
@@ -29,18 +76,18 @@ share() {
   # check if .share-artifact-* file was already moved by other thread
   mv ${LOG_DIR}/.share-artifact-$artifactId ${LOG_DIR}/.sharing-artifact-$artifactId >> /dev/null 2>&1
   if [ $? -ne 0 ]; then
-    echo "waiting for other thread to share $artifactId files"
+    echo "[info] [Share] waiting for other thread to share $artifactId files"
     # if we can't move this file -> other thread already moved it
     # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
     waitStartTime=$(date +%s)
     while [ $((waitStartTime + idleTimeout)) -gt "$(date +%s)" ]; do
       if [ ! -f ${LOG_DIR}/.recording-artifact-$artifactId ]; then
-        echo "other thread shared artifacts for $artifactId"
+        echo "[info] [Share] other thread shared artifacts for $artifactId"
         return 0
       fi
       sleep 0.1
     done
-    echo "timedout waiting for other thead to share artifacts for $artifactId"
+    echo "[warn] [Share] timeout waiting for other thread to share artifacts for $artifactId"
     return 0
   fi
 
@@ -52,67 +99,21 @@ share() {
   > ${TASK_LOG}
 
   if [[ -f ${WDA_LOG_FILE} ]]; then
-    echo "Sharing file: ${WDA_LOG_FILE}"
+    echo "[info] [Share] Sharing file: ${WDA_LOG_FILE}"
     cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
     > ${WDA_LOG_FILE}
   fi
 
-  if [ "${PLATFORM_NAME}" == "ios" ] && [ -f /tmp/${artifactId}.mp4 ]; then
-    ls -la /tmp/${artifactId}.mp4
-    # kill ffmpeg process
-    pkill -f ffmpeg
-    #echo "kill output: $?"
+  stop_ffmpeg $artifactId
+  echo "[info] [Share] Video recording file:"
+  ls -lah /tmp/${artifactId}.mp4
 
-    # wait until ffmpeg finished normally and file size is greater 48 byte!
-    startTime=$(date +%s)
-    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
-      videoFileSize=$(wc -c /tmp/${artifactId}.mp4  | awk '{print $1}')
-      #echo videoFileSize: $videoFileSize
-      if [ $videoFileSize -le 48 ]; then
-        #echo "ffmpeg flush is not finished yet"
-        continue
-      fi
-
-      #echo "detecting ffmpeg process pid..."
-      pidof ffmpeg > /dev/null 2>&1
-      if [ $? -eq 1 ]; then
-        # no more ffmpeg commands
-        break
-      fi
-    done
-
-
-    echo "Video recording file size:"
-    ls -la /tmp/${artifactId}.mp4
-
-    # move local video recording under the session folder for publishing
-    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
-  fi
-
-  if [[ "${PLATFORM_NAME}" == "android" ]]; then
-    pkill -e -f screenrecord
-    # wait until screenrecord finished normally
-    startTime=$(date +%s)
-    while [ $(( startTime + idleTimeout )) -gt "$(date +%s)" ]; do
-      echo "detecting screenrecord process pid..."
-      screenrecordState=`adb shell "pgrep -l screenrecord" | grep -c screenrecord`
-      if [ $screenrecordState -eq 0 ]; then
-        echo "# no more screenrecord process on device"
-        break
-      fi
-    done
-
-    concatAndroidRecording $artifactId
-    if [ -f /tmp/${artifactId}.mp4 ]; then
-      # move local video recording under the session folder for publishing
-      mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
-    fi
-  fi
+  mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
   for file in ${LOG_DIR}/*; do
     if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${VIDEO_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
-      echo "Sharing file: $file"
+      echo "[info] [Share] Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
       mv $file ${LOG_DIR}/${artifactId}/
     fi
@@ -153,64 +154,7 @@ finish() {
   echo "on finish end"
 }
 
-
-concatAndroidRecording() {
-  sessionId=$1
-  echo sessionId:$sessionId
-
-  #adb shell "su root chmod a+r ${sessionId}*.mp4"
-  #adb shell "su root ls -la ${sessionId}*.mp4"
-
-  videoFiles=$sessionId.txt
-
-  # pull video artifacts until exist
-  declare -i part=0
-  while true; do
-    adb pull "/sdcard/${sessionId}_${part}.mp4" "${sessionId}_${part}.mp4" > /dev/null 2>&1
-    if [ ! -f "${sessionId}_${part}.mp4" ]; then
-      echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts!"
-      break
-    fi
-
-    # cleanup device from generated video file in bg
-    adb shell "rm -f /sdcard/${sessionId}_${part}.mp4" &
-
-    #TODO: in case of often mistakes with 0 size verification just comment it. it seems like ffmpeg can handle empty file during concantenation
-    if [ ! -s "${sessionId}_${part}.mp4" ]; then
-      echo "[info] [ConcatVideo] stop pulling ${sessionId} video artifacts as ${sessionId}_${part}.mp4 already empty!!"
-      ls -la "${sessionId}_${part}.mp4"
-      break
-    fi
-    echo "file ${sessionId}_${part}.mp4" >> $videoFiles
-    part+=1
-  done
-
-  if [ $part -eq 1 ]; then
-    echo "[debug] [ConcatVideo] #12: there is no sense to concatenate video as it is single file, just rename..."
-    mv ${sessionId}_0.mp4 /tmp/$sessionId.mp4
-  else
-    if [ -f $videoFiles ]; then
-      cat $videoFiles
-      #TODO: #9 concat audio as well if appropriate artifact exists
-      ffmpeg $FFMPEG_OPTS -y -f concat -safe 0 -i $videoFiles -c copy /tmp/$sessionId.mp4
-    else
-      echo "[error] [ConcatVideo] unable to concat video as $videoFiles is absent!"
-    fi
-
-    # ffmpeg artifacts cleanup
-    rm -f $videoFiles
-  fi
-
-  if [ -f /tmp/$sessionId.mp4 ]; then
-    echo "[info] [ConcatVideo] /tmp/${sessionId}.mp4 generated successfully."
-  else
-    echo "[error] [ConcatVideo] unable to generate /tmp/${sessionId}.mp4!"
-  fi
-
-}
-
-
-capture_video() {
+capture_artifacts() {
   # use short sleep operations otherwise abort can't be handled via trap/share
   while true; do
     echo "waiting for Appium start..."
@@ -234,7 +178,6 @@ capture_video() {
       recordArtifactId=$ROUTER_UUID
     fi
 
-    /opt/start-capture-artifacts.sh $recordArtifactId >> ${VIDEO_LOG} &
     # create .recording-artifact-* file, so uploader would know that recorder is still in process
     echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
     # create .share-artifact-* file, so share would be performed only once for session
@@ -338,8 +281,28 @@ $CMD &
 
 trap 'finish' SIGTERM
 
+# Background process to control video recording
+# REPLY example: ./ DELETE .recording-artifact-123321123
+inotifywait -e create,delete --monitor "${LOG_DIR}" |
+while read -r REPLY; do
+  if [[ $REPLY == *.recording-artifact* ]]; then
+    # Extract all text after '*recording-artifact-'
+    inwRecordArtifactId="${REPLY//*recording-artifact-/}"
+    echo "inwRecordArtifactId=$inwRecordArtifactId"
+  else
+    continue
+  fi
+
+  if [[ $REPLY == *CREATE* ]]; then
+    echo "start recording artifact $inwRecordArtifactId"
+    /opt/start-capture-artifacts.sh $inwRecordArtifactId
+  elif [[ $REPLY == *DELETE* ]]; then
+    echo "stop recording artifact $inwRecordArtifactId"
+  fi
+done &
+
 # start in background video artifacts capturing
-capture_video &
+capture_artifacts &
 
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`

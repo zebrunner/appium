@@ -1,50 +1,19 @@
 #!/bin/bash
 
-#export
-
-# set -e The set -e option instructs bash to immediately exit if any command [1] has a non-zero exit status.
-# option required to exit asap after kill of any screenrecord operation
-set -e
-
 sessionId=$1
 if [ -z $sessionId ]; then
   echo "[warn] [CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
   exit 0
 fi
 
-echo sessionId:$sessionId
+echo "[info] [CaptureArtifacts] sessionId: $sessionId"
 
-# use sessionId value if non empty sessionId otherwise init as "video" string
-videoFile=${sessionId}
-echo "[info] [CaptureArtifacts] videoFile: $videoFile"
+# send signal to start streaming of the screens from device
+echo "[info] [CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+echo -n "on" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
 
-
-captureAndroidArtifacts() {
-  declare -i part=0
-  #297: limit android screenrecord by 1 hour (20*3m)
-  while [ $part -le 20 ]; do
-     #TODO: #9 integrate audio capturing for android devices
-     echo "[info] [CaptureArtifacts] generating video file ${videoFile}_${part}.mp4..."
-     adb shell "screenrecord --verbose ${SCREENRECORD_OPTS} /sdcard/${videoFile}_${part}.mp4"
-     part+=1
-  done
-}
-
-captureIOSArtifacts() {
-  # example of the video recording command is below where ip is iPhone address and 20022 is MJPEG port started by WDA
-  # ffmpeg -f mjpeg -r 10 -i http://169.254.231.124:20022 -vf scale="-2:720" -vcodec libx264 -y video.mp4
-  echo "[info] [CaptureArtifacts] generating video file ${videoFile}.mp4..."
-  ffmpeg -f mjpeg -r 10 -i http://${WDA_HOST}:${MJPEG_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} /tmp/${sessionId}.mp4 > /dev/null 2>&1
-}
-
-# convert to lower case using Linux/Mac compatible syntax (bash v3.2)
-PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
-if [[ "${PLATFORM_NAME}" == "android" ]]; then
-  captureAndroidArtifacts
-fi
-
-if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-  captureIOSArtifacts
-fi
+echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4..."
+# you can add `-v trace` to enable verbose mode logs
+ffmpeg -f mjpeg -r 10 -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} -vf scale="-2:720" -vcodec libx264 -y ${FFMPEG_OPTS} /tmp/${sessionId}.mp4 > ${VIDEO_LOG} 2>&1 &
 
 exit 0
