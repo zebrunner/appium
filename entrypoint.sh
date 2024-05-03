@@ -73,9 +73,10 @@ share() {
   fi
 
   idleTimeout=5
-  # check if .share-artifact-* file was already moved by other thread
-  mv ${LOG_DIR}/.share-artifact-$artifactId ${LOG_DIR}/.sharing-artifact-$artifactId >> /dev/null 2>&1
-  if [ $? -ne 0 ]; then
+  # check if .share-artifact-* is beig moving by other thread
+  if [ ! -f ${LOG_DIR}/.sharing-artifact-$artifactId ]; then
+    touch ${LOG_DIR}/.sharing-artifact-$artifactId
+  else
     echo "[info] [Share] waiting for other thread to share $artifactId files"
     # if we can't move this file -> other thread already moved it
     # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
