@@ -230,6 +230,7 @@ while read -r REPLY; do
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop recording artifact $inwRecordArtifactId"
+    share $inwRecordArtifactId
   fi
 done &
 
