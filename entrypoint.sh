@@ -73,9 +73,10 @@ share() {
   fi
 
   idleTimeout=5
-  # check if .share-artifact-* file was already moved by other thread
-  mv ${LOG_DIR}/.share-artifact-$artifactId ${LOG_DIR}/.sharing-artifact-$artifactId >> /dev/null 2>&1
-  if [ $? -ne 0 ]; then
+  # check if .share-artifact-* is beig moving by other thread
+  if [ ! -f ${LOG_DIR}/.sharing-artifact-$artifactId ]; then
+    touch ${LOG_DIR}/.sharing-artifact-$artifactId
+  else
     echo "[info] [Share] waiting for other thread to share $artifactId files"
     # if we can't move this file -> other thread already moved it
     # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
@@ -154,74 +155,6 @@ finish() {
   echo "on finish end"
 }
 
-capture_artifacts() {
-  # use short sleep operations otherwise abort can't be handled via trap/share
-  while true; do
-    echo "waiting for Appium start..."
-    while [ ! -f ${TASK_LOG} ]; do
-      sleep 0.1
-    done
-
-    echo "waiting for the session start..."
-    while [ -z $startedSessionId ]; do
-      sleep 0.1
-      #capture mobile session startup for iOS and Android (appium)
-      #2023-07-04 00:31:07:624 [Appium] New AndroidUiautomator2Driver session created successfully, session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 added to master session list
-      #2023-07-04 02:50:42:543 [Appium] New XCUITestDriver session created successfully, session 6e11b4b7-2dfd-46d9-b52d-e3ea33835704 added to master session list
-      startedSessionId=`grep -E -m 1 " session created successfully, session " ${TASK_LOG} | cut -d " " -f 10 | cut -d " " -f 1`
-    done
-    echo "session started: $startedSessionId"
-
-    if [ -z $ROUTER_UUID ]; then
-      recordArtifactId=$startedSessionId
-    else
-      recordArtifactId=$ROUTER_UUID
-    fi
-
-    # create .recording-artifact-* file, so uploader would know that recorder is still in process
-    echo "artifactId=$recordArtifactId" > ${LOG_DIR}/.recording-artifact-$recordArtifactId
-    # create .share-artifact-* file, so share would be performed only once for session
-    touch ${LOG_DIR}/.share-artifact-$recordArtifactId
-
-    # from time to time browser container exited before we able to detect finishedSessionId.
-    # make sure to have workable functionality on trap finish (abort use-case as well)
-
-    echo "waiting for the session finish..."
-    while [ -z $finishedSessionId ]; do
-      sleep 0.1
-      #capture mobile session finish for iOS and Android (appium)
-
-      # including support of the aborted session
-      #2023-07-19 14:37:25:009 [HTTP] --> DELETE /wd/hub/session/9da044cc-a96b-4052-8055-857900c6bbe8/window
-      #2023-08-08 09:42:51:896 [HTTP] --> DELETE /wd/hub/session/61e32667-a8f7-4b08-bca7-5092cbccc383
-      # or
-      #2023-07-20 19:29:56:534 [HTTP] <-- DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a 200 1053 ms - 14
-      # make sure to skip cookie DELETE call adding space after startedSessionId value!
-      #2023-11-02 02:33:46:996 [HTTP] --> DELETE /wd/hub/session/3682ea1d-be66-49ad-af0d-792fc3f7e91a/cookie/id-experiences
-
-      finishedSessionId=`grep -E -m 1 " DELETE /wd/hub/session/$startedSessionId " ${TASK_LOG} | cut -d "/" -f 5 | cut -d " " -f 1`
-      #echo "finishedSessionId: $finishedSessionId"
-
-      if [ ! -z $finishedSessionId ]; then
-        break
-      fi
-
-      #2023-07-04 00:36:30:538 [Appium] Removing session 07b5f246-cc7e-4c1b-97d6-5405f461eb86 from our master session list
-      #finishedSessionId=`grep -E -m 1 " from our master session list" ${TASK_LOG} | cut -d " " -f 7 | cut -d " " -f 1`
-      # -m 1 is not valid for the from our master session list pattern!
-      finishedSessionId=`grep -E " from our master session list" ${TASK_LOG} | grep $startedSessionId | cut -d " " -f 6 | cut -d " " -f 1`
-    done
-
-    echo "session finished: $finishedSessionId"
-    share $recordArtifactId
-
-    startedSessionId=
-    finishedSessionId=
-    recordArtifactId=
-  done
-
-}
-
 if [ ! -z "${SALT_MASTER}" ]; then
     echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
     echo "master: ${SALT_MASTER}" >> /etc/salt/minion
@@ -298,11 +231,9 @@ while read -r REPLY; do
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop recording artifact $inwRecordArtifactId"
+    share $inwRecordArtifactId
   fi
 done &
-
-# start in background video artifacts capturing
-capture_artifacts &
 
 # wait until backgroud processes exists for node (appium)
 node_pids=`pidof node`
