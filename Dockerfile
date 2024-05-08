@@ -26,6 +26,8 @@ RUN mkdir -p $APPIUM_APPS_DIR && \
 	chown androidusr:androidusr $APPIUM_APPS_DIR
 
 # Android envs
+ENV REMOTE_ADB_HOST=connector
+ENV ADB_SERVER_SOCKET=tcp:connector:5037
 ENV ADB_PORT=5037
 ENV ANDROID_DEVICE=
 ENV ADB_POLLING_SEC=5
