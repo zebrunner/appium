@@ -2,6 +2,10 @@ FROM appium/appium:v2.2.2-p2
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=
 
+# credentials for changing status of device
+ENV STF_API_URL=
+ENV STF_AUTH_TOKEN= 
+
 # Integration UUID for ReDroid integration
 ENV ROUTER_UUID=
 
