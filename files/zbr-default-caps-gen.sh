@@ -14,7 +14,7 @@ cat << EndOfMessage
  "appium:automationName": "${AUTOMATION_NAME}",
  "appium:remoteAdbHost": "${REMOTE_ADB_HOST}",
  "appium:chromedriverPort": "${CHROMEDRIVER_PORT}",
- "appium:chromeOptions": {"${CHROME_OPTIONS}"}
+ "appium:chromeOptions": {$CHROME_OPTIONS}
 }
 EndOfMessage
 fi
