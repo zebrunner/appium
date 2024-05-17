@@ -36,3 +36,17 @@ then
 else
   export AUTOMATION_NAME='uiautomator2'
 fi
+
+# Forward adb port
+socat TCP-LISTEN:5037,fork TCP:connector:5037 &
+
+# Forward uiautomator server port
+while true; do
+  socat -v -d TCP:localhost:8200,retry,interval=1,forever TCP:connector:8200,retry,interval=1,forever
+  sleep 1
+done &
+
+# Forward devtools port
+if [[ -n $CHROME_OPTIONS ]]; then
+  socat TCP-LISTEN:9223,fork TCP:connector:9223 &
+fi
