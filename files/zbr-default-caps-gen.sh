@@ -12,7 +12,9 @@ cat << EndOfMessage
  "appium:deviceName": "${DEVICE_NAME}",
  "appium:udid": "${DEVICE_UDID}",
  "appium:automationName": "${AUTOMATION_NAME}",
- "appium:remoteAdbHost": "${REMOTE_ADB_HOST}"
+ "appium:remoteAdbHost": "${REMOTE_ADB_HOST}",
+ "appium:chromedriverPort": ${CHROMEDRIVER_PORT},
+ "appium:chromeOptions": {${CHROME_OPTIONS}}
 }
 EndOfMessage
 fi

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# print all settings 
+# print all settings
 adb shell getprop ro.build.characteristics
 
 # device type
@@ -35,4 +35,23 @@ then
   export AUTOMATION_NAME='Appium'
 else
   export AUTOMATION_NAME='uiautomator2'
+fi
+
+# Forward adb port
+# Used to connect appium builtin adb and mcloud-android-connector adb
+socat TCP-LISTEN:5037,fork TCP:connector:5037 &
+
+# Forward appium-uiautomator2 port
+# Used to connect appium-uiautomator2-server and appium-uiautomator2-driver
+# https://github.com/appium/appium-uiautomator2-server/wiki
+while true; do
+  #TODO: experiment later with default command again. Current implementation could keep port open and redirect when needed only
+  socat TCP:localhost:${CHROMEDRIVER_PORT},retry,interval=1,forever TCP:connector:${CHROMEDRIVER_PORT},retry,interval=1,forever
+  sleep 1
+done &
+
+# Forward devtools port
+# Used to control mobile chrome browser
+if [[ -n $CHROME_OPTIONS ]]; then
+  socat TCP-LISTEN:${ANDROID_DEVTOOLS_PORT},fork TCP:connector:${ANDROID_DEVTOOLS_PORT} &
 fi
