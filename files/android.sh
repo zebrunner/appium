@@ -38,15 +38,19 @@ else
 fi
 
 # Forward adb port
+# Used to connect appium builtin adb and mcloud-android-connector adb
 socat TCP-LISTEN:5037,fork TCP:connector:5037 &
 
-# Forward uiautomator server port
+# Forward appium-uiautomator2 port
+# Used to connect appium-uiautomator2-server and appium-uiautomator2-driver
+# https://github.com/appium/appium-uiautomator2-server/wiki
 while true; do
   socat -v -d TCP:localhost:8200,retry,interval=1,forever TCP:connector:8200,retry,interval=1,forever
   sleep 1
 done &
 
 # Forward devtools port
+# Used to control mobile chrome browser
 if [[ -n $CHROME_OPTIONS ]]; then
   socat TCP-LISTEN:9223,fork TCP:connector:9223 &
 fi
