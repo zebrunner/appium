@@ -93,7 +93,7 @@ RUN unzip go-ios-linux.zip -d /usr/local/bin && rm -f go-ios-linux.zip
 RUN appium driver list && \
         appium plugin list
 
-#TODO:/ think about different images per each device platform
+#TODO: think about different images per each device platform
 RUN appium driver install uiautomator2 && \
         appium driver install xcuitest@5.7.0
 
