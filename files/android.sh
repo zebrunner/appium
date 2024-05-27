@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# print all settings 
+# print all settings
 adb shell getprop ro.build.characteristics
 
 # device type
@@ -37,15 +37,21 @@ else
   export AUTOMATION_NAME='uiautomator2'
 fi
 
-# there is no sense to clean something for scalable one-time redroid container
-if [ "$ANDROID_DEVICE" != "device:5555" ]; then
-  #365: skip io.appium.* apps uninstall on restart
-#  # uninstall appium specific applications
-#  adb uninstall io.appium.uiautomator2.server.test
-#  adb uninstall io.appium.uiautomator2.server
-#  adb uninstall io.appium.settings
-#  adb uninstall io.appium.unlock
+# Forward adb port
+# Used to connect appium builtin adb and mcloud-android-connector adb
+socat TCP-LISTEN:5037,fork TCP:connector:5037 &
 
-  #127: android: clear /sdcard/*.mp4
-  adb shell "rm -rf /sdcard/*.mp4"
+# Forward appium-uiautomator2 port
+# Used to connect appium-uiautomator2-server and appium-uiautomator2-driver
+# https://github.com/appium/appium-uiautomator2-server/wiki
+while true; do
+  #TODO: experiment later with default command again. Current implementation could keep port open and redirect when needed only
+  socat TCP:localhost:${CHROMEDRIVER_PORT},retry,interval=1,forever TCP:connector:${CHROMEDRIVER_PORT},retry,interval=1,forever
+  sleep 1
+done &
+
+# Forward devtools port
+# Used to control mobile chrome browser
+if [[ -n $CHROME_OPTIONS ]]; then
+  socat TCP-LISTEN:${ANDROID_DEVTOOLS_PORT},fork TCP:connector:${ANDROID_DEVTOOLS_PORT} &
 fi
