@@ -30,7 +30,7 @@ while [[ $((startTime + ${DEVICE_TIMEOUT:-30})) -gt "$(date +%s)" ]]; do
 done
 
 if [[ $wdaStarted -eq 0 ]]; then
-  echo "No response from WDA, or WDA is unhealthy!. Exiting!"
+  echo "No response from WDA, or WDA is unhealthy! Exiting!"
   exit 0
 fi
 
