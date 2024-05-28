@@ -18,7 +18,24 @@ fi
 
 
 #### Detect device type and platform version
-# TODO: handle negative cases when we can't recognize device type and version
+startTime=$(date +%s)
+wdaStarted=0
+while [[ $((startTime + ${DEVICE_TIMEOUT:-30})) -gt "$(date +%s)" ]]; do
+  curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
+  if [[ $? -eq 0 ]]; then
+    logger "Wda started successfully!"
+    wdaStarted=1
+    break
+  fi
+  logger "WARN" "Bad or no response from 'http://${WDA_HOST}:${WDA_PORT}/status'.\nOne more attempt."
+  sleep 2
+done
+
+if [[ $wdaStarted -eq 0 ]]; then
+  logger "ERROR" "No response from WDA, or WDA is unhealthy!. Exiting!"
+  exit 0
+fi
+
 deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)
 
 PLATFORM_VERSION=$(echo "$deviceInfo" | jq -r '.value.os.version')
