@@ -5,11 +5,8 @@ echo DEVICE_UDID: "$DEVICE_UDID"
 
 #### Establish usbmuxd communication
 if [[ -z $USBMUXD_SOCKET_ADDRESS ]]; then
-  echo "Start containerized usbmuxd service/process"
-  usbmuxd -f &
-  sleep 2
-  # socat server to share usbmuxd socket via TCP
-  socat TCP-LISTEN:2222,reuseaddr,fork UNIX-CONNECT:/var/run/usbmuxd &
+  echo "USBMUXD_SOCKET_ADDRESS in not defined. Exiting."
+  exit 0
 else
   # rm /var/run/usbmuxd in advance to be able to start socat and join it to $USBMUXD_SOCKET_ADDRESS
   echo "USBMUXD_SOCKET_ADDRESS was defined as: $USBMUXD_SOCKET_ADDRESS"
