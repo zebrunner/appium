@@ -235,7 +235,7 @@ while read -r REPLY; do
   fi
 done &
 
-# wait until backgroud processes exists for node (appium)
+# wait until background processes exists for node (appium)
 node_pids=`pidof node`
 wait -n $node_pids
 
