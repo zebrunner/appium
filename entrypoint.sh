@@ -24,44 +24,42 @@ stop_ffmpeg() {
     return 0
   fi
 
-  if [ -f /tmp/${artifactId}.mp4 ]; then
-    ls -lah /tmp/${artifactId}.mp4
-    ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
-    echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
-    kill -2 $ffmpeg_pid
-    echo "[info] [Stop Video] kill output: $?"
+  ls -lah /tmp/${artifactId}.mp4
+  ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
+  echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
+  kill -2 $ffmpeg_pid
+  echo "[info] [Stop Video] kill output: $?"
 
-    # wait until ffmpeg finished normally
-    idleTimeout=30
-    startTime=$(date +%s)
-    while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
-      echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
-      echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
+  # wait until ffmpeg finished normally
+  idleTimeout=30
+  startTime=$(date +%s)
+  while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
+    echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
+    echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
 
-      if ps -p $ffmpeg_pid > /dev/null 2>&1; then
-        echo "[info] [Stop Video] ffmpeg not finished yet"
-        sleep 0.3
-      else
-        echo "[info] [Stop Video] ffmpeg finished correctly"
-        break
-      fi
-    done
-
-    # TODO: try to heal video file using https://video.stackexchange.com/a/18226
     if ps -p $ffmpeg_pid > /dev/null 2>&1; then
-      echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
-      kill -9 $ffmpeg_pid
+      echo "[info] [Stop Video] ffmpeg not finished yet"
+      sleep 0.3
+    else
+      echo "[info] [Stop Video] ffmpeg finished correctly"
+      break
     fi
+  done
 
-    # It is important to stop streaming only after ffmpeg recording has completed,
-    # since ffmpeg recording requires an image stream to complete normally.
-    # Otherwise (if ffmpeg doesn't have any new frames) it will wait for a new
-    # frame to properly finalize the video.
-
-    # send signal to stop streaming of the screens from device (applicable only for android so far)
-    echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
+  # TODO: try to heal video file using https://video.stackexchange.com/a/18226
+  if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+    echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
+    kill -9 $ffmpeg_pid
   fi
+
+  # It is important to stop streaming only after ffmpeg recording has completed,
+  # since ffmpeg recording requires an image stream to complete normally.
+  # Otherwise (if ffmpeg doesn't have any new frames) it will wait for a new
+  # frame to properly finalize the video.
+
+  # send signal to stop streaming of the screens from device (applicable only for android so far)
+  echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+  echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
 }
 
 share() {
@@ -96,10 +94,13 @@ share() {
   mkdir ${LOG_DIR}/${artifactId}
 
   stop_ffmpeg $artifactId
-  echo "[info] [Share] Video recording file:"
-  ls -lah /tmp/${artifactId}.mp4
 
-  mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+  echo "[info] [Share] Video recording file:"
+
+  ls -lah /tmp/${artifactId}.mp4
+  if [ -f /tmp/${artifactId}.mp4 ]; then
+    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+  fi
 
   cp ${TASK_LOG} ${LOG_DIR}/${artifactId}/${LOG_FILE}
   # do not move otherwise in global loop we should add extra verification on file presense
