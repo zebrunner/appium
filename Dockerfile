@@ -52,8 +52,6 @@ ENV LOG_LEVEL=info
 ENV LOG_DIR=/tmp/log
 ENV TASK_LOG=/tmp/log/appium.log
 ENV LOG_FILE=session.log
-ENV VIDEO_LOG=/tmp/log/appium-video.log
-ENV VIDEO_LOG_FILE=video.log
 
 # iOS envs
 ENV WDA_HOST=connector
