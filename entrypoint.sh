@@ -227,6 +227,8 @@ while read -r REPLY; do
     echo "start recording artifact $inwRecordArtifactId"
     /opt/start-capture-artifacts.sh $inwRecordArtifactId
   elif [[ $REPLY == *DELETE* ]]; then
+    echo "stop adb forwarding if any for mobile web testing"
+    adb forward --remove-all
     echo "stop recording artifact $inwRecordArtifactId"
     share $inwRecordArtifactId
   fi
