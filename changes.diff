@@ -1,0 +1,138 @@
+diff --git a/files/mcloud/node_modules/@appium/base-driver/build/lib/protocol/protocol.js b/files/mcloud/node_modules/@appium/base-driver/build/lib/protocol/protocol.js
+index a3b9f9f..6f5908e 100644
+--- a/files/mcloud/node_modules/@appium/base-driver/build/lib/protocol/protocol.js
++++ b/files/mcloud/node_modules/@appium/base-driver/build/lib/protocol/protocol.js
+@@ -396,12 +396,13 @@ function buildHandler(app, method, path, spec, driver, isSessCmd) {
+             // token: string - auth token from stf 
+             // udid: string -  unique id of device 
+             // note: string - comment with error for device which would shows in stf
+-            // isMakedDeviceUnhealthy: boolean - if true device status will change to Unhealthy, if false comment will added 
+-            async function updateDeviceStatus(token, udid, note, isMakeDeviceUnhealthy) {
++            // isDeviceStatusChange: boolean - if true device status will change
++            // status: string - new status for device 
++            async function updateDevice(token, udid, note, isDeviceStatusChange, status) {
+ 
+                 // if token or udid not exist, skip function 
+                 if (token == "" || udid == "") {
+-                    console.log(`[MCLOUD] Device status didi not change in STF`)
++                    console.log(`[MCLOUD] Device status did not change in STF.`)
+                     return;
+                 }
+ 
+@@ -413,7 +414,7 @@ function buildHandler(app, method, path, spec, driver, isSessCmd) {
+                 };
+ 
+ 
+-                const data = isMakeDeviceUnhealthy ? { device: { status: 'Unhealthy', note: note } } : { device: { note: note } }
++                const data = isDeviceStatusChange ? { device: { status: status, note: note } } : { device: { note: note } }
+ 
+                 try {
+                     const response = await fetch(url, {
+@@ -423,15 +424,15 @@ function buildHandler(app, method, path, spec, driver, isSessCmd) {
+                     });
+ 
+                     if (!response.ok) {
+-                        throw new Error(`[MCLOUD] HTTP Error ${response.status}`);
++                        throw new Error(`[MCLOUD] HTTP Error ${response.status}.`);
+                     }
+ 
+                     const responseData = await response.json();
+-                    console.log('[MCLOUD] Successful device status change response:', responseData);
++                    console.log('[MCLOUD] Successful device status change response: ', responseData);
+ 
+                     return responseData;
+                 } catch (error) {
+-                    console.error('[MCLOUD] Request device status change error:', error.message);
++                    console.error('[MCLOUD] Request device status change error: ', error.message);
+                     throw error;
+                 }
+             }
+@@ -444,32 +445,30 @@ function buildHandler(app, method, path, spec, driver, isSessCmd) {
+ 
+             // handling error with Cannot find any free port in range
+             if (err.message.toLowerCase().includes("cannot find any free port in range")) {
+-                console.log(`[MCLOUD] Cannot find any free port in range. Error message: ${err.message} Appium need restart, exit  code 1 `);
++                console.log(`[MCLOUD] Cannot find any free port in range. Error message: ${err.message} Appium need restart, exit with code 1.`);
+                 // Exiting with code 1 to indicate an error
+                 // process.exit(1);
+             }
+ 
+             // handling error with ENOSPC: no space left on device, mkdir '/tmp/ and exit with code 0
+             if (err.message.toLowerCase().includes('no space left on device') || err.message.toLowerCase().includes('adb: failed to install')) {
+-                console.log(`[MCLOUD] [BaseDriver] ENOSPC error, no space left on device, Error message:${err.message}. exit code 0. Device is Unhealthy !!! `)
+                 // process.exit(0);
+-                updateDeviceStatus(token, udid, err.message, true) // device status will change to Unhelthy
++                updateDevice(token, udid, err.message, true, 'Unhealthy') // device status will change to Unhealthy
+                     .then(() => {
+                         console.log(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`)
+                     })
+                     .catch(error => {
+-                        console.log(`[MCLOUD] Error occurated during making device with UDID ${udid} Unhealthy. Error: ${error}`)
++                        console.log(`[MCLOUD] Error occurated during making device with UDID ${udid} Unhealthy. Error: ${error}.`)
+                     });
+             }
+ 
+ 
+             // Check if the error 'socket hang up' occurred and do exit 0 
+             if (err.message.toLowerCase().includes("socket hang up") && err.message.toLowerCase().includes("could not proxy command to the remote server")) {
+-                console.log(`[MCLOUD] [BaseDriver] Error occurred, socket hang up. Original error: ${err.message}. exit code 0git .`);
+                 // process.exit(0);
+-                updateDeviceStatus(token, udid, err.message, false)  // device status will not change
++                updateDevice(token, udid, err.message, false)  // device status will not change
+                     .then(() => {
+-                        console.log(`[MCLOUD] Error occurred! Comment with Error details added in STF for device with UDID ${udid}`)
++                        console.log(`[MCLOUD] Comment with error details added in STF for device with UDID ${udid}.`)
+                     })
+                     .catch(error => {
+                         console.log(`[MCLOUD] Error occurated while adding comment for device with UDID in STF ${udid}. Error: ${error}`)
+@@ -478,40 +477,37 @@ function buildHandler(app, method, path, spec, driver, isSessCmd) {
+ 
+             // Check if the error 'device setup is not yet complete' occurred and do exit 1 
+             if (err.message.toLowerCase().includes("device setup is not yet complete")) {
+-                console.log(`[MCLOUD] [BaseDriver] Error occurred, device setup is not yet complete. Original error: ${err.message} exit code 0, Deveice is Unhealthy !!!`);
+                 // process.exit(0);
+-                updateDeviceStatus(token, udid, err.message, true) // device status will change to Unhelthy
++                updateDevice(token, udid, err.message, true, 'Unhealthy') // device status will change to Unhealthy
+                     .then(() => {
+-                        console.log(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`)
++                        console.log(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`)
+                     })
+                     .catch(error => {
+-                        console.log(`[MCLOUD] Error occurated during making device with UDID ${udid} Unhealthy. Error: ${error}`)
++                        console.log(`[MCLOUD] Error occurated during making device with UDID ${udid} Unhealthy. Error: ${error}.`)
+                     });
+             }
+ 
+             if (err.message.toLowerCase().includes("the session identified by") && err.message.toLowerCase().includes("is not known")) {
+-                console.log(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
+-                //     // process.exit(0);
+-                updateDeviceStatus(token, udid, err.message, false) // device status will not change
++                // process.exit(0);
++                updateDevice(token, udid, err.message, false) // device status will not change
+                     .then(() => {
+-                        console.log(`[MCLOUD] Error occurred! Comment with Error details added in STF for device with UDID ${udid}`)
++                        console.log(`[MCLOUD] Comment with Error details added in STF for device with UDID ${udid}.`)
+                     })
+                     .catch(error => {
+-                        console.log(`[MCLOUD] Error occurated while adding comment for device with UDID in STF ${udid}. Error: ${error}`)
++                        console.log(`[MCLOUD] Error occurated while adding comment for device with UDID in STF ${udid}. Error: ${error}.`)
+                     });
+             }
+ 
+ 
+             // Check if the error is related to executing the 'am' shell command and do exit code 0
+             if (err.message.toLowerCase().includes("сannot execute the 'am' shell command")) {
+-                console.log(`[MCLOUD] [BaseDriver] Got error: Cannot execute the 'am' shell command. Error message: ${err.message}. exit code 0. Device is Unhealthy !!!`);
+                 // process.exit(0);
+-                updateDeviceStatus(token, udid, err.message, true) // device status will change to Unhelthy
++                updateDevice(token, udid, err.message, true, 'Unhealthy') // device status will change to Unhealthy
+                     .then(() => {
+-                        console.log(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`)
++                        console.log(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`)
+                     })
+                     .catch(error => {
+-                        console.log(`[MCLOUD] Error occurated during making device with UDID ${udid} Unhealthy. Error: ${error}`)
++                        console.log(`[MCLOUD] Error occurated during making device with UDID ${udid} Unhealthy. Error: ${error}.`)
+                     });
+             }
+ 
