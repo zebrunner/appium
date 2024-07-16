@@ -225,7 +225,7 @@ while read -r REPLY; do
 
   if [[ $REPLY == *CREATE* ]]; then
     echo "start recording artifact $inwRecordArtifactId"
-    /opt/start-capture-artifacts.sh $inwRecordArtifactId
+    /opt/start-capture-artifacts.sh $inwRecordArtifactId > >(tee -a "${TASK_LOG}") 2>&1
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop adb forwarding if any for mobile web testing"
     adb forward --remove-all
