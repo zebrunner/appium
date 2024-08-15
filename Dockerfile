@@ -92,7 +92,7 @@ RUN appium driver list && \
         appium plugin list
 
 #TODO: think about different images per each device platform
-RUN appium driver install uiautomator2 && \
+RUN appium driver install uiautomator2@2.34.1 && \
         appium driver install xcuitest@5.7.0
 
 
