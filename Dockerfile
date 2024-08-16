@@ -66,7 +66,7 @@ ENV BROADCAST_PORT=2223
 ENV FFMPEG_OPTS=
 
 # Timeout settings
-ENV UNREGISTER_IF_STILL_DOWN_AFTER=60000
+ENV UNREGISTER_IF_STILL_DOWN_AFTER=3000
 
 # #86 move usbreset onto the appium side
 ENV DEVICE_BUS=/dev/bus/usb/003/011
@@ -92,7 +92,7 @@ RUN appium driver list && \
         appium plugin list
 
 #TODO: think about different images per each device platform
-RUN appium driver install uiautomator2 && \
+RUN appium driver install uiautomator2@2.34.1 && \
         appium driver install xcuitest@5.7.0
 
 
