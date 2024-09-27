@@ -31,7 +31,8 @@ done
 
 if [[ $wdaStarted -eq 0 ]]; then
   echo "No response from WDA, or WDA is unhealthy! Exiting!"
-  exit 0
+  # temp exit 1 to support iOS 17+ wda startup via independent service...
+  exit 1
 fi
 
 deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)
