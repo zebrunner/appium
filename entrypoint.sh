@@ -106,7 +106,7 @@ share() {
   # do not move otherwise in global loop we should add extra verification on file presense
   > ${TASK_LOG}
 
-  if [[ -f ${WDA_LOG_FILE} ]]; then
+  if [ -f "${WDA_LOG_FILE}" ] && [ "${SHARE_WDA_LOG}" == "true" ]; then
     echo "[info] [Share] Sharing file: ${WDA_LOG_FILE}"
     cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
     > ${WDA_LOG_FILE}
