@@ -238,6 +238,9 @@ while read -r REPLY; do
   fi
 done &
 
+# Background process to handle extra cases of sessions interruptions
+/opt/check-record-artifacts.sh &
+
 # wait until background processes exists for node (appium)
 node_pids=`pidof node`
 wait -n $node_pids
