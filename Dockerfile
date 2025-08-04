@@ -99,6 +99,7 @@ RUN appium driver install uiautomator2@2.34.1 && \
 
 
 COPY files/start-capture-artifacts.sh /opt
+COPY files/check-record-artifacts.sh /opt
 
 # Zebrunner MCloud node config generator
 COPY files/debug.sh /opt
