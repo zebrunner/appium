@@ -1,13 +1,13 @@
-FROM appium/appium:v2.2.2-p2
+FROM appium/appium:v2.19.0-p4
 ENV PLATFORM_NAME=ANDROID
-ENV DEVICE_UDID=
+ENV DEVICE_UDID=""
 
 # credentials for changing status of device
-ENV STF_API_URL=
-ENV STF_AUTH_TOKEN= 
+ENV STF_API_URL=""
+ENV STF_AUTH_TOKEN=""
 
 # Integration UUID for ReDroid integration
-ENV ROUTER_UUID=
+ENV ROUTER_UUID=""
 
 # Enable local caching for appium instances
 ENV APPIUM_PORT=4723
@@ -16,11 +16,11 @@ ENV APPIUM_APPS_DIR=/opt/appium-storage
 ENV APPIUM_APP_WAITING_TIMEOUT=600
 ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
 ENV APPIUM_APP_FETCH_RETRIES=0
-ENV APPIUM_CLI=
+ENV APPIUM_CLI=""
 
 ENV APPIUM_APP_SIZE_DISABLE=false
 
-ENV APPIUM_PLUGINS=
+ENV APPIUM_PLUGINS=""
 
 # Default appium 2.0 ueser:
 # uid=1300(androidusr) gid=1301(androidusr) groups=1301(androidusr)
@@ -33,7 +33,7 @@ RUN mkdir -p $APPIUM_APPS_DIR && \
 ENV REMOTE_ADB_HOST=connector
 ENV ADB_SERVER_SOCKET=tcp:connector:5037
 ENV ADB_PORT=5037
-ENV ANDROID_DEVICE=
+ENV ANDROID_DEVICE=""
 ENV ADB_POLLING_SEC=5
 
 ENV CHROMEDRIVER_AUTODOWNLOAD=true
@@ -64,7 +64,7 @@ ENV SHARE_WDA_LOG=false
 # Video recording params
 ENV BROADCAST_HOST=device
 ENV BROADCAST_PORT=2223
-ENV FFMPEG_OPTS=
+ENV FFMPEG_OPTS=""
 ENV RECORD_ARTIFACTS=true
 
 # Timeout settings
@@ -85,17 +85,18 @@ ENV VERBOSE=false
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get -y install iputils-ping nano jq telnet netcat curl ffmpeg libimobiledevice-utils libimobiledevice6 usbmuxd socat inotify-tools
 
 #Grab gidevice from github and extract it in a folder
-RUN wget https://github.com/danielpaulus/go-ios/releases/download/v1.0.121/go-ios-linux.zip
-# https://github.com/danielpaulus/go-ios/releases/latest/download/go-ios-linux.zip
-RUN unzip go-ios-linux.zip -d /usr/local/bin && rm -f go-ios-linux.zip
-
+RUN wget -O /tmp/go-ios/go-ios-linux.zip https://github.com/danielpaulus/go-ios/releases/download/v1.0.182/go-ios-linux.zip ;\
+    unzip /tmp/go-ios/go-ios-linux.zip -d /tmp/go-ios/ ;\
+    cp /tmp/go-ios/ios-amd64 /usr/local/bin/ios ;\
+    rm -rf /tmp/go-ios ;\
+    ios --version
 
 RUN appium driver list && \
         appium plugin list
 
 #TODO: think about different images per each device platform
-RUN appium driver install uiautomator2@2.34.1 && \
-        appium driver install xcuitest@5.7.0
+RUN appium driver install uiautomator2@4.2.9 && \
+        appium driver install xcuitest@9.10.5
 
 
 COPY files/start-capture-artifacts.sh /opt
