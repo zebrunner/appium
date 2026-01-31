@@ -1,4 +1,4 @@
-FROM appium/appium:v2.19.0-p4
+FROM appium/appium:v3.1.1-p0
 ENV PLATFORM_NAME=ANDROID
 ENV DEVICE_UDID=""
 
@@ -96,8 +96,8 @@ RUN appium driver list && \
         appium plugin list
 
 #TODO: think about different images per each device platform
-RUN appium driver install uiautomator2@4.2.9 && \
-        appium driver install xcuitest@9.10.5
+RUN appium driver install uiautomator2@6.7.15 && \
+        appium driver install xcuitest@10.18.2
 
 
 COPY files/start-capture-artifacts.sh /opt
