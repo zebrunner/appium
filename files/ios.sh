@@ -19,7 +19,7 @@ fi
 startTime=$(date +%s)
 wdaStarted=0
 while [[ $((startTime + ${DEVICE_TIMEOUT:-30})) -gt "$(date +%s)" ]]; do
-  curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
+  curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200'
   if [[ $? -eq 0 ]]; then
     echo "Wda started successfully!"
     wdaStarted=1
