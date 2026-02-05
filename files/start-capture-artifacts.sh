@@ -16,6 +16,9 @@ echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4..."
 # you can add `-v trace` to enable verbose mode logs
 # -use_wallclock_as_timestamps 1 - use system time for timestamps in stream, improve VFR (Variable Frame Rate) accuracy.
 ffmpeg \
+  -hide_banner \
+  -loglevel info \
+  -nostats \
   -f mjpeg \
   -use_wallclock_as_timestamps 1 \
   -fflags +genpts \
