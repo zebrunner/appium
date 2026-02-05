@@ -10,7 +10,7 @@ echo "[info] [CaptureArtifacts] sessionId: $sessionId"
 
 # send signal to start streaming of the screens from device
 echo "[info] [CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-echo -n "on" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -w 0 -v
+echo -n "on" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -q 0 -v
 
 echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4..."
 # you can add `-v trace` to enable verbose mode logs
