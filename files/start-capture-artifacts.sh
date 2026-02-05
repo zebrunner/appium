@@ -25,7 +25,7 @@ ffmpeg \
   -preset:v ultrafast \
   -crf 35 \
   -movflags +empty_moov+frag_keyframe \
-  "${FFMPEG_OPTS}" \
+  ${FFMPEG_OPTS} \
   -y /tmp/"${sessionId}".mp4 &
 
 exit 0
