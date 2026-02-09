@@ -1,3 +1,4 @@
+# TODO: update version of appium
 FROM public.ecr.aws/zebrunner/appium:2.1
 
 ENV APPIUM_PLUGINS=images
