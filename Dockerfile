@@ -1,4 +1,4 @@
-FROM appium/appium:v3.1.1-p0
+FROM appium/appium:v3.1.1-p0 as appium
 
 # Device data
 ENV PLATFORM_NAME=""
@@ -141,3 +141,21 @@ RUN appium --version
 CMD ["/opt/entrypoint/entrypoint.sh"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
+
+FROM appium
+
+# Install plugin
+RUN appium plugin install images@4.1.0
+
+# Additional tools/dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libvips-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install sharp inside appium context
+RUN cd /usr/lib/node_modules/appium && \
+    npm install --include=optional sharp@0.34.5
+
+# Check build
+RUN cd /usr/lib/node_modules/appium && \
+    node -e "console.log(require('sharp').concurrency())"
