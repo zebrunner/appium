@@ -134,6 +134,9 @@ COPY files/mcloud/ /opt/mcloud
 # Do not make backups because unpatched js files in the same folder might be used by Appium
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
+# Check appium
+RUN appium --version
+
 # Override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/opt/entrypoint/entrypoint.sh"]
 
