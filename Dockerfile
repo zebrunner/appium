@@ -1,4 +1,4 @@
-FROM appium/appium:v3.1.1-p0 as appium
+FROM appium/appium:v3.1.1-p0 AS appium
 
 # Device data
 ENV PLATFORM_NAME=""
