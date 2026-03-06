@@ -27,13 +27,21 @@ echo ""
 echo "    ${cmd[*]}"
 echo ""
 read -r -p "Press any key to continue or CTRL+C to interrupt execution"
+echo ""
 
-exec "${cmd[@]}"
+"${cmd[@]}"
 
-echo ""
-echo "--- Successfully built: --------------------------------------------------"
-echo ""
-echo "    $tagPath:$tagVersion"
-echo ""
-echo "--------------------------------------------------------------------------"
-echo ""
+if [ $? -eq 0 ]; then
+  echo ""
+  echo "--- Successfully built: --------------------------------------------------"
+  echo ""
+  echo "    $tagPath:$tagVersion"
+  echo ""
+  echo "--------------------------------------------------------------------------"
+  echo ""
+else
+  echo "--------------------------------------------------------------------------"
+  echo "Build failed"
+  echo "--------------------------------------------------------------------------"
+  exit 1
+fi
