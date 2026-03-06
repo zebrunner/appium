@@ -87,7 +87,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     rm -rf /var/lib/apt/lists/*
 
 # Grab go-ios from github and extract it in a folder
-ARG GO_IOS_VERSION=v1.0.182
+ARG GO_IOS_VERSION=v1.0.204
 RUN mkdir -p /tmp/go-ios && \
     wget -O /tmp/go-ios/go-ios-linux.zip https://github.com/danielpaulus/go-ios/releases/download/${GO_IOS_VERSION}/go-ios-linux.zip && \
     unzip /tmp/go-ios/go-ios-linux.zip -d /tmp/go-ios/ && \
