@@ -3,7 +3,7 @@ FROM public.ecr.aws/zebrunner/appium:3.0
 # Install plugin
 RUN appium plugin install images@4.1.0
 
-# System deps
+# Additional tools/dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libvips-dev && \
     rm -rf /var/lib/apt/lists/*
