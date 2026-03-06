@@ -142,6 +142,9 @@ CMD ["/opt/entrypoint/entrypoint.sh"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
 
+# ==============================
+# Stage 2 — Appium Image Plugin
+# ==============================
 FROM appium AS appium-image
 
 ENV APPIUM_PLUGINS="images"
@@ -155,9 +158,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install sharp inside appium context
-RUN cd /usr/lib/node_modules/appium && \
-    npm install --include=optional sharp@0.34.5
+RUN npm install sharp@0.34.5 --prefix /usr/lib/node_modules/appium
+
+# Copy patched files as 'npm install' overwrite old ones
+RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
 # Check build
-RUN cd /usr/lib/node_modules/appium && \
-    node -e "console.log(require('sharp').concurrency())"
+RUN NODE_PATH="$(npm root -g)/appium/node_modules/" \
+    node -e "const s=require('sharp'); \
+    console.log('Sharp version:'); \
+    console.log(JSON.stringify({versions:s.versions.sharp, concurrency:s.concurrency()}, null, 2))"
