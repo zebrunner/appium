@@ -142,7 +142,7 @@ CMD ["/opt/entrypoint/entrypoint.sh"]
 
 HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
 
-FROM appium
+FROM appium AS appium-image
 
 # Install plugin
 RUN appium plugin install images@4.1.0
