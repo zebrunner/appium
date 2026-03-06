@@ -29,3 +29,11 @@ echo ""
 read -r -p "Press any key to continue or CTRL+C to interrupt execution"
 
 exec "${cmd[@]}"
+
+echo ""
+echo "--- Successfully built: --------------------------------------------------"
+echo ""
+echo "    $tagPath:$tagVersion"
+echo ""
+echo "--------------------------------------------------------------------------"
+echo ""
