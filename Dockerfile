@@ -144,6 +144,8 @@ HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
 
 FROM appium AS appium-image
 
+ENV APPIUM_PLUGINS="images"
+
 # Install plugin
 RUN appium plugin install images@4.1.0
 
