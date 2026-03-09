@@ -25,7 +25,7 @@ ENV APPIUM_PLUGINS=""
 # Create dir for apps
 USER root
 RUN mkdir -p $APPIUM_APPS_DIR && \
-	chown androidusr:androidusr $APPIUM_APPS_DIR
+    chown androidusr:androidusr $APPIUM_APPS_DIR
 
 # Android settings
 ENV REMOTE_ADB_HOST=connector
