@@ -103,19 +103,19 @@ RUN appium driver install uiautomator2@6.7.15 && \
     appium driver install xcuitest@10.18.2
 
 # Copy video recorder script
-COPY files/start-capture-artifacts.sh /opt
+COPY files/module/start-capture-artifacts.sh /opt
 
 # Zebrunner MCloud node config generator
-COPY files/debug.sh /opt
-COPY files/android.sh /opt
-COPY files/ios.sh /opt
-COPY files/zbr-config-gen.sh /opt
-COPY files/zbr-default-caps-gen.sh /opt
+COPY files/util/debug.sh /opt
+COPY files/module/android.sh /opt
+COPY files/module/ios.sh /opt
+COPY files/config/zbr-config-gen.sh /opt
+COPY files/config/zbr-default-caps-gen.sh /opt
 
 # Entrypoint
 ARG ENTRYPOINT_DIR=/opt/entrypoint
 RUN mkdir -p ${ENTRYPOINT_DIR}
-COPY entrypoint.sh ${ENTRYPOINT_DIR}
+COPY files/entrypoint.sh ${ENTRYPOINT_DIR}
 
 # TODO: think about entrypoint container usage to apply permission fixes
 #RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
@@ -124,15 +124,15 @@ COPY entrypoint.sh ${ENTRYPOINT_DIR}
 COPY files/healthcheck /usr/local/bin
 
 # Usbreset
-COPY files/usbreset /usr/local/bin
+COPY files/util/usbreset /usr/local/bin
 
 # TODO: migrate everything to androiduser
 #USER androidusr
 
 # Custom Mcloud patches
-COPY files/mcloud/ /opt/mcloud
+COPY files/patch/ /opt/mcloud
 # Do not make backups because unpatched js files in the same folder might be used by Appium
-RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
+RUN cp -r -v /opt/patch/* ${APPIUM_HOME}
 
 # Check appium
 RUN appium --version
@@ -161,7 +161,7 @@ RUN apt-get update && \
 RUN npm install sharp@0.34.5 --prefix /usr/lib/node_modules/appium
 
 # Copy patched files as 'npm install' overwrite old ones
-RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
+RUN cp -r -v /opt/patch/* ${APPIUM_HOME}
 
 # Check build
 RUN NODE_PATH="$(npm root -g)/appium/node_modules/" \
