@@ -132,7 +132,7 @@ COPY files/util/usbreset /usr/local/bin
 # Custom Mcloud patches
 COPY files/patch/ /opt/mcloud
 # Do not make backups because unpatched js files in the same folder might be used by Appium
-RUN cp -r -v /opt/patch/* ${APPIUM_HOME}
+RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
 # Check appium
 RUN appium --version
@@ -161,7 +161,7 @@ RUN apt-get update && \
 RUN npm install sharp@0.34.5 --prefix /usr/lib/node_modules/appium
 
 # Copy patched files as 'npm install' overwrite old ones
-RUN cp -r -v /opt/patch/* ${APPIUM_HOME}
+RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
 # Check build
 RUN NODE_PATH="$(npm root -g)/appium/node_modules/" \
