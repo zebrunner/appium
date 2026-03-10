@@ -20,7 +20,7 @@ EndOfMessage
 fi
 
 
-#TODO: review extra default params we used in mcloud-ios
+#TODO: review extra default params we used in patch-ios
 #'{"webkitDebugProxyPort": '${iwdp_port}'
 
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
