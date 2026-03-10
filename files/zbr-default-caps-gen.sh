@@ -3,7 +3,7 @@
 #IMPORTANT!!! Don't do any echo otherwise you corrupt generated defaultcapabilities json
 
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
-PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+PLATFORM_NAME="$(printf '%s' "$PLATFORM_NAME" | tr '[:upper:]' '[:lower:]')"
 if [[ "${PLATFORM_NAME}" == "android" ]]; then
 cat << EndOfMessage
 {
