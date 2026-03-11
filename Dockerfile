@@ -130,7 +130,7 @@ COPY files/util/usbreset /usr/local/bin
 #USER androidusr
 
 # Custom Mcloud patches
-COPY files/patch/ /opt/mcloud
+COPY files/patch/node_modules /opt/mcloud/
 # Do not make backups because unpatched js files in the same folder might be used by Appium
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
