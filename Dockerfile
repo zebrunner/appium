@@ -149,22 +149,27 @@ FROM appium AS appium-image
 
 ENV APPIUM_PLUGINS="images"
 
+ARG EXTRA_MODULE_DIR=/opt/appium-extra
+
+ENV NODE_PATH=${EXTRA_MODULE_DIR}/node_modules:${APPIUM_HOME}/node_modules
+
 # Install plugin
 RUN appium plugin install images@4.1.0
 
-# Additional tools/dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends libvips-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install sharp inside appium context
-RUN npm install sharp@0.34.5 --prefix /usr/lib/node_modules/appium
-
-# Copy patched files as 'npm install' overwrite old ones
-RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
+# Install sharp in separate folder
+RUN mkdir -p ${EXTRA_MODULE_DIR} && \
+    npm install \
+      --foreground-scripts \
+      --loglevel verbose \
+      --prefix ${EXTRA_MODULE_DIR} \
+      --no-save \
+      --package-lock=false \
+      --include=optional \
+      sharp@0.34.5
 
 # Check build
-RUN NODE_PATH="$(npm root -g)/appium/node_modules/" \
+RUN node -p "process.env.NODE_PATH" && \
+    node -p "require.resolve('sharp')" && \
     node -e "const s=require('sharp'); \
     console.log('Sharp version:'); \
-    console.log(JSON.stringify({versions:s.versions.sharp, concurrency:s.concurrency()}, null, 2))"
+    console.log(JSON.stringify({versions:s.versions.sharp, concurrency:s.concurrency(), platform: process.platform, arch: process.arch}, null, 2))"
