@@ -1,82 +1,83 @@
 FROM appium/appium:v3.1.1-p0 AS appium
 
-# Device data
-ENV PLATFORM_NAME=""
-ENV DEVICE_UDID=""
+# Set environment variables
+ENV ANDROID_DEVTOOLS_PORT=9222
 
-# Credentials for changing status of device
-ENV STF_API_URL=""
-ENV STF_AUTH_TOKEN=""
+ENV \
+    # Device data
+    PLATFORM_NAME="" \
+    DEVICE_UDID="" \
+    # Credentials for changing status of device
+    STF_API_URL="" \
+    STF_AUTH_TOKEN="" \
+    # Integration UUID for ReDroid integration
+    ROUTER_UUID="" \
+    # Appium settings
+    APPIUM_PORT=4723 \
+    APPIUM_HOME=/usr/lib/node_modules/appium \
+    APPIUM_APPS_DIR=/opt/appium-storage \
+    APPIUM_CONFIG_DIR=/opt/config \
+    APPIUM_APP_WAITING_TIMEOUT=600 \
+    APPIUM_MAX_LOCK_FILE_LIFETIME=1800 \
+    APPIUM_APP_FETCH_RETRIES=0 \
+    APPIUM_CLI="" \
+    APPIUM_APP_SIZE_DISABLE=false \
+    APPIUM_PLUGINS="" \
+    # Android settings
+    REMOTE_ADB_HOST=connector \
+    ADB_SERVER_SOCKET=tcp:connector:5037 \
+    ADB_PORT=5037 \
+    ANDROID_DEVICE="" \
+    ADB_POLLING_SEC=5 \
+    # Chromedriver settings
+    CHROMEDRIVER_AUTODOWNLOAD=true \
+    CHROMEDRIVER_PORT=8200 \
+    # Chromedriver devtools port
+    CHROME_OPTIONS="\"androidDevToolsPort\": ${ANDROID_DEVTOOLS_PORT}" \
+    # Proxy settings
+    PROXY_PORT=8080 \
+    SERVER_PROXY_PORT=0 \
+    # Log settings
+    LOG_LEVEL=info \
+    LOG_DIR=/tmp/log \
+    TASK_LOG=/tmp/log/appium.log \
+    LOG_FILE=session.log \
+    # iOS settings
+    WDA_HOST=connector \
+    WDA_PORT=8100 \
+    MJPEG_PORT=8101 \
+    DEVICE_TIMEOUT=300 \
+    WDA_LOG_FILE=/tmp/log/wda.log \
+    SHARE_WDA_LOG=false \
+    # Video recording settings
+    BROADCAST_HOST=device \
+    BROADCAST_PORT=2223 \
+    FFMPEG_OPTS="" \
+    RECORD_ARTIFACTS=true \
+    # Timeout settings
+    UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
+    # Default device bus settings
+    DEVICE_BUS=/dev/bus/usb/003/011 \
+    # Usbmuxd settings "host:port"
+    USBMUXD_SOCKET_ADDRESS=connector:2222 \
+    # Debug mode settings
+    DEBUG=false \
+    DEBUG_TIMEOUT=3600 \
+    VERBOSE=false
 
-# Integration UUID for ReDroid integration
-ENV ROUTER_UUID=""
-
-# Appium settings
-ENV APPIUM_PORT=4723
-ENV APPIUM_HOME=/usr/lib/node_modules/appium
-ENV APPIUM_APPS_DIR=/opt/appium-storage
-ENV APPIUM_APP_WAITING_TIMEOUT=600
-ENV APPIUM_MAX_LOCK_FILE_LIFETIME=1800
-ENV APPIUM_APP_FETCH_RETRIES=0
-ENV APPIUM_CLI=""
-ENV APPIUM_APP_SIZE_DISABLE=false
-ENV APPIUM_PLUGINS=""
+USER root
 
 # Create dir for apps
-USER root
 RUN mkdir -p $APPIUM_APPS_DIR && \
-    chown androidusr:androidusr $APPIUM_APPS_DIR
+    chown -R androidusr:androidusr $APPIUM_APPS_DIR
 
-# Android settings
-ENV REMOTE_ADB_HOST=connector
-ENV ADB_SERVER_SOCKET=tcp:connector:5037
-ENV ADB_PORT=5037
-ENV ANDROID_DEVICE=""
-ENV ADB_POLLING_SEC=5
+# Create dir for appium config files
+RUN mkdir -p $APPIUM_CONFIG_DIR && \
+    chown -R androidusr:androidusr $APPIUM_CONFIG_DIR
 
-ENV CHROMEDRIVER_AUTODOWNLOAD=true
-ENV CHROMEDRIVER_PORT=8200
-# Chromedriver devtools port
-ENV ANDROID_DEVTOOLS_PORT=9222
-ENV CHROME_OPTIONS="\"androidDevToolsPort\": ${ANDROID_DEVTOOLS_PORT}"
-
-# Proxy settings
-ENV PROXY_PORT=8080
-ENV SERVER_PROXY_PORT=0
-
-# Log settings
-ENV LOG_LEVEL=info
-ENV LOG_DIR=/tmp/log
-ENV TASK_LOG=/tmp/log/appium.log
-ENV LOG_FILE=session.log
-
-# iOS settings
-ENV WDA_HOST=connector
-ENV WDA_PORT=8100
-ENV MJPEG_PORT=8101
-ENV DEVICE_TIMEOUT=300
-ENV WDA_LOG_FILE=/tmp/log/wda.log
-ENV SHARE_WDA_LOG=false
-
-# Video recording settings
-ENV BROADCAST_HOST=device
-ENV BROADCAST_PORT=2223
-ENV FFMPEG_OPTS=""
-ENV RECORD_ARTIFACTS=true
-
-# Timeout settings
-ENV UNREGISTER_IF_STILL_DOWN_AFTER=3000
-
-# Default device bus settings
-ENV DEVICE_BUS=/dev/bus/usb/003/011
-
-# Usbmuxd settings "host:port"
-ENV USBMUXD_SOCKET_ADDRESS=connector:2222
-
-# Debug mode settings
-ENV DEBUG=false
-ENV DEBUG_TIMEOUT=3600
-ENV VERBOSE=false
+# Create log dir
+RUN mkdir -p $LOG_DIR  && \
+    chown -R androidusr:androidusr $LOG_DIR
 
 # Additional tools
 RUN export DEBIAN_FRONTEND=noninteractive && \
@@ -92,45 +93,42 @@ RUN mkdir -p /tmp/go-ios && \
     wget -O /tmp/go-ios/go-ios-linux.zip https://github.com/danielpaulus/go-ios/releases/download/${GO_IOS_VERSION}/go-ios-linux.zip && \
     unzip /tmp/go-ios/go-ios-linux.zip -d /tmp/go-ios/ && \
     cp /tmp/go-ios/ios-amd64 /usr/local/bin/ios && \
+    chown -R androidusr:androidusr /usr/local/bin/ios && \
     rm -rf /tmp/go-ios && \
     ios --version
 
-# Check and install drivers
-RUN appium driver list && \
-    appium plugin list
-
-RUN appium driver install uiautomator2@6.7.15 && \
-    appium driver install xcuitest@10.18.2
-
-# Copy video recorder script
-COPY files/module/start-capture-artifacts.sh /opt
-
-# Zebrunner MCloud node config generator
-COPY files/util/debug.sh /opt
-COPY files/module/android.sh /opt
-COPY files/module/ios.sh /opt
-COPY files/config/zbr-config-gen.sh /opt
-COPY files/config/zbr-default-caps-gen.sh /opt
-
 # Entrypoint
 ARG ENTRYPOINT_DIR=/opt/entrypoint
-RUN mkdir -p ${ENTRYPOINT_DIR}
-COPY files/entrypoint.sh ${ENTRYPOINT_DIR}
+RUN mkdir -p ${ENTRYPOINT_DIR} && \
+    chown -R androidusr:androidusr ${ENTRYPOINT_DIR}
+COPY --chown=androidusr:androidusr \
+    files/entrypoint.sh ${ENTRYPOINT_DIR}
 
-# TODO: think about entrypoint container usage to apply permission fixes
-#RUN chown -R androidusr:androidusr $ENTRYPOINT_DIR
+USER androidusr
 
-# Healthcheck
-COPY files/healthcheck /usr/local/bin
+# Check and install drivers
+RUN appium driver list && \
+    appium plugin list && \
+    appium driver install uiautomator2@6.7.15 && \
+    appium driver install xcuitest@10.18.2
 
-# Usbreset
-COPY files/util/usbreset /usr/local/bin
+# Copy video recorder script & Zebrunner MCloud node config generator
+COPY --chown=androidusr:androidusr \
+    files/module/start-capture-artifacts.sh \
+    files/util/debug.sh \
+    files/module/android.sh \
+    files/module/ios.sh \
+    files/config/zbr-config-gen.sh \
+    files/config/zbr-default-caps-gen.sh /opt/
 
-# TODO: migrate everything to androiduser
-#USER androidusr
+# Healthcheck & Usbreset
+COPY --chown=androidusr:androidusr \
+    files/healthcheck \
+    files/util/usbreset /usr/local/bin/
 
 # Custom Mcloud patches
-COPY files/patch/node_modules /opt/mcloud/
+COPY --chown=androidusr:androidusr \
+    files/patch/node_modules /opt/mcloud/
 # Do not make backups because unpatched js files in the same folder might be used by Appium
 RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
 
@@ -147,17 +145,18 @@ HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
 # ==============================
 FROM appium AS appium-image
 
-ENV APPIUM_PLUGINS="images"
-
 ARG EXTRA_MODULE_DIR=/opt/appium-extra
-
-ENV NODE_PATH=${EXTRA_MODULE_DIR}/node_modules:${APPIUM_HOME}/node_modules
+ENV APPIUM_PLUGINS=images \
+    NODE_PATH=${EXTRA_MODULE_DIR}/node_modules:${APPIUM_HOME}/node_modules
 
 # Install plugin
 RUN appium plugin install images@4.1.0
 
+USER root
+
 # Install sharp in separate folder
 RUN mkdir -p ${EXTRA_MODULE_DIR} && \
+    chown -R androidusr:androidusr ${EXTRA_MODULE_DIR} && \
     npm install \
       --foreground-scripts \
       --loglevel verbose \
@@ -166,6 +165,8 @@ RUN mkdir -p ${EXTRA_MODULE_DIR} && \
       --package-lock=false \
       --include=optional \
       sharp@0.34.5
+
+USER androidusr
 
 # Check build
 RUN node -p "process.env.NODE_PATH" && \
