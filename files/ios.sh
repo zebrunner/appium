@@ -19,7 +19,7 @@ fi
 startTime=$(date +%s)
 wdaStarted=0
 while [[ $((startTime + ${DEVICE_TIMEOUT:-30})) -gt "$(date +%s)" ]]; do
-  curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200 OK'
+  curl -Is "http://${WDA_HOST}:${WDA_PORT}/status" | head -1 | grep -q '200'
   if [[ $? -eq 0 ]]; then
     echo "Wda started successfully!"
     wdaStarted=1
@@ -31,7 +31,8 @@ done
 
 if [[ $wdaStarted -eq 0 ]]; then
   echo "No response from WDA, or WDA is unhealthy! Exiting!"
-  exit 0
+  # temp exit 1 to support iOS 17+ wda startup via independent service...
+  exit 1
 fi
 
 deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)

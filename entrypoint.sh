@@ -106,7 +106,7 @@ share() {
   # do not move otherwise in global loop we should add extra verification on file presense
   > ${TASK_LOG}
 
-  if [[ -f ${WDA_LOG_FILE} ]]; then
+  if [ -f "${WDA_LOG_FILE}" ] && [ "${SHARE_WDA_LOG}" == "true" ]; then
     echo "[info] [Share] Sharing file: ${WDA_LOG_FILE}"
     cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
     > ${WDA_LOG_FILE}
@@ -224,8 +224,12 @@ while read -r REPLY; do
   fi
 
   if [[ $REPLY == *CREATE* ]]; then
-    echo "start recording artifact $inwRecordArtifactId"
-    /opt/start-capture-artifacts.sh $inwRecordArtifactId > >(tee -a "${TASK_LOG}") 2>&1
+    if [ "${RECORD_ARTIFACTS}" == "true" ]; then
+      echo "start recording artifact $inwRecordArtifactId"
+      /opt/start-capture-artifacts.sh $inwRecordArtifactId > >(tee -a "${TASK_LOG}") 2>&1
+    else
+      echo "recording artifacts was disabled with RECORD_ARTIFACTS: ${RECORD_ARTIFACTS}"
+    fi
   elif [[ $REPLY == *DELETE* ]]; then
     echo "stop adb forwarding if any for mobile web testing"
     adb forward --remove-all
