@@ -2,8 +2,8 @@
 
 . /opt/debug.sh
 
-NODE_CONFIG_JSON="/root/nodeconfig.json"
-DEFAULT_CAPABILITIES_JSON="/root/defaultcapabilities.json"
+NODE_CONFIG_JSON="$APPIUM_CONFIG_DIR/nodeconfig.json"
+DEFAULT_CAPABILITIES_JSON="$APPIUM_CONFIG_DIR/defaultcapabilities.json"
 
 # show list of plugins including installed ones
 appium plugin list
@@ -258,4 +258,3 @@ echo exit_code: $exit_code
 
 # forcibly exit with error code to initiate restart
 exit 1
-
