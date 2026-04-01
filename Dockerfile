@@ -128,9 +128,9 @@ COPY --chown=androidusr:androidusr \
 
 # Custom Mcloud patches
 COPY --chown=androidusr:androidusr \
-    files/patch/node_modules /opt/mcloud/
+    files/patch/ /opt/mcloud/
 # Do not make backups because unpatched js files in the same folder might be used by Appium
-RUN cp -r -v /opt/mcloud/* ${APPIUM_HOME}
+RUN cp -r -v /opt/mcloud/node_modules ${APPIUM_HOME}
 
 # Check appium
 RUN appium --version
