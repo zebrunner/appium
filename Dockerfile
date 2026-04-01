@@ -158,13 +158,13 @@ USER root
 RUN mkdir -p ${EXTRA_MODULE_DIR} && \
     chown -R androidusr:androidusr ${EXTRA_MODULE_DIR} && \
     npm install \
-      --foreground-scripts \
-      --loglevel verbose \
-      --prefix ${EXTRA_MODULE_DIR} \
-      --no-save \
-      --package-lock=false \
-      --include=optional \
-      sharp@0.34.5
+        --foreground-scripts \
+        --loglevel verbose \
+        --prefix ${EXTRA_MODULE_DIR} \
+        --no-save \
+        --package-lock=false \
+        --include=optional \
+        sharp@0.34.5
 
 USER androidusr
 
