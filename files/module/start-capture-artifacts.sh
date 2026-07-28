@@ -8,11 +8,18 @@ fi
 
 echo "[info] [CaptureArtifacts] sessionId: $sessionId"
 
-# send signal to start streaming of the screens from device
-echo "[info] [CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-echo -n "on" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -q 0 -v
+PLATFORM_NAME=$(echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]')
 
-echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4..."
+# iOS reads the WDA MJPEG server directly; STF's screen broadcast deletes the WDA session on ws close, starving ffmpeg.
+if [[ "${PLATFORM_NAME}" == "ios" ]]; then
+  ffmpegInput="http://${WDA_HOST}:${MJPEG_PORT}"
+else
+  echo "[info] [CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+  echo -n "on" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -q 0 -v
+  ffmpegInput="tcp://${BROADCAST_HOST}:${BROADCAST_PORT}"
+fi
+
+echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4 from ${ffmpegInput}..."
 # you can add `-v trace` to enable verbose mode logs
 # -use_wallclock_as_timestamps 1 - use system time for timestamps in stream, improve VFR (Variable Frame Rate) accuracy.
 ffmpeg \
@@ -22,7 +29,7 @@ ffmpeg \
   -f mjpeg \
   -use_wallclock_as_timestamps 1 \
   -fflags +genpts \
-  -i tcp://${BROADCAST_HOST}:${BROADCAST_PORT} \
+  -i "${ffmpegInput}" \
   -vf "setpts=RTCTIME/1000000/TB,scale=-2:720" \
   -c:v libx264 \
   -preset:v ultrafast \

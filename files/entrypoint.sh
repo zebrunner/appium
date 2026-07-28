@@ -58,8 +58,11 @@ stop_ffmpeg() {
   # frame to properly finalize the video.
 
   # send signal to stop streaming of the screens from device (applicable only for android so far)
-  echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-  echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -q 0 -v
+  # iOS records the WDA MJPEG server directly, so poking the STF broadcast here would only churn its ws/session.
+  if [[ "$(echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]')" != "ios" ]]; then
+    echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -q 0 -v
+  fi
 }
 
 share() {
@@ -99,7 +102,13 @@ share() {
 
   ls -lah /tmp/${artifactId}.mp4
   if [ -f /tmp/${artifactId}.mp4 ]; then
-    mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+    videoSize=$(wc -c < /tmp/${artifactId}.mp4)
+    if [ "${videoSize}" -gt 1024 ]; then
+      mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+    else
+      echo "[warn] [Share] video for $artifactId is ${videoSize} bytes (no frames captured); skipping video upload"
+      rm -f /tmp/${artifactId}.mp4
+    fi
   fi
 
   cp ${TASK_LOG} ${LOG_DIR}/${artifactId}/${LOG_FILE}
@@ -234,7 +243,8 @@ while read -r REPLY; do
     echo "stop adb forwarding if any for mobile web testing"
     adb forward --remove-all
     echo "stop recording artifact $inwRecordArtifactId"
-    share $inwRecordArtifactId
+    # Backgrounded so a slow stop_ffmpeg can't stall processing of the next session's marker events.
+    share $inwRecordArtifactId &
   fi
 done &
 

@@ -80,7 +80,7 @@ index 07258f35b..03e3fea07 100644
  import {
    BASE_DESIRED_CAP_CONSTRAINTS,
    type AppiumServer,
-@@ -360,6 +362,30 @@ export class BaseDriver<
+@@ -360,6 +362,34 @@ export class BaseDriver<
  
      this.log.info(`Session created with session id: ${this.sessionId}`);
  
@@ -99,8 +99,12 @@ index 07258f35b..03e3fea07 100644
 +    };
 +    // directory where .recording-artifact file should be created
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
++    // Skip per-session markers when the requesting session owns recording externally
++    if (String(this.caps?.mcloudExternalRecording) === 'true') {
++      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact create');
++    }
 +    // Check if process.env.ROUTER_UUID is not empty
-+    if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
++    else if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
 +      // If not empty, use process.env.ROUTER_UUID instead of this.sessionId
 +      await createRecordingArtifact(process.env.ROUTER_UUID, logDirName);
 +    } else {
@@ -111,7 +115,7 @@ index 07258f35b..03e3fea07 100644
      return [this.sessionId, caps] as CreateResult;
    }
  
-@@ -392,6 +418,27 @@ export class BaseDriver<
+@@ -392,6 +422,31 @@ export class BaseDriver<
          queues[key] = [];
        }
      }
@@ -125,8 +129,12 @@ index 07258f35b..03e3fea07 100644
 +      }
 +    };
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
++    // Skip per-session markers when the requesting session owns recording externally
++    if (String(this.caps?.mcloudExternalRecording) === 'true') {
++      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact remove');
++    }
 +    // Check if process.env.ROUTER_UUID is not empty
-+    if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
++    else if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
 +      // If not empty, use process.env.ROUTER_UUID instead of sessionId
 +      const fileName = path.join(logDirName, `.recording-artifact-${process.env.ROUTER_UUID}`);
 +      removeRecordingArtifact(fileName);
