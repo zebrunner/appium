@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cmd=(docker build . --progress plain)
+cmd=(docker build . --progress plain --platform "${BUILD_PLATFORM:-linux/amd64}" --provenance=false)
 
 tagPath="public.ecr.aws/zebrunner/appium"
 
