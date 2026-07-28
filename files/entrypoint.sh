@@ -243,8 +243,13 @@ while read -r REPLY; do
     echo "stop adb forwarding if any for mobile web testing"
     adb forward --remove-all
     echo "stop recording artifact $inwRecordArtifactId"
-    # Backgrounded so a slow stop_ffmpeg can't stall processing of the next session's marker events.
-    share $inwRecordArtifactId &
+    if [[ "${PLATFORM_NAME}" == "ios" ]]; then
+      # iOS reads WDA directly, so finalizing one recording cannot stop the next recording's source.
+      share $inwRecordArtifactId &
+    else
+      # STF has shared on/off state. Finish 'off' before processing the next recording's 'on'.
+      share $inwRecordArtifactId
+    fi
   fi
 done &
 
