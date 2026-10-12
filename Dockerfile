@@ -27,8 +27,6 @@ ENV \
     REMOTE_ADB_HOST=connector \
     ADB_SERVER_SOCKET=tcp:connector:5037 \
     ADB_PORT=5037 \
-    ANDROID_DEVICE="" \
-    ADB_POLLING_SEC=5 \
     # Chromedriver settings
     CHROMEDRIVER_AUTODOWNLOAD=true \
     CHROMEDRIVER_PORT=8200 \
@@ -56,8 +54,6 @@ ENV \
     RECORD_ARTIFACTS=true \
     # Timeout settings
     UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
-    # Default device bus settings
-    DEVICE_BUS=/dev/bus/usb/003/011 \
     # Usbmuxd settings "host:port"
     USBMUXD_SOCKET_ADDRESS=connector:2222 \
     # Debug mode settings
