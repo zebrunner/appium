@@ -63,6 +63,23 @@ check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd andr
 check "the image is linux/amd64" "linux/amd64" "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')"
 check "the app downloads are retried 3 times by default" "3" "$(in_image 'echo "$APPIUM_APP_FETCH_RETRIES"')"
 
+# the generated default caps pass the validation of the installed drivers without type warnings
+# validate_caps <platform> <automation> <driver package> <driver class>: "valid" or the warnings and errors
+validate_caps() {
+  docker run --rm --platform "$PLATFORM" --env PLATFORM_NAME="$1" --env AUTOMATION_NAME="$2" --env DEVICE_UDID=udid-1 \
+    --env PLATFORM_VERSION=17.4 --env DEVICE_NAME=device --entrypoint bash "$IMAGE" -c "
+    /opt/zbr-default-caps-gen.sh > /tmp/caps.json
+    cd /usr/lib/node_modules/appium/node_modules/$3 && node -e '
+      const caps = require(\"/tmp/caps.json\");
+      const plain = Object.fromEntries(Object.entries(caps).map(([k, v]) => [k.replace(/^appium:/, \"\"), v]));
+      new (require(\".\").$4)({}).validateDesiredCaps(plain);
+    '" 2>&1 | grep -E "as string|Error" || echo "valid"
+}
+check "the default caps of iOS are valid for XCUITest" "valid" \
+  "$(validate_caps ios XCUITest appium-xcuitest-driver XCUITestDriver)"
+check "the default caps of Android are valid for UiAutomator2" "valid" \
+  "$(validate_caps android uiautomator2 appium-uiautomator2-driver AndroidUiautomator2Driver)"
+
 section "startup"
 # the env vars of the appium container in zebrunner/mcloud-agent (roles/devices/templates/zebrunner-farm)
 MCLOUD_AGENT_ENV="PLATFORM_NAME=android DEVICE_UDID=udid-1 DEVICE_NAME=Pixel RETAIN_TASK=true CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=true"

@@ -60,10 +60,10 @@ check "udid" '"00008110-000A"' "$(json_get "$caps" 'j["appium:udid"]')"
 check "webDriverAgentUrl" '"http://connector:8100"' "$(json_get "$caps" 'j["appium:webDriverAgentUrl"]')"
 check "mjpegServerPort is a number" '8101' "$(json_get "$caps" 'j["appium:mjpegServerPort"]')"
 # XCUITest accepts "false" strings but doesn't convert them: `if (opts.clearSystemFiles)` is then true
-for cap in clearSystemFiles preventWDAAttachments simpleIsVisibleCheck; do
-  check "${cap} is a JSON boolean" '"bool"' "$(json_get "$caps" "type(j[\"appium:${cap}\"]).__name__")"
-done
-check "wdaLocalPort is a number" '"int"' "$(json_get "$caps" 'type(j["appium:wdaLocalPort"]).__name__')"
+check "clearSystemFiles is the JSON boolean false" 'false' "$(json_get "$caps" 'j["appium:clearSystemFiles"]')"
+check "simpleIsVisibleCheck is the JSON boolean true" 'true' "$(json_get "$caps" 'j["appium:simpleIsVisibleCheck"]')"
+check "wdaLocalPort is a number" '8100' "$(json_get "$caps" 'j["appium:wdaLocalPort"]')"
+check "no preventWDAAttachments (unused by XCUITest)" 'false' "$(json_get "$caps" '"appium:preventWDAAttachments" in j')"
 
 section "default capabilities: other platforms"
 check "no caps without PLATFORM_NAME" "" "$(env "${common_env[@]}" PLATFORM_NAME= files/config/zbr-default-caps-gen.sh)"

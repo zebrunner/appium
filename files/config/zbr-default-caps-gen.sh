@@ -32,11 +32,10 @@ cat << EndOfMessage
   "appium:udid":"$DEVICE_UDID",
   "appium:automationName":"${AUTOMATION_NAME}",
   "appium:mjpegServerPort": ${MJPEG_PORT},
-  "appium:clearSystemFiles": "false",
+  "appium:clearSystemFiles": false,
   "appium:webDriverAgentUrl":"http://${WDA_HOST}:${WDA_PORT}",
-  "appium:preventWDAAttachments": "true",
-  "appium:simpleIsVisibleCheck": "true",
-  "appium:wdaLocalPort": "${WDA_PORT}"
+  "appium:simpleIsVisibleCheck": true,
+  "appium:wdaLocalPort": ${WDA_PORT}
 }
 EndOfMessage
 fi
