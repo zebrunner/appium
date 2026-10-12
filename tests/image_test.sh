@@ -123,6 +123,18 @@ for variant in "${variants[@]}"; do
   fi
 done
 
+# a wrong config ends the container with the reason instead of a failing Appium
+container="${PREFIX}-grid-without-hub"
+docker run --detach --name "$container" --platform "$PLATFORM" --env CONNECT_TO_GRID=true --env PLATFORM_NAME=android \
+  --env DEVICE_UDID=udid-1 "$IMAGE" > /dev/null
+if wait_for 120 bash -c "[[ \$(docker inspect ${container} --format '{{.State.Running}}') == false ]]"; then
+  check "CONNECT_TO_GRID=true without the hub: the container exits with 1" "1" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
+  check_contains "CONNECT_TO_GRID=true without the hub: the missing variables are logged" \
+    "[error] CONNECT_TO_GRID=true needs: SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST" "$(docker logs "$container" 2>&1)"
+else
+  fail "CONNECT_TO_GRID=true without the hub: the container exits" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
+fi
+
 container="${PREFIX}-$((${#variants[@]} - 3))"
 if [[ "$(appium_status "$container")" == "200" ]]; then
   check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps are passed" "--default-capabilities /opt/config/defaultcapabilities.json" \

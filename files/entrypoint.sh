@@ -172,15 +172,29 @@ if [ "$CONNECT_TO_GRID" = true ]; then
     if [ -n "$CUSTOM_NODE_CONFIG" ] && [ "$CUSTOM_NODE_CONFIG" != true ]; then
         echo "[warn] CUSTOM_NODE_CONFIG is ignored, the Zebrunner node config is always generated"
     fi
+    missing=""
+    for var in SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST; do
+        [ -n "$(printenv "$var")" ] || missing+=" $var"
+    done
+    if [ -n "$missing" ]; then
+        echo "[error] CONNECT_TO_GRID=true needs:${missing}"
+        exit 1
+    fi
     # generate config json file
-    /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
+    if ! /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON; then
+        echo "[error] cannot generate $NODE_CONFIG_JSON"
+        exit 1
+    fi
     cat $NODE_CONFIG_JSON
     CMD+=" --nodeconfig $NODE_CONFIG_JSON"
 fi
 
 if [ "$DEFAULT_CAPABILITIES" = true ]; then
     # the caps of the device for every session: udid, connector hosts and ports
-    /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
+    if ! /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON; then
+        echo "[error] cannot generate $DEFAULT_CAPABILITIES_JSON"
+        exit 1
+    fi
     if [ -s "$DEFAULT_CAPABILITIES_JSON" ]; then
         cat $DEFAULT_CAPABILITIES_JSON
         CMD+=" --default-capabilities $DEFAULT_CAPABILITIES_JSON"

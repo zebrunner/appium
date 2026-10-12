@@ -2,9 +2,11 @@
 # Checks of the config generators files/config/zbr-*.sh: valid JSON from the env vars of the image.
 source "$(dirname "$0")/lib.sh"
 require_cmd python3
+require_cmd jq
 cd "$REPO" || exit 1
 
-# json_get <json> <python expression on j>: prints the value, "INVALID JSON: ..." when the json doesn't parse
+# json_get <json> <python expression on j> [args...]: prints the value as JSON, "INVALID JSON: ..." when the json
+# doesn't parse; the extra args are sys.argv[3:]
 json_get() {
   python3 -c '
 import json, sys
@@ -14,7 +16,7 @@ except ValueError as exc:
     print(f"INVALID JSON: {exc}")
     sys.exit(0)
 print(json.dumps(eval(sys.argv[2])))
-' "$1" "$2"
+' "$@"
 }
 
 common_env=(
@@ -64,6 +66,37 @@ check "clearSystemFiles is the JSON boolean false" 'false' "$(json_get "$caps" '
 check "simpleIsVisibleCheck is the JSON boolean true" 'true' "$(json_get "$caps" 'j["appium:simpleIsVisibleCheck"]')"
 check "wdaLocalPort is a number" '8100' "$(json_get "$caps" 'j["appium:wdaLocalPort"]')"
 check "no preventWDAAttachments (unused by XCUITest)" 'false' "$(json_get "$caps" '"appium:preventWDAAttachments" in j')"
+
+section "wrong values"
+# run_gen <script> <env vars...>: sets OUT (stdout), ERR (stderr) and STATUS of the generator
+run_gen() {
+  OUT="$(env "${common_env[@]}" "${@:2}" "files/config/$1" 2> "$WORK/stderr")"
+  STATUS=$?
+  ERR="$(cat "$WORK/stderr")"
+}
+run_gen zbr-config-gen.sh PLATFORM_NAME=android SELENIUM_PORT=
+check "nodeconfig without SELENIUM_PORT: exit status 1" "1" "$STATUS"
+check "nodeconfig without SELENIUM_PORT: no output" "" "$OUT"
+check_contains "nodeconfig without SELENIUM_PORT: the variable is named" "SELENIUM_PORT must be a number, got ''" "$ERR"
+run_gen zbr-config-gen.sh PLATFORM_NAME=android ADB_PORT=abc
+check "nodeconfig with ADB_PORT=abc: exit status 1" "1" "$STATUS"
+check_contains "nodeconfig with ADB_PORT=abc: the variable is named" "ADB_PORT must be a number, got 'abc'" "$ERR"
+run_gen zbr-default-caps-gen.sh PLATFORM_NAME=ios WDA_PORT=
+check "ios caps without WDA_PORT: exit status 1" "1" "$STATUS"
+check_contains "ios caps without WDA_PORT: the variable is named" "WDA_PORT must be a number" "$ERR"
+run_gen zbr-default-caps-gen.sh PLATFORM_NAME=android CHROMEDRIVER_PORT=x
+check "android caps with CHROMEDRIVER_PORT=x: exit status 1" "1" "$STATUS"
+run_gen zbr-default-caps-gen.sh PLATFORM_NAME=android 'CHROME_OPTIONS="a":'
+check "android caps with a wrong CHROME_OPTIONS: exit status 1" "1" "$STATUS"
+check_contains "android caps with a wrong CHROME_OPTIONS: the variable is named" "CHROME_OPTIONS must be" "$ERR"
+run_gen zbr-default-caps-gen.sh PLATFORM_NAME=android CHROME_OPTIONS=
+check "android caps with an empty CHROME_OPTIONS: an empty object" '{}' "$(json_get "$OUT" 'j["appium:chromeOptions"]')"
+
+name='Pixel "7" \ Pro'
+run_gen zbr-config-gen.sh PLATFORM_NAME=android DEVICE_NAME="$name"
+check "nodeconfig: quotes and backslashes are escaped" "$(json_get '"x"' 'sys.argv[3]' "$name")" "$(json_get "$OUT" 'j["capabilities"][0]["deviceName"]')"
+run_gen zbr-default-caps-gen.sh PLATFORM_NAME=ios DEVICE_NAME="$name"
+check "ios caps: quotes and backslashes are escaped" "$(json_get '"x"' 'sys.argv[3]' "$name")" "$(json_get "$OUT" 'j["appium:deviceName"]')"
 
 section "default capabilities: other platforms"
 check "no caps without PLATFORM_NAME" "" "$(env "${common_env[@]}" PLATFORM_NAME= files/config/zbr-default-caps-gen.sh)"
