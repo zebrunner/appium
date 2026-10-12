@@ -573,8 +573,8 @@ index 02822a28c..7687d2f85 100644
 +      // note: string - comment with error for device which would shows in stf
 +      // status: string - new status for device if null, update only note
 +      async function updateDevice(token, udid, note?: string, status?: string) {
-+        // if token or udid not exist, skip function
-+        if (token === '' || udid === '') {
++        // skip without the STF settings: STF_AUTH_TOKEN, DEVICE_UDID and STF_API_URL
++        if (!token || !udid || !process.env.STF_API_URL) {
 +          return;
 +        }
 +        const url = `${process.env.STF_API_URL}/devices/${udid}`;
@@ -607,7 +607,7 @@ index 02822a28c..7687d2f85 100644
 +        }
 +      }
 +
-+      const token = process.env.STF_TOKEN;
++      const token = process.env.STF_AUTH_TOKEN;
 +      const udid = process.env.DEVICE_UDID;
 +
 +      // handling error with Cannot find any free port in range
@@ -654,7 +654,7 @@ index 02822a28c..7687d2f85 100644
 +      }
 +
 +       // Check if the error is related to executing the 'am' shell command and do exit code 0
-+      if (err.message.toLowerCase().includes("сannot execute the 'am' shell command")) {
++      if (err.message.toLowerCase().includes("cannot execute the 'am' shell command")) {
 +        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Execute 'am' shell error. Error message:${err.message}. Device is Unhealthy.`);
 +        // process.exit(0);
 +        try {

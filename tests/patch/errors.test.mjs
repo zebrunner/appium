@@ -98,10 +98,15 @@ describe('error handler', () => {
     assert.equal(stf.requests[0]?.headers.authorization, 'Bearer stf-auth-token');
   });
 
-  test('no STF call without STF_AUTH_TOKEN', async () => {
-    await failWith('Device setup is not yet complete', {STF_AUTH_TOKEN: ''});
-    assert.deepEqual(stf.requests, []);
-  });
+  for (const missing of ['STF_AUTH_TOKEN', 'DEVICE_UDID', 'STF_API_URL']) {
+    for (const value of ['', undefined]) {
+      test(`no STF call without ${missing} (${value === undefined ? 'unset' : 'empty'})`, async () => {
+        const res = await failWith('Device setup is not yet complete', {[missing]: value});
+        assert.deepEqual(stf.requests, []);
+        assert.equal(res.status, 500, 'the error response is sent');
+      });
+    }
+  }
 
   test('the error response is sent when STF fails', async () => {
     const res = await failWith('Device setup is not yet complete', {STF_API_URL: 'http://127.0.0.1:9/api/v1'});
