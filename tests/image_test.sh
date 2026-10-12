@@ -130,6 +130,12 @@ for variant in "${variants[@]}"; do
   i=$((i + 1))
 done
 
+# called through wait_for
+# shellcheck disable=SC2329
+appium_up_in() {
+  [[ "$(appium_status "$1")" == "200" ]]
+}
+
 appium_status() {
   docker exec "$1" curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4723/wd/hub/status 2> /dev/null
 }
@@ -152,6 +158,17 @@ if [[ "$(appium_status "$container")" == "200" ]]; then
   for feature in chromedriver_autodownload adb_shell; do
     check_contains "CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true: ${feature} is enabled" "[Appium]     *:${feature}" "$enabled"
   done
+fi
+
+# APPIUM_CLI with several arguments and APPIUM_PLUGINS reach Appium
+container="${PREFIX}-cli"
+docker run --detach --name "$container" --platform "$PLATFORM" --env CHROMEDRIVER_AUTODOWNLOAD=false \
+  --env "APPIUM_CLI=--session-override --keep-alive-timeout 700" "$IMAGE" > /dev/null
+if wait_for 120 appium_up_in "$container"; then
+  cmdline="$(docker exec "$container" bash -c 'tr "\0" " " < /proc/$(pgrep -f "node.*appium" | head -1)/cmdline')"
+  check_contains "APPIUM_CLI with several arguments reaches Appium" "--session-override --keep-alive-timeout 700" "$cmdline"
+else
+  fail "APPIUM_CLI with several arguments reaches Appium" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
 fi
 
 # a wrong config ends the container with the reason instead of a failing Appium

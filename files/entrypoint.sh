@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# shellcheck source=util/debug.sh
 . /opt/debug.sh
 
 NODE_CONFIG_JSON="$APPIUM_CONFIG_DIR/nodeconfig.json"
@@ -8,36 +9,50 @@ DEFAULT_CAPABILITIES_JSON="$APPIUM_CONFIG_DIR/defaultcapabilities.json"
 # show list of plugins including installed ones
 appium plugin list
 
-plugins_cli=
+# the Appium command as an array: the arguments keep their values as is
+CMD=(appium --log-no-colors --log-timestamp -pa /wd/hub --port "$APPIUM_PORT" --log "$TASK_LOG" --log-level "$LOG_LEVEL")
+# APPIUM_CLI holds several arguments
+read -r -a appium_cli_args <<< "$APPIUM_CLI"
+CMD+=("${appium_cli_args[@]}")
 if [[ -n $APPIUM_PLUGINS ]]; then
-  plugins_cli="--use-plugins $APPIUM_PLUGINS"
-  echo "plugins_cli: $plugins_cli"
+  CMD+=(--use-plugins "$APPIUM_PLUGINS")
+  echo "plugins_cli: --use-plugins $APPIUM_PLUGINS"
 fi
 
-CMD="appium --log-no-colors --log-timestamp -pa /wd/hub --port $APPIUM_PORT --log $TASK_LOG --log-level $LOG_LEVEL $APPIUM_CLI $plugins_cli"
-#--use-plugins=relaxed-caps
+# ffmpeg_running <pids>: whether one of the space separated processes runs
+ffmpeg_running() {
+  local pid
+  for pid in $1; do
+    ps -p "$pid" > /dev/null 2>&1 && return 0
+  done
+  return 1
+}
 
 stop_ffmpeg() {
   local artifactId=$1
-  if [ -z ${artifactId} ]; then
+  if [ -z "${artifactId}" ]; then
     echo "[warn] [Stop Video] artifactId param is empty!"
     return 0
   fi
 
-  ls -lah /tmp/${artifactId}.mp4
-  ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
-  echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
-  kill -2 $ffmpeg_pid
+  ls -lah "/tmp/${artifactId}.mp4"
+  # pgrep may find several ffmpeg processes, the list is split on purpose below
+  local ffmpeg_pids pid
+  ffmpeg_pids=$(pgrep --full "ffmpeg.*${artifactId}.mp4")
+  echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pids"
+  for pid in $ffmpeg_pids; do
+    kill -2 "$pid"
+  done
   echo "[info] [Stop Video] kill output: $?"
 
   # wait until ffmpeg finished normally
   idleTimeout=30
   startTime=$(date +%s)
   while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
-    echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
+    echo "[info] [Stop Video] videoFileSize: $(wc -c "/tmp/${artifactId}.mp4" | awk '{print $1}') bytes."
     echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
 
-    if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+    if ffmpeg_running "$ffmpeg_pids"; then
       echo "[info] [Stop Video] ffmpeg not finished yet"
       sleep 0.3
     else
@@ -47,9 +62,11 @@ stop_ffmpeg() {
   done
 
   # TODO: try to heal video file using https://video.stackexchange.com/a/18226
-  if ps -p $ffmpeg_pid > /dev/null 2>&1; then
+  if ffmpeg_running "$ffmpeg_pids"; then
     echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
-    kill -9 $ffmpeg_pid
+    for pid in $ffmpeg_pids; do
+      kill -9 "$pid"
+    done
   fi
 
   # It is important to stop streaming only after ffmpeg recording has completed,
@@ -61,29 +78,29 @@ stop_ffmpeg() {
   # iOS records the WDA MJPEG server directly, so poking the STF broadcast here would only churn its ws/session.
   if [[ "$(echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]')" != "ios" ]]; then
     echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
-    echo -n "off" | nc ${BROADCAST_HOST} ${BROADCAST_PORT} -q 0 -v
+    echo -n "off" | nc "${BROADCAST_HOST}" "${BROADCAST_PORT}" -q 0 -v
   fi
 }
 
 share() {
   local artifactId=$1
 
-  if [ -z ${artifactId} ]; then
+  if [ -z "${artifactId}" ]; then
     echo "[warn] [Share] artifactId param is empty!"
     return 0
   fi
 
   idleTimeout=5
   # check if .share-artifact-* is beig moving by other thread
-  if [ ! -f ${LOG_DIR}/.sharing-artifact-$artifactId ]; then
-    touch ${LOG_DIR}/.sharing-artifact-$artifactId
+  if [ ! -f "${LOG_DIR}/.sharing-artifact-$artifactId" ]; then
+    touch "${LOG_DIR}/.sharing-artifact-$artifactId"
   else
     echo "[info] [Share] waiting for other thread to share $artifactId files"
     # if we can't move this file -> other thread already moved it
     # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
     waitStartTime=$(date +%s)
     while [ $((waitStartTime + idleTimeout)) -gt "$(date +%s)" ]; do
-      if [ ! -f ${LOG_DIR}/.recording-artifact-$artifactId ]; then
+      if [ ! -f "${LOG_DIR}/.recording-artifact-$artifactId" ]; then
         echo "[info] [Share] other thread shared artifacts for $artifactId"
         return 0
       fi
@@ -94,51 +111,53 @@ share() {
   fi
 
   # unique folder to collect all artifacts for uploading
-  mkdir ${LOG_DIR}/${artifactId}
+  mkdir "${LOG_DIR}/${artifactId}"
 
-  stop_ffmpeg $artifactId
+  stop_ffmpeg "$artifactId"
 
   echo "[info] [Share] Video recording file:"
 
-  ls -lah /tmp/${artifactId}.mp4
-  if [ -f /tmp/${artifactId}.mp4 ]; then
-    videoSize=$(wc -c < /tmp/${artifactId}.mp4)
+  ls -lah "/tmp/${artifactId}.mp4"
+  if [ -f "/tmp/${artifactId}.mp4" ]; then
+    videoSize=$(wc -c < "/tmp/${artifactId}.mp4")
     if [ "${videoSize}" -gt 1024 ]; then
-      mv /tmp/${artifactId}.mp4 ${LOG_DIR}/${artifactId}/video.mp4
+      mv "/tmp/${artifactId}.mp4" "${LOG_DIR}/${artifactId}/video.mp4"
     else
       echo "[warn] [Share] video for $artifactId is ${videoSize} bytes (no frames captured); skipping video upload"
-      rm -f /tmp/${artifactId}.mp4
+      rm -f "/tmp/${artifactId}.mp4"
     fi
   fi
 
-  cp ${TASK_LOG} ${LOG_DIR}/${artifactId}/${LOG_FILE}
+  cp "${TASK_LOG}" "${LOG_DIR}/${artifactId}/${LOG_FILE}"
   # do not move otherwise in global loop we should add extra verification on file presense
-  > ${TASK_LOG}
+  : > "${TASK_LOG}"
 
   if [ -f "${WDA_LOG_FILE}" ] && [ "${SHARE_WDA_LOG}" == "true" ]; then
     echo "[info] [Share] Sharing file: ${WDA_LOG_FILE}"
-    cp ${WDA_LOG_FILE} ${LOG_DIR}/${artifactId}/wda.log
-    > ${WDA_LOG_FILE}
+    cp "${WDA_LOG_FILE}" "${LOG_DIR}/${artifactId}/wda.log"
+    : > "${WDA_LOG_FILE}"
   fi
 
   # share all the rest custom reports from LOG_DIR into artifactId subfolder
-  for file in ${LOG_DIR}/*; do
+  for file in "${LOG_DIR}"/*; do
     if [ -f "$file" ] && [ -s "$file" ] && [ "$file" != "${TASK_LOG}" ] && [ "$file" != "${WDA_LOG_FILE}" ]; then
       echo "[info] [Share] Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
-      mv $file ${LOG_DIR}/${artifactId}/
+      mv "$file" "${LOG_DIR}/${artifactId}/"
     fi
   done
 
   # register artifactId info to be able to parse by uploader
-  echo "artifactId=$artifactId" > ${LOG_DIR}/.artifact-$artifactId
+  echo "artifactId=$artifactId" > "${LOG_DIR}/.artifact-$artifactId"
 
   # remove lock file (for other threads) when artifacts are shared for uploader
-  rm -f ${LOG_DIR}/.sharing-artifact-$artifactId
+  rm -f "${LOG_DIR}/.sharing-artifact-$artifactId"
   # remove lock file (for uploader) when artifacts are shared for uploader
-  rm -f ${LOG_DIR}/.recording-artifact-$artifactId
+  rm -f "${LOG_DIR}/.recording-artifact-$artifactId"
 }
 
+# called by the SIGTERM trap below
+# shellcheck disable=SC2329
 finish() {
   echo "on finish begin"
 
@@ -161,9 +180,11 @@ finish() {
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [ "${PLATFORM_NAME}" = "android" ]; then
+    # shellcheck source=module/android.sh
     . /opt/android.sh
 elif [ "${PLATFORM_NAME}" = "ios" ]; then
     export AUTOMATION_NAME='XCUITest'
+    # shellcheck source=module/ios.sh
     . /opt/ios.sh
 fi
 
@@ -181,30 +202,30 @@ if [ "$CONNECT_TO_GRID" = true ]; then
         exit 1
     fi
     # generate config json file
-    if ! /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON; then
+    if ! /opt/zbr-config-gen.sh > "$NODE_CONFIG_JSON"; then
         echo "[error] cannot generate $NODE_CONFIG_JSON"
         exit 1
     fi
-    cat $NODE_CONFIG_JSON
-    CMD+=" --nodeconfig $NODE_CONFIG_JSON"
+    cat "$NODE_CONFIG_JSON"
+    CMD+=(--nodeconfig "$NODE_CONFIG_JSON")
 fi
 
 if [ "$DEFAULT_CAPABILITIES" = true ]; then
     # the caps of the device for every session: udid, connector hosts and ports
-    if ! /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON; then
+    if ! /opt/zbr-default-caps-gen.sh > "$DEFAULT_CAPABILITIES_JSON"; then
         echo "[error] cannot generate $DEFAULT_CAPABILITIES_JSON"
         exit 1
     fi
     if [ -s "$DEFAULT_CAPABILITIES_JSON" ]; then
-        cat $DEFAULT_CAPABILITIES_JSON
-        CMD+=" --default-capabilities $DEFAULT_CAPABILITIES_JSON"
+        cat "$DEFAULT_CAPABILITIES_JSON"
+        CMD+=(--default-capabilities "$DEFAULT_CAPABILITIES_JSON")
     else
         echo "[warn] no default capabilities for PLATFORM_NAME=${PLATFORM_NAME}, Appium starts without them"
     fi
 fi
 
 if [ "$RELAXED_SECURITY" = true ]; then
-    CMD+=" --relaxed-security"
+    CMD+=(--relaxed-security)
 fi
 
 # the insecure features of Appium 3 are <driver>:<feature>, all of them in one --allow-insecure (the last one wins)
@@ -216,12 +237,12 @@ if [ "$ADB_SHELL" = true ]; then
     insecure_features+=",*:adb_shell"
 fi
 if [ -n "$insecure_features" ]; then
-    CMD+=" --allow-insecure ${insecure_features#,}"
+    CMD+=(--allow-insecure "${insecure_features#,}")
 fi
 
-touch ${TASK_LOG}
-echo $CMD
-$CMD &
+touch "${TASK_LOG}"
+echo "${CMD[*]}"
+"${CMD[@]}" &
 appium_pid=$!
 
 trap 'finish' SIGTERM
@@ -241,7 +262,7 @@ while read -r REPLY; do
   if [[ $REPLY == *CREATE* ]]; then
     if [ "${RECORD_ARTIFACTS}" == "true" ]; then
       echo "start recording artifact $inwRecordArtifactId"
-      /opt/start-capture-artifacts.sh $inwRecordArtifactId > >(tee -a "${TASK_LOG}") 2>&1
+      /opt/start-capture-artifacts.sh "$inwRecordArtifactId" > >(tee -a "${TASK_LOG}") 2>&1
     else
       echo "recording artifacts was disabled with RECORD_ARTIFACTS: ${RECORD_ARTIFACTS}"
     fi
@@ -251,16 +272,16 @@ while read -r REPLY; do
     echo "stop recording artifact $inwRecordArtifactId"
     if [[ "${PLATFORM_NAME}" == "ios" ]]; then
       # iOS reads WDA directly, so finalizing one recording cannot stop the next recording's source.
-      share $inwRecordArtifactId &
+      share "$inwRecordArtifactId" &
     else
       # STF has shared on/off state. Finish 'off' before processing the next recording's 'on'.
-      share $inwRecordArtifactId
+      share "$inwRecordArtifactId"
     fi
   fi
 done &
 
 # wait for Appium only: the exit of a helper (socat, ...) must not stop the container
-wait $appium_pid
+wait "$appium_pid"
 
 exit_code=$?
 echo "Exit status: $exit_code"
@@ -268,13 +289,13 @@ echo "Exit status: $exit_code"
 # TODO: do we need explicit finish call to publish recorded artifacts when RETAIL_TASK is false?
 #finish
 
-if [ $exit_code -eq 101 ]; then
+if [ "$exit_code" -eq 101 ]; then
   echo "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."
   sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/1000))
   sleep 15
 fi
 
-echo exit_code: $exit_code
+echo "exit_code: $exit_code"
 
 # forcibly exit with error code to initiate restart
 exit 1

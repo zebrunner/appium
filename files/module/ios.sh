@@ -56,7 +56,7 @@ if [[ $wdaStarted -eq 0 ]]; then
   exit 1
 fi
 
-deviceInfo=$(curl -s http://${WDA_HOST}:${WDA_PORT}/status)
+deviceInfo=$(curl -s "http://${WDA_HOST}:${WDA_PORT}/status")
 
 PLATFORM_VERSION=$(echo "$deviceInfo" | jq -r '.value.os.version')
 export PLATFORM_VERSION
