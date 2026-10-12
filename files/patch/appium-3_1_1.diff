@@ -183,7 +183,7 @@ index b3bdf5a2e..23ecdbf6e 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +165,192 @@ export async function configureApp(
+@@ -161,38 +165,193 @@ export async function configureApp(
              }
            }
          }
@@ -211,7 +211,8 @@ index b3bdf5a2e..23ecdbf6e 100644
 +        const maxAttemptsCount = toNaturalNumber(90, 'APPIUM_APP_WAITING_TIMEOUT');
 +        const maxLockFileLifetime = toNaturalNumber(180, 'APPIUM_MAX_LOCK_FILE_LIFETIME');
 +        const appSizeCheckDisabled = process.env.APPIUM_APP_SIZE_DISABLE?.toLowerCase?.() === 'true';
-+        let appFetchRetries = toNaturalNumber(3, 'APPIUM_APP_FETCH_RETRIES'); // default to 3 retries
++        const appFetchRetriesEnv = parseInt(`${process.env.APPIUM_APP_FETCH_RETRIES}`, 10);
++        let appFetchRetries = appFetchRetriesEnv >= 0 ? appFetchRetriesEnv : 3; // 0 disables the retries
 +
 +
 +        if (localAppsFolder !== undefined) {
@@ -403,7 +404,7 @@ index b3bdf5a2e..23ecdbf6e 100644
            stream.destroy();
          }
        }
-@@ -218,7 +376,10 @@ export async function configureApp(
+@@ -218,7 +377,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;

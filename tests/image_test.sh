@@ -61,6 +61,7 @@ check "the healthcheck is configured" '["CMD","healthcheck"]' \
 check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \
   "$(in_image 'echo "$(readlink /var/run/usbmuxd) $(stat -c %U /tmp/usbmuxd)"')"
 check "the image is linux/amd64" "linux/amd64" "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')"
+check "the app downloads are retried 3 times by default" "3" "$(in_image 'echo "$APPIUM_APP_FETCH_RETRIES"')"
 
 section "startup"
 # the env vars of the appium container in zebrunner/mcloud-agent (roles/devices/templates/zebrunner-farm)

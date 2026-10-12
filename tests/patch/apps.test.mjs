@@ -140,7 +140,7 @@ describe('shared application storage', () => {
     });
   });
 
-  test('APPIUM_APP_FETCH_RETRIES=0 (the image default) disables retries', async () => {
+  test('APPIUM_APP_FETCH_RETRIES=0 disables the retries', async () => {
     let attempts = 0;
     await withEnv(env({APPIUM_APP_FETCH_RETRIES: '0'}), async () => {
       breaks = (index) => index > 1;
@@ -150,6 +150,19 @@ describe('shared application storage', () => {
     // the initial request of Appium and one download attempt
     assert.equal(attempts, 2);
   });
+
+  for (const value of [undefined, 'abc', '-1']) {
+    test(`APPIUM_APP_FETCH_RETRIES=${value ?? '(unset)'} retries a broken download 3 times`, async () => {
+      let attempts = 0;
+      await withEnv(env({APPIUM_APP_FETCH_RETRIES: value}), async () => {
+        breaks = (index) => index > 1;
+        await assert.rejects(configureApp(url, OPTS));
+        attempts = counts[new URL(url).pathname + new URL(url).search];
+      });
+      // the initial request of Appium, the first download attempt and 3 retries
+      assert.equal(attempts, 5);
+    });
+  }
 
   test('a failed download leaves neither the app nor the .lock', async () => {
     await withEnv(env({APPIUM_APP_FETCH_RETRIES: '1'}), async () => {
