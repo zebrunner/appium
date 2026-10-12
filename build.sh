@@ -30,10 +30,11 @@ read -r -p "Press any key to continue or CTRL+C to interrupt execution"
 echo ""
 
 "${cmd[@]}"
+status=$?
 
 echo ""
 echo ""
-if [ $? -eq 0 ]; then
+if [ $status -eq 0 ]; then
   echo "--- Successfully built: --------------------------------------------------"
   echo ""
   echo "    $tagPath:$tagVersion"
@@ -46,3 +47,5 @@ else
 fi
 echo ""
 echo ""
+
+exit $status
