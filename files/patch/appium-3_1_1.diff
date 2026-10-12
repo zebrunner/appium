@@ -693,10 +693,10 @@ index 2cbe100f1..8a82e013b 100644
      GET: {command: 'getStatus'},
    },
 +  '/status-wda': {
-+    GET: {command: 'getStatusWDA', payloadParams: {optional: ['exitCode']}}
++    GET: {command: 'getStatusWDA', payloadParams: {optional: ['exitCode'], makeArgs: (jsonObj) => [jsonObj?.exitCode]}}
 +  },
 +  '/status-adb': {
-+    GET: {command: 'getStatusADB', payloadParams: {optional: ['exitCode']}}
++    GET: {command: 'getStatusADB', payloadParams: {optional: ['exitCode'], makeArgs: (jsonObj) => [jsonObj?.exitCode]}}
 +  },
    '/session/:sessionId/timeouts': {
      GET: {command: 'getTimeouts'},

@@ -25,6 +25,23 @@ function exitStatusOf(command, exitCode, env) {
   return spawnSync(process.execPath, ['-e', code], {env: {...process.env, ...env}, stdio: 'ignore', timeout: 30000}).status;
 }
 
+// requests GET <path> with {"exitCode": <code>} from the base-driver server in a child node, returns its exit status
+function httpExitStatusOf(path, exitCode, env) {
+  const code = `
+    const http = require('http');
+    const b = require(${JSON.stringify(BASE_DRIVER_DIR)});
+    b.server({routeConfiguringFunction: b.routeConfiguringFunction(new b.BaseDriver({})), port: 0, hostname: '127.0.0.1'})
+      .then((server) => {
+        const body = JSON.stringify({exitCode: ${exitCode}});
+        const req = http.request({host: '127.0.0.1', port: server.address().port, path: ${JSON.stringify(path)}, method: 'GET',
+          headers: {'content-type': 'application/json', 'content-length': Buffer.byteLength(body)}},
+          (res) => process.exit(100));
+        req.on('error', () => process.exit(101));
+        req.end(body);
+      });`;
+  return spawnSync(process.execPath, ['-e', code], {env: {...process.env, ...env}, stdio: 'ignore', timeout: 60000}).status;
+}
+
 describe('WDA status', () => {
   let wda;
   before(async () => {
@@ -69,17 +86,21 @@ describe('WDA status', () => {
     });
   });
 
-  test('GET /status-wda with an empty JSON body responds with the status', async () => {
+  test('GET /status-wda with {"exitCode": 101} (as mcloud-grid sends) responds with the status', async () => {
     await withEnv(wdaEnv(), async () => {
       const server = await startDriverServer(new BaseDriver({}));
       try {
-        const res = await request(`${server.url}/status-wda`, {body: {}});
+        const res = await request(`${server.url}/status-wda`, {body: {exitCode: 101}});
         assert.equal(res.status, 200);
         assert.equal(res.json.value.status, 'success');
       } finally {
         await server.close();
       }
     });
+  });
+
+  test('GET /status-wda with an exitCode exits Appium with the code when WDA is down', () => {
+    assert.equal(httpExitStatusOf('/status-wda', 7, {WDA_HOST: '127.0.0.1', WDA_PORT: '9'}), 7);
   });
 });
 
@@ -112,6 +133,23 @@ describe('ADB status', () => {
 
   test('getStatusADB(exitCode) exits Appium with the code when the device is missing', () => {
     assert.equal(exitStatusOf('getStatusADB', 5, adbEnv('emulator-5554', {DEVICE_UDID: 'udid-1'})), 5);
+  });
+
+  test('GET /status-adb with {"exitCode": 101} (as mcloud-grid sends) responds with the status', async () => {
+    await withEnv(adbEnv('udid-1', {DEVICE_UDID: 'udid-1'}), async () => {
+      const server = await startDriverServer(new BaseDriver({}));
+      try {
+        const res = await request(`${server.url}/status-adb`, {body: {exitCode: 101}});
+        assert.equal(res.status, 200);
+        assert.equal(res.json.value.status, 'success');
+      } finally {
+        await server.close();
+      }
+    });
+  });
+
+  test('GET /status-adb with an exitCode exits Appium with the code when the device is missing', () => {
+    assert.equal(httpExitStatusOf('/status-adb', 5, adbEnv('emulator-5554', {DEVICE_UDID: 'udid-1'})), 5);
   });
 
   test('GET /status-adb without a request body responds with the status', async () => {
