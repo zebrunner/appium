@@ -4,7 +4,7 @@ import {test, describe, before, after, beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {helpers, listen, sleep, tmpDir, withEnv} from './common.mjs';
+import {helpers, listen, tmpDir, withEnv} from './common.mjs';
 
 const {configureApp} = helpers;
 const OPTS = {supportedExtensions: ['.apk']};
@@ -14,12 +14,15 @@ describe('shared application storage', () => {
   let app = Buffer.alloc(2048, 1);
   // breaks(index): whether the index-th (1-based) request of the test app breaks (headers sent, then the connection is destroyed)
   let breaks = () => false;
+  // onRequest(index): called for every request of the test app before the response
+  let onRequest = () => {};
   const counts = {};
 
   before(async () => {
     remote = await listen((req, res) => {
       res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length});
       const index = (counts[req.url] = (counts[req.url] ?? 0) + 1);
+      onRequest(index);
       if (breaks(index)) {
         res.write(app.subarray(0, 10));
         res.destroy();
@@ -37,6 +40,7 @@ describe('shared application storage', () => {
   beforeEach(() => {
     app = Buffer.alloc(2048, 1);
     breaks = () => false;
+    onRequest = () => {};
     appsDir = tmpDir('apps');
     // a new path every test: configureApp also keeps an in-memory cache by url
     n++;
@@ -117,18 +121,16 @@ describe('shared application storage', () => {
 
   test('the .lock carries the device and the session of the download', async () => {
     let lockContent;
-    const watcher = setInterval(() => {
-      if (fs.existsSync(`${localFile}.lock`)) {
-        lockContent = fs.readFileSync(`${localFile}.lock`, 'utf8') || lockContent;
+    // the second request is the download, the .lock is written before it
+    onRequest = (index) => {
+      if (index === 2) {
+        lockContent = fs.readFileSync(`${localFile}.lock`, 'utf8');
       }
-    }, 1);
+    };
     await withEnv(env({DEVICE_UDID: 'udid-1'}), async () => {
-      app = Buffer.alloc(5 * 1024 * 1024, 3);
       await configureApp(url, OPTS);
     });
-    clearInterval(watcher);
-    await sleep(5);
-    assert.match(lockContent ?? '', /device UUID: udid-1/);
+    assert.match(lockContent ?? '', /^device UUID: udid-1, session ID: /);
   });
 
   test('APPIUM_APP_FETCH_RETRIES=2 retries a broken download', async () => {

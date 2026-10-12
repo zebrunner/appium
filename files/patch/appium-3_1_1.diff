@@ -137,11 +137,11 @@ index 07258f35b..03e3fea07 100644
 +    else if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
 +      // If not empty, use process.env.ROUTER_UUID instead of sessionId
 +      const fileName = path.join(logDirName, `.recording-artifact-${process.env.ROUTER_UUID}`);
-+      removeRecordingArtifact(fileName);
++      await removeRecordingArtifact(fileName);
 +    } else {
-+      // If empty, fallback to using sessionId
-+      const fileName = path.join(logDirName, `.recording-artifact-${process.env.sessionId}`);
-+      removeRecordingArtifact(fileName);
++      // If empty, fallback to using the id of the ending session
++      const fileName = path.join(logDirName, `.recording-artifact-${this.sessionId}`);
++      await removeRecordingArtifact(fileName);
 +    }
 +
      this.sessionId = null;

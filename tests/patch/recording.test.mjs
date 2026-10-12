@@ -4,7 +4,7 @@ import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {baseDriver, sleep, tmpDir, withEnv, W3C_CAPS} from './common.mjs';
+import {baseDriver, tmpDir, withEnv, W3C_CAPS} from './common.mjs';
 
 const {BaseDriver} = baseDriver;
 const markers = (dir) => fs.readdirSync(dir).filter((f) => f.startsWith('.recording-artifact-'));
@@ -31,6 +31,20 @@ describe('recording markers', () => {
     });
   });
 
+  test('the end of a session removes its own marker while another session exists', async () => {
+    const logDir = tmpDir('log');
+    await withEnv({LOG_DIR: logDir, ROUTER_UUID: undefined}, async () => {
+      const first = new BaseDriver({});
+      const second = new BaseDriver({});
+      const [firstId] = await first.createSession(null, null, W3C_CAPS());
+      const [secondId] = await second.createSession(null, null, W3C_CAPS());
+      await first.deleteSession(firstId);
+      assert.deepEqual(markers(logDir), [`.recording-artifact-${secondId}`]);
+      await second.deleteSession(secondId);
+      assert.deepEqual(markers(logDir), []);
+    });
+  });
+
   test('the session id is exported as process.env.sessionId (used in error messages and .lock files)', async () => {
     const logDir = tmpDir('log');
     await withEnv({LOG_DIR: logDir, ROUTER_UUID: undefined}, async () => {
@@ -48,8 +62,6 @@ describe('recording markers', () => {
       const [sessionId] = await driver.createSession(null, null, W3C_CAPS());
       assert.deepEqual(markers(logDir), ['.recording-artifact-router-1']);
       await driver.deleteSession(sessionId);
-      // the timing of the removal is checked by 'the session end removes the marker before the response'
-      await sleep(200);
       assert.deepEqual(markers(logDir), []);
     });
   });
