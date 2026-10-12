@@ -93,6 +93,8 @@ variants=(
   "APPIUM_CLI|CHROMEDRIVER_AUTODOWNLOAD=false APPIUM_CLI=--session-override"
   "the mcloud-agent settings (android)|${MCLOUD_AGENT_ENV}"
   "the mcloud-agent settings (android) and CHROMEDRIVER_AUTODOWNLOAD=false|${MCLOUD_AGENT_ENV} CHROMEDRIVER_AUTODOWNLOAD=false"
+  "DEFAULT_CAPABILITIES=true without the grid (android)|CHROMEDRIVER_AUTODOWNLOAD=false DEFAULT_CAPABILITIES=true PLATFORM_NAME=android DEVICE_UDID=udid-1"
+  "DEFAULT_CAPABILITIES=true without PLATFORM_NAME|CHROMEDRIVER_AUTODOWNLOAD=false DEFAULT_CAPABILITIES=true"
   "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG|CHROMEDRIVER_AUTODOWNLOAD=false CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=false PLATFORM_NAME=android DEVICE_UDID=udid-1 SELENIUM_HOST=hub SELENIUM_PORT=4444 STF_PROVIDER_HOST=10.0.0.5"
 )
 i=0
@@ -120,6 +122,19 @@ for variant in "${variants[@]}"; do
       "$(printf 'state: %s\n%s' "$(docker inspect "$container" --format '{{.State.Status}} {{.State.ExitCode}}')" "$(docker logs "$container" 2>&1 | tail -15)")"
   fi
 done
+
+container="${PREFIX}-$((${#variants[@]} - 3))"
+if [[ "$(appium_status "$container")" == "200" ]]; then
+  check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps are passed" "--default-capabilities /opt/config/defaultcapabilities.json" \
+    "$(docker exec "$container" bash -c 'tr "\0" " " < /proc/$(pgrep -f "node.*appium" | head -1)/cmdline')"
+  check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps of the device" '"appium:udid": "udid-1"' \
+    "$(docker exec "$container" cat /opt/config/defaultcapabilities.json)"
+fi
+container="${PREFIX}-$((${#variants[@]} - 2))"
+if [[ "$(appium_status "$container")" == "200" ]]; then
+  check_contains "DEFAULT_CAPABILITIES=true without PLATFORM_NAME: the missing caps are logged" \
+    "no default capabilities for PLATFORM_NAME=" "$(docker logs "$container" 2>&1)"
+fi
 
 container="${PREFIX}-$((${#variants[@]} - 1))"
 if [[ "$(appium_status "$container")" == "200" ]]; then

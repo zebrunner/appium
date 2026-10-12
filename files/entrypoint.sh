@@ -175,15 +175,18 @@ if [ "$CONNECT_TO_GRID" = true ]; then
     # generate config json file
     /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
     cat $NODE_CONFIG_JSON
-
-    # generate default capabilities json file for iOS device if needed
-    /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
-    cat $DEFAULT_CAPABILITIES_JSON
     CMD+=" --nodeconfig $NODE_CONFIG_JSON"
 fi
 
 if [ "$DEFAULT_CAPABILITIES" = true ]; then
-    CMD+=" --default-capabilities $DEFAULT_CAPABILITIES_JSON"
+    # the caps of the device for every session: udid, connector hosts and ports
+    /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
+    if [ -s "$DEFAULT_CAPABILITIES_JSON" ]; then
+        cat $DEFAULT_CAPABILITIES_JSON
+        CMD+=" --default-capabilities $DEFAULT_CAPABILITIES_JSON"
+    else
+        echo "[warn] no default capabilities for PLATFORM_NAME=${PLATFORM_NAME}, Appium starts without them"
+    fi
 fi
 
 if [ "$RELAXED_SECURITY" = true ]; then
