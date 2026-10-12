@@ -79,6 +79,28 @@ check "the default caps of iOS are valid for XCUITest" "valid" \
 check "the default caps of Android are valid for UiAutomator2" "valid" \
   "$(validate_caps android uiautomator2 appium-uiautomator2-driver AndroidUiautomator2Driver)"
 
+section "android module"
+# android_module <release> <characteristics> <hardware>: AUTOMATION_NAME|DEVICETYPE|PLATFORM_VERSION|warning of
+# files/module/android.sh with a fake adb (tests/fixtures/fake-adb); its background forwarding ends with the container
+android_module() {
+  docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
+    --env FAKE_RELEASE="$1" --env FAKE_CHARACTERISTICS="$2" --env FAKE_HARDWARE="$3" --entrypoint bash "$IMAGE" -c '
+    export PATH=/tmp/fakebin:$PATH
+    . /opt/android.sh > /tmp/out 2>&1
+    warning="$(grep -o "\[warn\] Android .* is not supported" /tmp/out)"
+    echo "${AUTOMATION_NAME}|${DEVICETYPE}|${PLATFORM_VERSION}|${warning}"' 2>&1
+}
+check "Android 14 phone" "uiautomator2|Phone|14|" "$(android_module 14 phone generic)"
+check "Android 13 tablet" "uiautomator2|Tablet|13|" "$(android_module 13 tablet generic)"
+check "Android 12 tv" "uiautomator2|TV|12|" "$(android_module 12 tv generic)"
+check "Android 11 default (a TV box)" "uiautomator2|TV|11|" "$(android_module 11 default generic)"
+check "Android 11 redroid" "uiautomator2|Phone|11|" "$(android_module 11 default redroid)"
+check "Android 8.1 is supported" "uiautomator2|Phone|8.1.0|" "$(android_module 8.1.0 phone generic)"
+check "Android 7.1 is not supported by UiAutomator2" "uiautomator2|Phone|7.1.2|[warn] Android 7.1.2 is not supported" \
+  "$(android_module 7.1.2 phone generic)"
+check "Android 6 is not supported by UiAutomator2" "uiautomator2|Phone|6.0|[warn] Android 6.0 is not supported" \
+  "$(android_module 6.0 phone generic)"
+
 section "startup"
 # the env vars of the appium container in zebrunner/mcloud-agent (roles/devices/templates/zebrunner-farm)
 MCLOUD_AGENT_ENV="PLATFORM_NAME=android DEVICE_UDID=udid-1 DEVICE_NAME=Pixel RETAIN_TASK=true CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=true"

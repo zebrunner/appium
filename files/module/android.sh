@@ -30,11 +30,10 @@ else
   export DEVICETYPE='Phone'
 fi
 
-if [[ ${PLATFORM_VERSION} == 4* ]] || [[ ${PLATFORM_VERSION} == 5* ]] || [[ ${PLATFORM_VERSION} == 6* ]]
-then
-  export AUTOMATION_NAME='Appium'
-else
-  export AUTOMATION_NAME='uiautomator2'
+# the only Android driver of the image; Appium 3 has no 'Appium' (UiAutomator 1) driver for old devices
+export AUTOMATION_NAME='uiautomator2'
+if [[ ${PLATFORM_VERSION%%.*} =~ ^[0-9]+$ ]] && [[ ${PLATFORM_VERSION%%.*} -lt 8 ]]; then
+  echo "[warn] Android ${PLATFORM_VERSION} is not supported by UiAutomator2 6.x (needs 8.0+), sessions will fail"
 fi
 
 # Forward adb port

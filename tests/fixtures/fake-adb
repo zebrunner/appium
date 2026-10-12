@@ -1,0 +1,19 @@
+#!/bin/bash
+# A fake adb for the tests of files/module/android.sh: the device answers come from env vars
+#   FAKE_RELEASE          ro.build.version.release
+#   FAKE_CHARACTERISTICS  ro.build.characteristics
+#   FAKE_HARDWARE         ro.hardware
+# Other adb commands do nothing.
+if [[ "$1" == "shell" && "$2" == "getprop" ]]; then
+  case "$3" in
+    "")
+      printf '[ro.build.characteristics]: [%s]\n' "$FAKE_CHARACTERISTICS"
+      printf '[ro.build.version.release]: [%s]\n' "$FAKE_RELEASE"
+      printf '[ro.hardware]: [%s]\n' "$FAKE_HARDWARE"
+      ;;
+    ro.build.characteristics) echo "$FAKE_CHARACTERISTICS" ;;
+    ro.build.version.release) echo "$FAKE_RELEASE" ;;
+    ro.hardware) echo "$FAKE_HARDWARE" ;;
+  esac
+fi
+exit 0
