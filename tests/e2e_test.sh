@@ -154,21 +154,29 @@ section "ios"
 IOS="${NET}-ios"
 start_device "$IOS" "" "${IOS_ENV[@]}"
 if ! check_starts "$IOS"; then
-  # the further checks need a running container: the usbmuxd socket in /var/run needs root
-  echo "       the further ios checks run the container as root"
-  docker rm -f "$IOS" > /dev/null
-  IOS="${NET}-ios-root"
-  start_device "$IOS" root "${IOS_ENV[@]}"
-  if ! wait_for 180 appium_up "$IOS"; then
-    fail "Appium starts as root" "no Appium status" "$(state_and_logs "$IOS")"
-    finish
-  fi
+  finish
 fi
-check "the usbmuxd socket is forwarded to the connector" "yes" \
-  "$(docker exec "$IOS" bash -c 'test -S /var/run/usbmuxd && echo yes || echo no')"
+check "/var/run/usbmuxd is a socket" "yes" "$(docker exec "$IOS" bash -c 'test -S /var/run/usbmuxd && echo yes || echo no')"
+line="$(fake_log_lines)"
+docker exec "$IOS" socat -u OPEN:/dev/null UNIX-CONNECT:/var/run/usbmuxd > /dev/null 2>&1
+check_contains "/var/run/usbmuxd is forwarded to USBMUXD_SOCKET_ADDRESS" "[USBMUXD] client connected" \
+  "$(docker logs "$FAKE" 2>&1 | tail -n +"$((line + 1))")"
+line="$(fake_log_lines)"
+docker exec "$IOS" timeout 10 idevice_id -l > /dev/null 2>&1
+check_contains "the iOS tools reach usbmuxd at USBMUXD_SOCKET_ADDRESS" "[USBMUXD] client connected" \
+  "$(docker logs "$FAKE" 2>&1 | tail -n +"$((line + 1))")"
 if wait_for 90 healthy "$IOS"; then pass "the container is healthy"; else fail "the container is healthy" "not healthy" "$(state_and_logs "$IOS")"; fi
 check "GET /status-wda reports WDA" "200" \
   "$(docker exec "$IOS" curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4723/wd/hub/status-wda)"
+
+# the exit of a helper process must not stop the container (the entrypoint waits for Appium only)
+docker exec "$IOS" bash -c 'kill $(pgrep -f "socat UNIX-LISTEN")'
+sleep 5
+if running "$IOS" && appium_up "$IOS"; then
+  pass "the exit of the usbmuxd forwarding does not stop the container"
+else
+  fail "the exit of the usbmuxd forwarding does not stop the container" "the container is not running" "$(state_and_logs "$IOS")"
+fi
 
 section "ios recording"
 line="$(fake_log_lines)"

@@ -1,5 +1,6 @@
 // The device side of the appium container for tests/e2e_test.sh, run with node as the `connector` and `device` hosts:
-// WDA (8100), the WDA MJPEG server (8101) and the STF screen broadcast (2223, 'on'/'off' control and the MJPEG stream).
+// WDA (8100), the WDA MJPEG server (8101), usbmuxd (2222, connections are logged only)
+// and the STF screen broadcast (2223, 'on'/'off' control and the MJPEG stream).
 // The frames are JPEG files of FRAMES_DIR, the log lines are parsed by the test.
 const http = require('http');
 const net = require('net');
@@ -29,6 +30,12 @@ http.createServer((req, res) => {
   }, 100);
   req.on('close', () => { clearInterval(t); log('[MJPEG] client closed'); });
 }).listen(8101);
+
+net.createServer(sock => {
+  log('[USBMUXD] client connected');
+  sock.on('error', () => {});
+  sock.end();
+}).listen(2222);
 
 let streaming = false;
 net.createServer(sock => {

@@ -217,6 +217,7 @@ fi
 touch ${TASK_LOG}
 echo $CMD
 $CMD &
+appium_pid=$!
 
 trap 'finish' SIGTERM
 
@@ -253,9 +254,8 @@ while read -r REPLY; do
   fi
 done &
 
-# wait until background processes exists for node (appium)
-node_pids=`pidof node`
-wait -n $node_pids
+# wait for Appium only: the exit of a helper (socat, ...) must not stop the container
+wait $appium_pid
 
 exit_code=$?
 echo "Exit status: $exit_code"

@@ -58,6 +58,8 @@ for file in /root/generate_config.sh /root/RemoteAppiumManager.jar; do
 done
 check "the healthcheck is configured" '["CMD","healthcheck"]' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}}')"
+check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \
+  "$(in_image 'echo "$(readlink /var/run/usbmuxd) $(stat -c %U /tmp/usbmuxd)"')"
 check "the image is linux/amd64" "linux/amd64" "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')"
 
 section "startup"
@@ -123,6 +125,18 @@ if [[ "$(appium_status "$container")" == "200" ]]; then
   check_contains "the SIGTERM handler runs" "on finish end" "$(docker logs "$container" 2>&1 | tail -20)"
 else
   fail "Appium starts for the runtime checks" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
+fi
+
+# the restart policy of mcloud-agent (on-failure) restarts the container when Appium exits
+container="${PREFIX}-3"
+if [[ "$(appium_status "$container")" == "200" ]]; then
+  docker exec "$container" bash -c 'kill -9 $(pgrep -f "node.*appium" | head -1)'
+  if wait_for 30 bash -c "[[ \$(docker inspect ${container} --format '{{.State.Running}}') == false ]]"; then
+    pass "the exit of Appium stops the container"
+    check "the exit status of the container is non-zero" "1" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
+  else
+    fail "the exit of Appium stops the container" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
+  fi
 fi
 
 if [[ "${SKIP_PLUGIN_IMAGE:-false}" != "true" ]]; then

@@ -4,31 +4,35 @@ echo DEVICE_UDID: "$DEVICE_UDID"
 
 
 #### Establish usbmuxd communication
+# The tools of the image (idevice*, go-ios, XCUITest) read USBMUXD_SOCKET_ADDRESS themselves, the unix socket
+# /var/run/usbmuxd (a symlink to USBMUXD_SOCKET, see Dockerfile) is forwarded for the tools that don't
 #
 # WIRELESS=true marks a device with no usb path -- an Apple TV 4K, for example, which
 # has no diagnostic port and is reached over a network tunnel. There is no connector
 # container for such a device and therefore no usbmuxd socket to join, so the socat
-# below is skipped.
-#
-# Note this cannot be expressed by simply leaving USBMUXD_SOCKET_ADDRESS empty: that
-# takes the branch below, which exits 0 and skips the whole remainder of this script
-# -- including the WebDriverAgent readiness check and the PLATFORM_VERSION /
-# DEVICETYPE detection that capability generation depends on. Those steps are all
-# HTTP against WDA_HOST/WDA_PORT and work perfectly well for a wireless device, so
-# they must still run.
+# below is skipped. The WebDriverAgent readiness check and the PLATFORM_VERSION /
+# DEVICETYPE detection below are HTTP against WDA_HOST/WDA_PORT and still run.
 #
 # Set by zebrunner/mcloud-agent for device-list rows with wireless=true.
+USBMUXD_SOCKET=/tmp/usbmuxd/usbmuxd
 if [[ "${WIRELESS:-false}" == "true" ]]; then
   echo "WIRELESS=true: skipping usbmuxd setup, this device has no usb path."
   echo "WebDriverAgent is expected at http://${WDA_HOST}:${WDA_PORT} (published outside this container)."
 elif [[ -z $USBMUXD_SOCKET_ADDRESS ]]; then
-  echo "USBMUXD_SOCKET_ADDRESS in not defined. Exiting."
-  exit 0
+  echo "[warn] USBMUXD_SOCKET_ADDRESS is not defined, /var/run/usbmuxd is not forwarded."
 else
-  # rm /var/run/usbmuxd in advance to be able to start socat and join it to $USBMUXD_SOCKET_ADDRESS
   echo "USBMUXD_SOCKET_ADDRESS was defined as: $USBMUXD_SOCKET_ADDRESS"
-  rm -f /var/run/usbmuxd
-  socat UNIX-LISTEN:/var/run/usbmuxd,fork,reuseaddr,mode=777 TCP:"$USBMUXD_SOCKET_ADDRESS" &
+  rm -f "$USBMUXD_SOCKET"
+  socat UNIX-LISTEN:"$USBMUXD_SOCKET",fork,reuseaddr,mode=777 TCP:"$USBMUXD_SOCKET_ADDRESS" &
+  for _ in $(seq 1 50); do
+    [[ -S "$USBMUXD_SOCKET" ]] && break
+    sleep 0.1
+  done
+  if [[ -S "$USBMUXD_SOCKET" ]]; then
+    echo "/var/run/usbmuxd is forwarded to $USBMUXD_SOCKET_ADDRESS"
+  else
+    echo "[error] /var/run/usbmuxd is not forwarded: socat did not create $USBMUXD_SOCKET"
+  fi
 fi
 
 

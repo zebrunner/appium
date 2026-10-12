@@ -79,6 +79,11 @@ RUN mkdir -p $APPIUM_CONFIG_DIR && \
 RUN mkdir -p $LOG_DIR  && \
     chown -R androidusr:androidusr $LOG_DIR
 
+# The usbmuxd socket forwarded by ios.sh: /var/run is root only, so the socket is in a dir of androidusr
+RUN mkdir -p /tmp/usbmuxd && \
+    chown androidusr:androidusr /tmp/usbmuxd && \
+    ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd
+
 # Additional tools
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
