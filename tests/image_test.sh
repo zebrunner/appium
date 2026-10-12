@@ -123,6 +123,8 @@ if [[ "$(appium_status "$container")" == "200" ]]; then
     fail "docker stop shuts the container down without the kill timeout" "took ${elapsed}s" "SIGTERM was not handled, docker stop waited ${elapsed}s"
   fi
   check_contains "the SIGTERM handler runs" "on finish end" "$(docker logs "$container" 2>&1 | tail -20)"
+  check_contains "docker stop without a session shares nothing" "no active recordings on finish" \
+    "$(docker logs "$container" 2>&1 | tail -20)"
 else
   fail "Appium starts for the runtime checks" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
 fi

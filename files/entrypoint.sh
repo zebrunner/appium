@@ -142,20 +142,17 @@ share() {
 finish() {
   echo "on finish begin"
 
-  if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-    #detect sessionId by existing ffmpeg process
-    sessionId=`ps -ef | grep ffmpeg | grep -v grep | cut -d "/" -f 3 | cut -d "." -f 1` > /dev/null 2>&1
-  elif [[ "${PLATFORM_NAME}" == "android" ]]; then
-    # detect sessionId by start-capture-artifacts.sh
-    # /bin/bash /opt/start-capture-artifacts.sh 31d625c4-2810-426d-a40f-9fe14cf3260a
-    sessionId=`ps -ef | grep start-capture-artifacts.sh | grep -v grep | cut -d "/" -f 5 | cut -d " " -f 2` > /dev/null 2>&1
-  fi
-
-  if [ ! -z ${sessionId} ]; then
-    echo "detected existing video recording: $sessionId"
-    share ${sessionId}
-  else
-    echo "[warn] sessionId is empty on finish!"
+  # every existing marker is an active session (created on session start, deleted on its end)
+  local marker
+  local found=false
+  for marker in "${LOG_DIR}"/.recording-artifact-*; do
+    [ -e "$marker" ] || continue
+    found=true
+    echo "detected active recording: ${marker##*/.recording-artifact-}"
+    share "${marker##*/.recording-artifact-}"
+  done
+  if [ "$found" = false ]; then
+    echo "[info] no active recordings on finish"
   fi
 
   echo "on finish end"
