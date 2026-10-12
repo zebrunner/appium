@@ -2,7 +2,6 @@
 
 echo DEVICE_UDID: "$DEVICE_UDID"
 
-
 #### Establish usbmuxd communication
 # The tools of the image (idevice*, go-ios, XCUITest) read USBMUXD_SOCKET_ADDRESS themselves, the unix socket
 # /var/run/usbmuxd (a symlink to USBMUXD_SOCKET, see Dockerfile) is forwarded for the tools that don't
@@ -34,7 +33,6 @@ else
     echo "[error] /var/run/usbmuxd is not forwarded: socat did not create $USBMUXD_SOCKET"
   fi
 fi
-
 
 #### Detect device type and platform version
 startTime=$(date +%s)

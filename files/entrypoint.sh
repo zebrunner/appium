@@ -178,66 +178,66 @@ finish() {
 }
 
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
-PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
+PLATFORM_NAME=$(echo "$PLATFORM_NAME" | tr '[:upper:]' '[:lower:]')
 if [ "${PLATFORM_NAME}" = "android" ]; then
-    # shellcheck source=module/android.sh
-    . /opt/android.sh
+  # shellcheck source=module/android.sh
+  . /opt/android.sh
 elif [ "${PLATFORM_NAME}" = "ios" ]; then
-    export AUTOMATION_NAME='XCUITest'
-    # shellcheck source=module/ios.sh
-    . /opt/ios.sh
+  export AUTOMATION_NAME='XCUITest'
+  # shellcheck source=module/ios.sh
+  . /opt/ios.sh
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then
-    # the Zebrunner node config (MobileRemoteProxy) is the only one supported by mcloud-grid
-    if [ -n "$CUSTOM_NODE_CONFIG" ] && [ "$CUSTOM_NODE_CONFIG" != true ]; then
-        echo "[warn] CUSTOM_NODE_CONFIG is ignored, the Zebrunner node config is always generated"
-    fi
-    missing=""
-    for var in SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST; do
-        [ -n "$(printenv "$var")" ] || missing+=" $var"
-    done
-    if [ -n "$missing" ]; then
-        echo "[error] CONNECT_TO_GRID=true needs:${missing}"
-        exit 1
-    fi
-    # generate config json file
-    if ! /opt/zbr-config-gen.sh > "$NODE_CONFIG_JSON"; then
-        echo "[error] cannot generate $NODE_CONFIG_JSON"
-        exit 1
-    fi
-    cat "$NODE_CONFIG_JSON"
-    CMD+=(--nodeconfig "$NODE_CONFIG_JSON")
+  # the Zebrunner node config (MobileRemoteProxy) is the only one supported by mcloud-grid
+  if [ -n "$CUSTOM_NODE_CONFIG" ] && [ "$CUSTOM_NODE_CONFIG" != true ]; then
+    echo "[warn] CUSTOM_NODE_CONFIG is ignored, the Zebrunner node config is always generated"
+  fi
+  missing=""
+  for var in SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST; do
+    [ -n "$(printenv "$var")" ] || missing+=" $var"
+  done
+  if [ -n "$missing" ]; then
+    echo "[error] CONNECT_TO_GRID=true needs:${missing}"
+    exit 1
+  fi
+  # generate config json file
+  if ! /opt/zbr-config-gen.sh > "$NODE_CONFIG_JSON"; then
+    echo "[error] cannot generate $NODE_CONFIG_JSON"
+    exit 1
+  fi
+  cat "$NODE_CONFIG_JSON"
+  CMD+=(--nodeconfig "$NODE_CONFIG_JSON")
 fi
 
 if [ "$DEFAULT_CAPABILITIES" = true ]; then
-    # the caps of the device for every session: udid, connector hosts and ports
-    if ! /opt/zbr-default-caps-gen.sh > "$DEFAULT_CAPABILITIES_JSON"; then
-        echo "[error] cannot generate $DEFAULT_CAPABILITIES_JSON"
-        exit 1
-    fi
-    if [ -s "$DEFAULT_CAPABILITIES_JSON" ]; then
-        cat "$DEFAULT_CAPABILITIES_JSON"
-        CMD+=(--default-capabilities "$DEFAULT_CAPABILITIES_JSON")
-    else
-        echo "[warn] no default capabilities for PLATFORM_NAME=${PLATFORM_NAME}, Appium starts without them"
-    fi
+  # the caps of the device for every session: udid, connector hosts and ports
+  if ! /opt/zbr-default-caps-gen.sh > "$DEFAULT_CAPABILITIES_JSON"; then
+    echo "[error] cannot generate $DEFAULT_CAPABILITIES_JSON"
+    exit 1
+  fi
+  if [ -s "$DEFAULT_CAPABILITIES_JSON" ]; then
+    cat "$DEFAULT_CAPABILITIES_JSON"
+    CMD+=(--default-capabilities "$DEFAULT_CAPABILITIES_JSON")
+  else
+    echo "[warn] no default capabilities for PLATFORM_NAME=${PLATFORM_NAME}, Appium starts without them"
+  fi
 fi
 
 if [ "$RELAXED_SECURITY" = true ]; then
-    CMD+=(--relaxed-security)
+  CMD+=(--relaxed-security)
 fi
 
 # the insecure features of Appium 3 are <driver>:<feature>, all of them in one --allow-insecure (the last one wins)
 insecure_features=""
 if [ "$CHROMEDRIVER_AUTODOWNLOAD" = true ]; then
-    insecure_features+=",*:chromedriver_autodownload"
+  insecure_features+=",*:chromedriver_autodownload"
 fi
 if [ "$ADB_SHELL" = true ]; then
-    insecure_features+=",*:adb_shell"
+  insecure_features+=",*:adb_shell"
 fi
 if [ -n "$insecure_features" ]; then
-    CMD+=(--allow-insecure "${insecure_features#,}")
+  CMD+=(--allow-insecure "${insecure_features#,}")
 fi
 
 touch "${TASK_LOG}"
@@ -250,35 +250,35 @@ trap 'finish' SIGTERM
 # Background process to control video recording
 # REPLY example: ./ DELETE .recording-artifact-123321123
 inotifywait -e create,delete --monitor "${LOG_DIR}" |
-while read -r REPLY; do
-  if [[ $REPLY == *.recording-artifact* ]]; then
-    # Extract all text after '*recording-artifact-'
-    inwRecordArtifactId="${REPLY//*recording-artifact-/}"
-    echo "inwRecordArtifactId=$inwRecordArtifactId"
-  else
-    continue
-  fi
+  while read -r REPLY; do
+    if [[ $REPLY == *.recording-artifact* ]]; then
+      # Extract all text after '*recording-artifact-'
+      inwRecordArtifactId="${REPLY//*recording-artifact-/}"
+      echo "inwRecordArtifactId=$inwRecordArtifactId"
+    else
+      continue
+    fi
 
-  if [[ $REPLY == *CREATE* ]]; then
-    if [ "${RECORD_ARTIFACTS}" == "true" ]; then
-      echo "start recording artifact $inwRecordArtifactId"
-      /opt/start-capture-artifacts.sh "$inwRecordArtifactId" > >(tee -a "${TASK_LOG}") 2>&1
-    else
-      echo "recording artifacts was disabled with RECORD_ARTIFACTS: ${RECORD_ARTIFACTS}"
+    if [[ $REPLY == *CREATE* ]]; then
+      if [ "${RECORD_ARTIFACTS}" == "true" ]; then
+        echo "start recording artifact $inwRecordArtifactId"
+        /opt/start-capture-artifacts.sh "$inwRecordArtifactId" > >(tee -a "${TASK_LOG}") 2>&1
+      else
+        echo "recording artifacts was disabled with RECORD_ARTIFACTS: ${RECORD_ARTIFACTS}"
+      fi
+    elif [[ $REPLY == *DELETE* ]]; then
+      echo "stop adb forwarding if any for mobile web testing"
+      adb forward --remove-all
+      echo "stop recording artifact $inwRecordArtifactId"
+      if [[ "${PLATFORM_NAME}" == "ios" ]]; then
+        # iOS reads WDA directly, so finalizing one recording cannot stop the next recording's source.
+        share "$inwRecordArtifactId" &
+      else
+        # STF has shared on/off state. Finish 'off' before processing the next recording's 'on'.
+        share "$inwRecordArtifactId"
+      fi
     fi
-  elif [[ $REPLY == *DELETE* ]]; then
-    echo "stop adb forwarding if any for mobile web testing"
-    adb forward --remove-all
-    echo "stop recording artifact $inwRecordArtifactId"
-    if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-      # iOS reads WDA directly, so finalizing one recording cannot stop the next recording's source.
-      share "$inwRecordArtifactId" &
-    else
-      # STF has shared on/off state. Finish 'off' before processing the next recording's 'on'.
-      share "$inwRecordArtifactId"
-    fi
-  fi
-done &
+  done &
 
 # wait for Appium only: the exit of a helper (socat, ...) must not stop the container
 wait "$appium_pid"
@@ -291,7 +291,7 @@ echo "Exit status: $exit_code"
 
 if [ "$exit_code" -eq 101 ]; then
   echo "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."
-  sleep $((UNREGISTER_IF_STILL_DOWN_AFTER/1000))
+  sleep $((UNREGISTER_IF_STILL_DOWN_AFTER / 1000))
   sleep 15
 fi
 

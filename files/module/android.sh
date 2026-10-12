@@ -4,11 +4,11 @@
 adb shell getprop ro.build.characteristics
 
 # device type
-isTablet=`adb shell getprop ro.build.characteristics | grep tablet`
-isTv=`adb shell getprop ro.build.characteristics | grep tv`
+isTablet=$(adb shell getprop ro.build.characteristics | grep tablet)
+isTv=$(adb shell getprop ro.build.characteristics | grep tv)
 #157: Incorrect deviceType set for devices that do not return tv for ro.build.characteristics property
-isDefault=`adb shell getprop ro.build.characteristics | grep default`
-isPhone=`adb shell getprop ro.build.characteristics | grep phone`
+isDefault=$(adb shell getprop ro.build.characteristics | grep default)
+isPhone=$(adb shell getprop ro.build.characteristics | grep phone)
 
 # version
 PLATFORM_VERSION=$(adb shell getprop | grep -m 1 ro.build.version.release | sed 's/^.*:.*\[\(.*\)\].*$/\1/g')
