@@ -56,6 +56,10 @@ for file in /root/generate_config.sh /root/RemoteAppiumManager.jar; do
   check "${file} used by the entrypoint exists" "present" \
     "$(docker run --rm --platform "$PLATFORM" --user root --entrypoint bash "$IMAGE" -c "test -e ${file} && echo present || echo absent")"
 done
+# the removed features of old base images
+for legacy in SALT_MASTER; do
+  check "the entrypoint does not use ${legacy}" "" "$(grep -n "$legacy" files/entrypoint.sh)"
+done
 check "the healthcheck is configured" '["CMD","healthcheck"]' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}}')"
 check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \

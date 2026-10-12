@@ -158,13 +158,6 @@ finish() {
   echo "on finish end"
 }
 
-if [ ! -z "${SALT_MASTER}" ]; then
-    echo "[INIT] ENV SALT_MASTER it not empty, salt-minion will be prepared"
-    echo "master: ${SALT_MASTER}" >> /etc/salt/minion
-    salt-minion &
-    echo "[INIT] salt-minion is running..."
-fi
-
 if [ "$ATD" = true ]; then
     echo "[INIT] Starting ATD..."
     java -jar /root/RemoteAppiumManager.jar -DPort=4567 &
