@@ -29,6 +29,20 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Download v1.0.120+ go ios utility [go-ios-mac.zip](https://github.com/danielpaulus/go-ios/releases) and put into `/usr/local/bin`
   > Make sure to unblock it as it goes from not identified developer on MacOS
 
+## Checks
+
+`make check` runs everything CI runs, `make help` lists the single steps:
+
+| Command | What is checked | Needs |
+|---|---|---|
+| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, the patch files | Python 3, hadolint on macOS: `brew install hadolint` |
+| `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh` | bash, Python 3 |
+| `make image` | the image build and contents, Appium startup with the env vars of the image and of mcloud-agent, shutdown, the `appium-image` stage | Docker |
+| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
+| `make e2e` | iOS and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, video recording of sessions, `docker stop` | Docker |
+
+The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides the tag, `REBUILD=true` forces a new build, `SKIP_BUILD=true` skips the build of `make image`). The image is amd64 only, so on Apple silicon it runs emulated and the docker tests take a while. With `JUNIT_DIR` set the results are also written as JUnit XML.
+
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
 * [Zebrunner CE](https://zebrunner.github.io/community-edition)

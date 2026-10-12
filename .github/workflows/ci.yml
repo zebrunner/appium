@@ -1,0 +1,105 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [develop, main, master]
+  pull_request:
+    branches: [develop, main, master]
+  workflow_dispatch:
+# a new push to a pull request cancels its outdated run, runs of the branches themselves are kept
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install linters
+        run: pip install -r tests/requirements-lint.txt
+      - name: Lint scripts, Dockerfile, workflows, docs and the patch
+        run: tests/lint.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Lint report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: lint report
+          # annotations and the job summary only: no check run, so a read-only token is enough
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true
+
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tests of build.sh and the config generators
+        run: |
+          status=0
+          for test in tests/build_test.sh tests/config_test.sh; do
+            "$test" || status=1
+          done
+          exit "$status"
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Tests report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: tests report
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      IMAGE: zbr-appium:ci
+    steps:
+      - uses: actions/checkout@v7
+      # every step runs even when the previous one failed: the image is built by the first one
+      - name: Docker image checks
+        id: image
+        run: tests/image_test.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Tests of the Appium patch
+        if: ${{ !cancelled() && steps.image.outcome != 'skipped' }}
+        run: tests/patch_test.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: End-to-end tests with a fake device
+        if: ${{ !cancelled() && steps.image.outcome != 'skipped' }}
+        run: tests/e2e_test.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Docker report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: docker report
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true
+      - name: Upload JUnit XML
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-docker
+          path: ${{ runner.temp }}/junit/
