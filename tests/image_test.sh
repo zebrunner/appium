@@ -51,14 +51,14 @@ check "the patched base-driver files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
   "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
-# files/entrypoint.sh: CONNECT_TO_GRID without CUSTOM_NODE_CONFIG and ATD=true
-for file in /root/generate_config.sh /root/RemoteAppiumManager.jar; do
+# files/entrypoint.sh: CONNECT_TO_GRID without CUSTOM_NODE_CONFIG
+for file in /root/generate_config.sh; do
   check "${file} used by the entrypoint exists" "present" \
     "$(docker run --rm --platform "$PLATFORM" --user root --entrypoint bash "$IMAGE" -c "test -e ${file} && echo present || echo absent")"
 done
 # the removed features of old base images
-for legacy in SALT_MASTER; do
-  check "the entrypoint does not use ${legacy}" "" "$(grep -n "$legacy" files/entrypoint.sh)"
+for legacy in SALT_MASTER ATD RemoteAppiumManager; do
+  check "the entrypoint does not use ${legacy}" "" "$(grep -nw "$legacy" files/entrypoint.sh)"
 done
 check "the healthcheck is configured" '["CMD","healthcheck"]' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}}')"

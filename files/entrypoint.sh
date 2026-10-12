@@ -158,12 +158,6 @@ finish() {
   echo "on finish end"
 }
 
-if [ "$ATD" = true ]; then
-    echo "[INIT] Starting ATD..."
-    java -jar /root/RemoteAppiumManager.jar -DPort=4567 &
-    echo "[INIT] ATD is running..."
-fi
-
 # convert to lower case using Linux/Mac compatible syntax (bash v3.2)
 PLATFORM_NAME=`echo "$PLATFORM_NAME" |  tr '[:upper:]' '[:lower:]'`
 if [ "${PLATFORM_NAME}" = "android" ]; then
