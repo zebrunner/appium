@@ -207,12 +207,16 @@ if [ "$RELAXED_SECURITY" = true ]; then
     CMD+=" --relaxed-security"
 fi
 
+# the insecure features of Appium 3 are <driver>:<feature>, all of them in one --allow-insecure (the last one wins)
+insecure_features=""
 if [ "$CHROMEDRIVER_AUTODOWNLOAD" = true ]; then
-    CMD+=" --allow-insecure chromedriver_autodownload"
+    insecure_features+=",*:chromedriver_autodownload"
 fi
-
 if [ "$ADB_SHELL" = true ]; then
-    CMD+=" --allow-insecure adb_shell"
+    insecure_features+=",*:adb_shell"
+fi
+if [ -n "$insecure_features" ]; then
+    CMD+=" --allow-insecure ${insecure_features#,}"
 fi
 
 touch ${TASK_LOG}

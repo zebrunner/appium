@@ -89,6 +89,7 @@ variants=(
   "the image defaults|"
   "CHROMEDRIVER_AUTODOWNLOAD=false|CHROMEDRIVER_AUTODOWNLOAD=false"
   "ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=false ADB_SHELL=true"
+  "CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=true ADB_SHELL=true"
   "RELAXED_SECURITY=true|CHROMEDRIVER_AUTODOWNLOAD=false RELAXED_SECURITY=true"
   "APPIUM_CLI|CHROMEDRIVER_AUTODOWNLOAD=false APPIUM_CLI=--session-override"
   "the mcloud-agent settings (android)|${MCLOUD_AGENT_ENV}"
@@ -122,6 +123,14 @@ for variant in "${variants[@]}"; do
       "$(printf 'state: %s\n%s' "$(docker inspect "$container" --format '{{.State.Status}} {{.State.ExitCode}}')" "$(docker logs "$container" 2>&1 | tail -15)")"
   fi
 done
+
+container="${PREFIX}-3"
+if [[ "$(appium_status "$container")" == "200" ]]; then
+  enabled="$(docker exec "$container" grep -A2 'Explicitly enabling insecure features' /tmp/log/appium.log)"
+  for feature in chromedriver_autodownload adb_shell; do
+    check_contains "CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true: ${feature} is enabled" "[Appium]     *:${feature}" "$enabled"
+  done
+fi
 
 # a wrong config ends the container with the reason instead of a failing Appium
 container="${PREFIX}-grid-without-hub"
