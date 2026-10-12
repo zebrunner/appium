@@ -168,17 +168,17 @@ elif [ "${PLATFORM_NAME}" = "ios" ]; then
 fi
 
 if [ "$CONNECT_TO_GRID" = true ]; then
-    if [ "$CUSTOM_NODE_CONFIG" = true ]; then
-        # generate config json file
-        /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
-        cat $NODE_CONFIG_JSON
-
-        # generate default capabilities json file for iOS device if needed
-        /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
-        cat $DEFAULT_CAPABILITIES_JSON
-    else
-        /root/generate_config.sh $NODE_CONFIG_JSON
+    # the Zebrunner node config (MobileRemoteProxy) is the only one supported by mcloud-grid
+    if [ -n "$CUSTOM_NODE_CONFIG" ] && [ "$CUSTOM_NODE_CONFIG" != true ]; then
+        echo "[warn] CUSTOM_NODE_CONFIG is ignored, the Zebrunner node config is always generated"
     fi
+    # generate config json file
+    /opt/zbr-config-gen.sh > $NODE_CONFIG_JSON
+    cat $NODE_CONFIG_JSON
+
+    # generate default capabilities json file for iOS device if needed
+    /opt/zbr-default-caps-gen.sh > $DEFAULT_CAPABILITIES_JSON
+    cat $DEFAULT_CAPABILITIES_JSON
     CMD+=" --nodeconfig $NODE_CONFIG_JSON"
 fi
 
