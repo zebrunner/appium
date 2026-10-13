@@ -1,3 +1,5 @@
+# check=skip=SecretsUsedInArgOrEnv
+# STF_AUTH_TOKEN is declared empty as documentation of the supported env vars; the real value is passed at runtime
 FROM appium/appium:v3.1.1-p0 AS appium
 
 # The base image is linux/amd64 only (Android platform-tools, OpenJDK path): another platform would build
@@ -7,6 +9,30 @@ RUN if [ -n "${TARGETARCH}" ] && [ "${TARGETARCH}" != "amd64" ]; then \
       echo "[error] the image is linux/amd64 only: the base image appium/appium is amd64 only, got ${TARGETARCH}" >&2; \
       exit 1; \
     fi
+
+# The layers go from the rarely to the often changed ones: the packages and the drivers are kept in the build
+# cache when the env vars, the scripts or the patch change
+
+USER root
+
+# Additional tools
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get -y install --no-install-recommends \
+        iputils-ping nano jq telnet netcat-traditional curl ffmpeg \
+        libimobiledevice-utils libimobiledevice6 socat inotify-tools && \
+    rm -rf /var/lib/apt/lists/*
+
+# The drivers are installed into APPIUM_HOME (the base image keeps its own drivers in ~/.appium)
+ENV APPIUM_HOME=/usr/lib/node_modules/appium
+
+USER androidusr
+
+# Check and install drivers
+RUN appium driver list && \
+    appium plugin list && \
+    appium driver install uiautomator2@6.7.15 && \
+    appium driver install xcuitest@10.18.2
 
 # Set environment variables
 ENV ANDROID_DEVTOOLS_PORT=9222
@@ -71,47 +97,16 @@ ENV \
 
 USER root
 
-# Create dir for apps
-RUN mkdir -p $APPIUM_APPS_DIR && \
-    chown -R androidusr:androidusr $APPIUM_APPS_DIR
-
-# Create dir for appium config files
-RUN mkdir -p $APPIUM_CONFIG_DIR && \
-    chown -R androidusr:androidusr $APPIUM_CONFIG_DIR
-
-# Create log dir
-RUN mkdir -p $LOG_DIR  && \
-    chown -R androidusr:androidusr $LOG_DIR
-
-# The usbmuxd socket forwarded by ios.sh: /var/run is root only, so the socket is in a dir of androidusr
-RUN mkdir -p /tmp/usbmuxd && \
-    chown androidusr:androidusr /tmp/usbmuxd && \
-    ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd
-
-# Additional tools
-RUN export DEBIAN_FRONTEND=noninteractive && \
-    apt-get update && \
-    apt-get -y install --no-install-recommends \
-        iputils-ping nano jq telnet netcat-traditional curl ffmpeg \
-        libimobiledevice-utils libimobiledevice6 usbmuxd socat inotify-tools && \
-    rm -rf /var/lib/apt/lists/*
-
-# Entrypoint
+# The dirs of the apps, the configs, the logs and the entrypoint; the usbmuxd socket forwarded by ios.sh is in
+# a dir of androidusr, /var/run is root only
 ARG ENTRYPOINT_DIR=/opt/entrypoint
-RUN mkdir -p ${ENTRYPOINT_DIR} && \
-    chown -R androidusr:androidusr ${ENTRYPOINT_DIR}
-COPY --chown=androidusr:androidusr \
-    files/entrypoint.sh ${ENTRYPOINT_DIR}
+RUN mkdir -p $APPIUM_APPS_DIR $APPIUM_CONFIG_DIR $LOG_DIR /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
+    chown -R androidusr:androidusr $APPIUM_APPS_DIR $APPIUM_CONFIG_DIR $LOG_DIR /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
+    ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd
 
 USER androidusr
 
-# Check and install drivers
-RUN appium driver list && \
-    appium plugin list && \
-    appium driver install uiautomator2@6.7.15 && \
-    appium driver install xcuitest@10.18.2
-
-# Copy video recorder script & Zebrunner MCloud node config generator
+# Video recorder script, device modules & Zebrunner MCloud node config generator
 COPY --chown=androidusr:androidusr \
     files/module/start-capture-artifacts.sh \
     files/util/debug.sh \
@@ -125,18 +120,26 @@ COPY --chown=androidusr:androidusr \
     files/healthcheck \
     files/util/usbreset /usr/local/bin/
 
-# Custom Mcloud patches
 COPY --chown=androidusr:androidusr \
-    files/patch/ /opt/mcloud/
+    files/entrypoint.sh ${ENTRYPOINT_DIR}/
+
+# Custom Mcloud patches of @appium/base-driver, over the installed files
 # Do not make backups because unpatched js files in the same folder might be used by Appium
-# Check appium
-RUN cp -r -v /opt/mcloud/node_modules ${APPIUM_HOME} && \
-    appium --version
+COPY --chown=androidusr:androidusr \
+    files/patch/node_modules/ ${APPIUM_HOME}/node_modules/
+
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="Zebrunner MCloud Appium" \
+      org.opencontainers.image.description="Appium for the Android and iOS devices of Zebrunner MCloud" \
+      org.opencontainers.image.source="https://github.com/zebrunner/appium" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.version="${VERSION}"
 
 # Override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/opt/entrypoint/entrypoint.sh"]
 
-HEALTHCHECK --interval=10s --retries=3 CMD ["healthcheck"]
+# Appium starts in 10-30 s, an iOS container waits for WDA up to DEVICE_TIMEOUT
+HEALTHCHECK --interval=10s --timeout=10s --start-period=60s --retries=3 CMD ["healthcheck"]
 
 # ==============================
 # Stage 2 — Appium Image Plugin

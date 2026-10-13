@@ -48,13 +48,17 @@ sha256() {
   if command -v sha256sum > /dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi
 }
 expected="$(cd files/patch && find node_modules -type f -name '*.js' | sort | while read -r f; do sha256 "$f"; done)"
-actual="$(in_image 'cd /usr/lib/node_modules/appium && find /opt/mcloud/node_modules -type f -name "*.js" | sed "s|/opt/mcloud/||" | sort | xargs sha256sum')"
+# the files of the repo over the installed ones in APPIUM_HOME
+files="$(cd files/patch && find node_modules -type f -name '*.js' | sort | tr '\n' ' ')"
+actual="$(in_image "cd \$APPIUM_HOME && sha256sum ${files}")"
 check "the patched base-driver files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
   "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
-check "the healthcheck is configured" '["CMD","healthcheck"]' \
-  "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}}')"
+check "the healthcheck is configured, with a start period for the startup" '["CMD","healthcheck"] 1m0s' \
+  "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}} {{.Config.Healthcheck.StartPeriod}}')"
+check "the image has the OCI labels" "https://github.com/zebrunner/appium dev" \
+  "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}} {{index .Config.Labels "org.opencontainers.image.version"}}')"
 check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \
   "$(in_image 'echo "$(readlink /var/run/usbmuxd) $(stat -c %U /tmp/usbmuxd)"')"
 check "the image is linux/amd64" "linux/amd64" "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')"

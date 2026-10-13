@@ -25,7 +25,7 @@ if [[ -z "$1" ]]; then
   exit 1
 else
   tagVersion=$1
-  cmd+=(--tag "$tagPath":"$tagVersion")
+  cmd+=(--tag "$tagPath":"$tagVersion" --build-arg VERSION="$tagVersion")
 fi
 
 echo "Following command will be executed:"

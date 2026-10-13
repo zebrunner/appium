@@ -58,7 +58,7 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
 
 ## Health and restarts
 
-* The docker healthcheck (every 10 s) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
+* The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
 * The container exits with `1` whenever Appium exits, so the `on-failure` restart policy starts it again. Appium exits with `101` when mcloud-grid finds the device or WDA down (`/status-adb`, `/status-wda` with `exitCode`): the container then waits `UNREGISTER_IF_STILL_DOWN_AFTER` plus 15 s for the hub to unregister the node.
 * A wrong configuration (e.g. `CONNECT_TO_GRID=true` without the hub) ends the container with the reason in its log; an iOS container ends when WebDriverAgent does not answer in `DEVICE_TIMEOUT`.
 * `DEBUG=true` keeps an ending container for `DEBUG_TIMEOUT` seconds to look into it.

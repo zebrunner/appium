@@ -30,6 +30,7 @@ check "no tag: docker is not called" "" "$ARGS"
 section "arguments"
 run_build 0 1.2.3
 check_contains "the tag is passed" "--tag public.ecr.aws/zebrunner/appium:1.2.3" "$ARGS"
+check_contains "the tag is the version label of the image" "--build-arg VERSION=1.2.3" "$ARGS"
 check_contains "the appium stage is built by default" "--target appium" "$ARGS"
 check_contains "linux/amd64 is the default platform" "--platform linux/amd64" "$ARGS"
 check_contains "no provenance manifest, the image stays pullable" "--provenance=false" "$ARGS"
