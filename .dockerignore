@@ -1,0 +1,9 @@
+# only files/ is needed by the image build
+.git
+.github
+.idea
+.venv
+tests
+*.md
+.DS_Store
+**/.DS_Store

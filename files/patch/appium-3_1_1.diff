@@ -1,0 +1,771 @@
+diff --git a/packages/base-driver/lib/basedriver/core.ts b/packages/base-driver/lib/basedriver/core.ts
+index 53170a3..e14522e 100644
+--- a/packages/base-driver/lib/basedriver/core.ts
++++ b/packages/base-driver/lib/basedriver/core.ts
+@@ -22,6 +22,7 @@ import {errors} from '../protocol';
+ import {DeviceSettings} from './device-settings';
+ import * as helpers from './helpers';
+ import {ExtensionCore} from './extension-core';
++import { executeShellWPromise, parseWDAUrl, getWDAStatus } from './mcloud-utils';
+ 
+ const NEW_COMMAND_TIMEOUT_MS = 60 * 1000;
+ 
+@@ -209,6 +210,58 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
+     return {};
+   }
+ 
++  async getStatusWDA (exitCode?: number | null) {
++    const wdaURL = await parseWDAUrl();
++    if (!wdaURL) {
++      throw new Error('[MCLOUD] Environment variable WDA_ENV is undefined');
++    }
++    const status = await getWDAStatus(wdaURL);
++    if (!status || 'success' !== status.value.state) {
++      if (exitCode != null) {
++          this.log.error('[MCLOUD] Error for sending of WDA status http call. See appium logs for details');
++          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
++          process.exit(exitCode);
++      }
++      throw new Error('[MCLOUD] Error for sending of WDA status http call. See appium logs for details');
++    }
++    return {'status': 'success', 'details': status};
++  }
++
++  async getStatusADB(exitCode?: number | null) {
++    const deviceUDID = process.env.DEVICE_UDID;
++    if (deviceUDID) {
++      const adbDevicesCmd = 'adb devices | grep $DEVICE_UDID | grep "device"';
++      try {
++        await executeShellWPromise(adbDevicesCmd);
++        return {'status': 'success', 'details': `Connected device with UDID ${deviceUDID} is ready for execution`};
++      } catch {
++        if (exitCode != null) {
++          this.log.error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
++          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
++          process.exit(exitCode);
++        }
++        throw new Error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
++      }
++    } else {
++      const deviceName = process.env.ANDROID_DEVICES;
++      if (!deviceName) {
++        throw new Error(`[MCLOUD] Neither DEVICE_UDID nor ANDROID_DEVICES environment variables were found.`);
++      }
++      const adbDevicesCmd = 'adb devices | grep $ANDROID_DEVICES | grep "device"';
++      try {
++        await executeShellWPromise(adbDevicesCmd);
++        return {'status': 'success', 'details': `Connected device with name ${deviceName} is ready for execution`};
++      } catch {
++        if (exitCode != null) {
++          this.log.error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
++          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
++          process.exit(exitCode);
++        }
++        throw new Error(`[MCLOUD] Connected device with name ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
++      }
++    }
++  }
++
+   /**
+    * method required by MJSONWP in order to determine whether it should
+    * respond with an invalid session response
+diff --git a/packages/base-driver/lib/basedriver/driver.ts b/packages/base-driver/lib/basedriver/driver.ts
+index 07258f3..a9e8d31 100644
+--- a/packages/base-driver/lib/basedriver/driver.ts
++++ b/packages/base-driver/lib/basedriver/driver.ts
+@@ -1,4 +1,6 @@
+ import {util} from '@appium/support';
++import fs from 'fs';
++import path from 'path';
+ import {
+   BASE_DESIRED_CAP_CONSTRAINTS,
+   type AppiumServer,
+@@ -360,6 +362,36 @@ export class BaseDriver<
+ 
+     this.log.info(`Session created with session id: ${this.sessionId}`);
+ 
++    // save current sessionId globally to handle negative use-case instead of desired fallbackSessionId
++    process.env.sessionId = this.sessionId;
++
++    const createRecordingArtifact = async (sessionId, logDir) => {
++      const filePath = path.join(logDir, `.recording-artifact-${sessionId}`);
++      this.log.info(`[MCLOUD] File path: ${filePath}`);
++      try {
++        await fs.promises.writeFile(filePath, '');
++        this.log.info(`[MCLOUD] .recording-artifact-${sessionId} file created successfully.`);
++      } catch (err) {
++        this.log.error(`[MCLOUD] Error creating the .recording-artifact-${sessionId} file, ${err}`);
++      }
++    };
++    // directory where .recording-artifact file should be created
++    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
++    // When the requesting session owns recording externally (e.g. Playwright bridge
++    // owns one marker per test) skip per-session markers so they don't start/stop
++    // capture per command. This is per-session (capability), not container-wide.
++    if (String(this.caps?.mcloudExternalRecording) === 'true') {
++      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact create');
++    }
++    // Check if process.env.ROUTER_UUID is not empty
++    else if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
++      // If not empty, use process.env.ROUTER_UUID instead of this.sessionId
++      await createRecordingArtifact(process.env.ROUTER_UUID, logDirName);
++    } else {
++      // If empty, fallback to using this.sessionId
++      await createRecordingArtifact(this.sessionId, logDirName);
++    }
++
+     return [this.sessionId, caps] as CreateResult;
+   }
+ 
+@@ -392,6 +424,33 @@ export class BaseDriver<
+         queues[key] = [];
+       }
+     }
++
++    const removeRecordingArtifact = async (fileName: string) => {
++      try {
++        await fs.promises.unlink(fileName);
++        this.log.info(`[MCLOUD] File ${fileName} removed successfully.`);
++      } catch (err) {
++        this.log.error(`[MCLOUD] Error removing file ${fileName}: ${err}`);
++      }
++    };
++    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
++    // When the requesting session owns recording externally (e.g. Playwright bridge)
++    // skip per-session marker removal so command-end can't trigger share/stop of the
++    // test recording. This is per-session (capability), not container-wide.
++    if (String(this.caps?.mcloudExternalRecording) === 'true') {
++      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact remove');
++    }
++    // Check if process.env.ROUTER_UUID is not empty
++    else if (process.env.ROUTER_UUID && process.env.ROUTER_UUID.trim() !== '') {
++      // If not empty, use process.env.ROUTER_UUID instead of sessionId
++      const fileName = path.join(logDirName, `.recording-artifact-${process.env.ROUTER_UUID}`);
++      await removeRecordingArtifact(fileName);
++    } else {
++      // If empty, fallback to using the id of the ending session
++      const fileName = path.join(logDirName, `.recording-artifact-${this.sessionId}`);
++      await removeRecordingArtifact(fileName);
++    }
++
+     this.sessionId = null;
+   }
+ 
+diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
+index b3bdf5a..abb26cb 100644
+--- a/packages/base-driver/lib/basedriver/helpers.js
++++ b/packages/base-driver/lib/basedriver/helpers.js
+@@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
+ import AsyncLock from 'async-lock';
+ import axios from 'axios';
+ import B from 'bluebird';
++import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage } from './mcloud-utils';
+ 
+ // for compat with running tests transpiled and in-place
+ export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
+@@ -27,7 +28,10 @@ const APPLICATIONS_CACHE = new LRUCache({
+       `The application '${app}' cached at '${fullPath}' has ` +
+         `expired after ${CACHED_APPS_MAX_AGE_MS}ms`
+     );
+-    if (fullPath) {
++    if (fullPath && isInSharedStorage(fullPath)) {
++      logger.info(`[MCLOUD] APPLICATIONS_CACHE setting. Keeping the file of the shared storage: ${fullPath}`);
++    } else if (fullPath) {
++      logger.info(`[MCLOUD] APPLICATIONS_CACHE setting. Deleting files by path: ${fullPath}`);
+       fs.rimraf(fullPath);
+     }
+   },
+@@ -43,13 +47,15 @@ process.on('exit', () => {
+     return;
+   }
+ 
+-  const appPaths = [...APPLICATIONS_CACHE.values()].map(({fullPath}) => fullPath);
++  // the files of the shared storage are kept for the other Appium of the host
++  const appPaths = [...APPLICATIONS_CACHE.values()].map(({fullPath}) => fullPath).filter((fullPath) => !isInSharedStorage(fullPath));
+   logger.debug(
+     `Performing cleanup of ${appPaths.length} cached ` +
+       util.pluralize('application', appPaths.length)
+   );
+   for (const appPath of appPaths) {
+     try {
++      logger.info(`[MCLOUD] process.on('exit'). Deleting files by path: ${appPath}`);
+       // @ts-ignore it's defined
+       fs.rimrafSync(appPath);
+     } catch (e) {
+@@ -100,6 +106,7 @@ export async function configureApp(
+   let newApp = app;
+   const originalAppLink = app;
+   let packageHash = null;
++  let localAppsFolder;
+   /** @type {import('axios').AxiosResponse['headers']|undefined} */
+   let headers;
+   /** @type {RemoteAppProps} */
+@@ -161,38 +168,226 @@ export async function configureApp(
+             }
+           }
+         }
+-        if (cachedAppInfo && status === HTTP_STATUS_NOT_MODIFIED) {
+-          if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
+-            logger.info(`Reusing previously downloaded application at '${cachedAppInfo.fullPath}'`);
+-            return verifyAppExtension(/** @type {string} */ (cachedAppInfo.fullPath), supportedAppExtensions);
++
++        // ***** Custom logic for verification of local static path for APPs *****
++        let downloadIsNeeded = true;
++        localAppsFolder = await getLocalAppsFolder();
++        let localFile;
++        let fileName;
++        let lockFile = '';
++        const waitingTime = 1000;
++        const maxAttemptsCount = toNaturalNumber(90, 'APPIUM_APP_WAITING_TIMEOUT');
++        const maxLockFileLifetime = toNaturalNumber(180, 'APPIUM_MAX_LOCK_FILE_LIFETIME');
++        const appSizeCheckDisabled = process.env.APPIUM_APP_SIZE_DISABLE?.toLowerCase?.() === 'true';
++        const appFetchRetriesEnv = parseInt(`${process.env.APPIUM_APP_FETCH_RETRIES}`, 10);
++        let appFetchRetries = appFetchRetriesEnv >= 0 ? appFetchRetriesEnv : 3; // 0 disables the retries
++        // the session owns the .lock (it downloads the app) only when it created the .lock
++        let lockOwned = false;
++
++        // the creation time of the .lock, null when there is no .lock (anymore)
++        const lockCreatedTime = async () => {
++          try {
++            return (await fs.stat(lockFile)).ctime;
++          } catch (err) {
++            if (err.code === 'ENOENT') {
++              return null;
++            }
++            throw err;
++          }
++        };
++        // waits until the parallel download of another session (another Appium of the host) removes the .lock
++        const waitForParallelDownload = async () => {
++          let lockDetails = '';
++          try {
++            lockDetails = await fs.readFile(lockFile, 'utf8');
++          } catch (err) {
++            if (err.code !== 'ENOENT') {
++              throw err;
++            }
++          }
++          logger.info(`[MCLOUD] Local version of app not found but .lock file exists. Waiting for .lock to disappear. Device/session details: ${lockDetails}`);
++          let attemptsCount = 0;
++          let createdTime;
++          while ((createdTime = await lockCreatedTime()) && (attemptsCount++ < maxAttemptsCount)) {
++            const diffInSeconds = (new Date().getTime() - createdTime.getTime()) / 1000;
++            if (diffInSeconds >= maxLockFileLifetime) {
++              logger.info(`[MCLOUD] Removing .lock file since its lifetime reached to the limit`);
++              await fs.rimraf(lockFile);
++              throw Error(`[MCLOUD] .lock file was removed due to lifetime limit. New download attempt will start for the next session request`);
++            }
++            await new Promise((resolve) => {
++              logger.info(`[MCLOUD] Attempt #${attemptsCount} for .lock file checking`);
++              setTimeout(resolve, waitingTime);
++            });
+           }
+-          logger.info(
+-            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
+-              `or its integrity has been damaged. Deleting it from the internal cache`
+-          );
+-          APPLICATIONS_CACHE.delete(appCacheKey);
+-
+-          if (!stream.closed) {
+-            stream.destroy();
++          if (await lockCreatedTime()) {
++            throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
+           }
+-          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
++          if (!await fs.exists(localFile)) {
++            throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
++          }
++          logger.info(`[MCLOUD] Local version of app was found after .lock file removal. Will use it for new session`);
++        };
++
++
++        if (localAppsFolder !== undefined) {
++          localFile = await getLocalFileForAppUrl(newApp);
++          lockFile = localFile + '.lock';
++          if (await fs.exists(localFile)) {
++            if (appSizeCheckDisabled === false) {
++              // Checking of local application actuality
++              logger.info(`[MCLOUD] Local version of app was found. Will check actuality of the file`);
++              // At this point local file might be deleted by parallel session which updates outdated app
++              let attemptsCount = 0;
++              while (!await fs.exists(localFile) && (attemptsCount++ < maxAttemptsCount)) {
++                await new Promise((resolve) => {
++                  logger.info(`[MCLOUD] Attempt #${attemptsCount} for local app file to appear again`);
++                  setTimeout(resolve, waitingTime);
++                });
++              }
++              if (!await fs.exists(localFile)) {
++                throw Error(`[MCLOUD] Local application file has not appeared after updating by parallel Appium session`);
++              }
++              const stats = await fs.stat(localFile);
++              const localFileLength = stats.size;
++              const remoteFileLength = await getFileContentLength(app);
++              logger.info(`[MCLOUD] Remote file size is ${remoteFileLength} and local file size is ${localFileLength}`);
++              if (remoteFileLength !== localFileLength) {
++                logger.info(`[MCLOUD] Sizes differ. Hence that's needed to download fresh version of the app`);
++                if (await fs.exists(localFile)) {
++                  await fs.unlink(localFile);
++                } else {
++                  logger.warn(`[MCLOUD] Old local application file ${localFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
++                }
++                downloadIsNeeded = true;
++              } else {
++                logger.info(`[MCLOUD] Sizes are the same. Hence will use already stored application for the session`);
++                newApp = localFile;
++                downloadIsNeeded = false;
++              }
++            } else {
++              logger.info(`[MCLOUD] APPIUM_APP_SIZE_DISABLE=true hence skipping file size checking and going to use found file as application source`);
++              newApp = localFile;
++              downloadIsNeeded = false;
++            }
++          } else if (await lockCreatedTime()) {
++            await waitForParallelDownload();
++            newApp = localFile;
++            downloadIsNeeded = false;
++          } else {
++            logger.info(`[MCLOUD] Neither local version of app nor .lock file was found. Will download app from remote URL.`);
++            downloadIsNeeded = true;
++          }
++        } else {
++          logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic. Use variable APPIUM_APPS_DIR for path setting`);
+         }
+ 
+-        if (onDownload) {
+-          newApp = await onDownload({
+-            url: originalAppLink,
+-            headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(headers)),
+-            stream,
+-          });
+-        } else {
+-          const fileName = determineFilename(headers, pathname, supportedAppExtensions);
+-          newApp = await fetchApp(stream, await tempDir.path({
+-            prefix: fileName,
+-            suffix: '',
+-          }));
++        if (downloadIsNeeded && localAppsFolder !== undefined) {
++          logger.info(`[MCLOUD] Local version of app was not found. Hence using default Appium logic for downloading`);
++          const sharedFolderPath = await getSharedFolderForAppUrl(app);
++          logger.info(`[MCLOUD] Folder for local shared apps: ${sharedFolderPath}`);
++          let sessionId = process.env.sessionId ?? 'could not define session ID';
++          let deviceId = process.env.DEVICE_UDID ?? 'could not define device UUID';
++          const msg = `device UUID: ${deviceId}, session ID: ${sessionId}`;
++          logger.info(`[MCLOUD] session/device info: ${msg}`);
++          // 'wx' fails when the .lock exists: only one of the sessions starting together downloads the app
++          try {
++            await fs.writeFile(lockFile, msg, {flag: 'wx'});
++            lockOwned = true;
++            logger.info(`[MCLOUD] lock file was written successfully`);
++          } catch (err) {
++            if (err.code !== 'EEXIST') {
++              throw err;
++            }
++            logger.info(`[MCLOUD] Another session has just started the download of the app`);
++            await waitForParallelDownload();
++            newApp = /** @type {string} */ (localFile);
++            downloadIsNeeded = false;
++          }
++        }
++
++        if (downloadIsNeeded) {
++          // the temporary copy of the downloaded app in the shared storage, renamed when complete
++          const localTmpFile = localFile ? `${localFile}.${process.pid}.tmp` : '';
++          try {
++            if (cachedAppInfo && status === HTTP_STATUS_NOT_MODIFIED) {
++              if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
++                logger.info(`[MCLOUD] Reusing previously downloaded application at '${cachedAppInfo.fullPath}'`);
++                return verifyAppExtension(/** @type {string} */ (cachedAppInfo.fullPath), supportedAppExtensions);
++              }
++              logger.info(
++                `[MCLOUD] The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
++                  `or its integrity has been damaged. Deleting it from the internal cache`
++              );
++              APPLICATIONS_CACHE.delete(appCacheKey);
++
++              if (stream && !stream.destroyed) {
++                stream.destroy();
++              }
++              ({stream, headers, status} = await queryAppLink(newApp, reqHeaders));
++            }
++            for (let attemptsLeft = appFetchRetries; attemptsLeft >= 0; attemptsLeft--) {
++              let attemptStream;
++              let attemptHeaders = headers;
++              try {
++                logger.info(`[MCLOUD] Retry fetching remote app, attempts left ${attemptsLeft}`);
++                // obtain a fresh stream and headers for this attempt
++                ({stream: attemptStream, headers: attemptHeaders} = await queryAppLink(originalAppLink, reqHeaders));
++                if (onDownload) {
++                  newApp = await onDownload({
++                    url: originalAppLink,
++                    headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(attemptHeaders)),
++                    stream: attemptStream,
++                  });
++                  // If onDownload returns a local path then validate it exists.
++                  if (!newApp || !(await fs.exists(newApp))) {
++                    throw new Error(`[MCLOUD] onDownload did not return a valid existing app path`);
++                  }
++                } else {
++                  if (!fileName) {
++                    fileName = determineFilename(attemptHeaders, pathname, supportedAppExtensions);
++                  }
++                  newApp = await fetchApp(attemptStream, await tempDir.path({
++                    prefix: fileName,
++                    suffix: '',
++                  }));
++                }
++                // Success, stop retrying
++                break;
++              } catch (err) {
++                if (attemptsLeft <= 0) {
++                  throw err;
++                }
++                logger.error(
++                  `[MCLOUD] Error during fetching of the application ${err.message}. Attempts left ${attemptsLeft - 1}`
++                );
++              } finally {
++                if (attemptStream && !attemptStream.destroyed) {
++                  attemptStream.destroy();
++                }
++              }
++            }
++            // ***** Custom logic for copying of downloaded app to static location *****
++            if (localAppsFolder !== undefined) {
++              logger.info(`[MCLOUD] New app path: ${newApp}`);
++              // other sessions never see a partial app: the complete copy is renamed into place
++              // @ts-ignore
++              await fs.copyFile(newApp, localTmpFile);
++              // @ts-ignore
++              await fs.rename(localTmpFile, localFile);
++            }
++          } finally {
++            if (localTmpFile) {
++              await fs.rimraf(localTmpFile);
++            }
++            if (lockOwned) {
++              logger.info(`[MCLOUD] Going to remove lock file ${lockFile}`);
++              await fs.rimraf(lockFile);
++            }
++          }
+         }
+       } finally {
+-        if (!stream.closed) {
++        if (stream && !stream.destroyed) {
+           stream.destroy();
+         }
+       }
+@@ -218,7 +413,10 @@ export async function configureApp(
+     /** @type {(appPathToCache: string) => Promise<string>} */
+     const storeAppInCache = async (appPathToCache) => {
+       const cachedFullPath = cachedAppInfo?.fullPath;
+-      if (cachedFullPath && cachedFullPath !== appPathToCache) {
++      // [MCLOUD] We control actuality of the file in custom logic.
++      // so no need to remove file physically from shared location when updating Appium cache.
++      if (cachedFullPath && cachedFullPath !== appPathToCache && localAppsFolder === undefined) {
++        logger.info(`[MCLOUD] storeAppInCache(). Deleting files by path: ${cachedFullPath}`);
+         await fs.rimraf(cachedFullPath);
+       }
+       const integrity = {};
+diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
+new file mode 100644
+index 0000000..e15aca3
+--- /dev/null
++++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
+@@ -0,0 +1,152 @@
++import {fs} from '@appium/support';
++import * as path from 'path';
++import axios from 'axios';
++import logger from './logger';
++import util from 'util';
++import { exec } from 'child_process';
++import {
++  type ResponseType
++  } from 'axios';
++import { PathLike } from 'fs';
++
++async function getLocalAppsFolder() {
++  if (process.env.APPIUM_APPS_DIR === undefined || process.env.APPIUM_APPS_DIR === '') {
++    return undefined;
++  } else {
++    return process.env.APPIUM_APPS_DIR;
++  }
++}
++
++// whether the path is in the shared application storage (APPIUM_APPS_DIR): those files are kept for all the
++// Appium of the host and must not be removed by the cleanup of the cached applications
++function isInSharedStorage(fullPath?: string): boolean {
++  const appsDir = process.env.APPIUM_APPS_DIR;
++  if (!appsDir || !fullPath) {
++    return false;
++  }
++  const relative = path.relative(path.resolve(appsDir), path.resolve(fullPath));
++  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
++}
++
++async function getSharedFolderForAppUrl(url) {
++  const sub = await getLocalFileForAppUrl(url);
++
++  const lastSlashInd = sub.lastIndexOf(path.sep);
++  let targetPath: PathLike;
++  if (lastSlashInd !== -1) {
++    targetPath = sub.substring(0, lastSlashInd);
++  } else {
++    targetPath = '';
++  }
++
++  logger.info(`[MCLOUD] Target path [getSharedFolderForAppUrl]: ${targetPath}`);
++  const folderExists = await fs.exists(targetPath);
++  if (!folderExists) {
++    await fs.mkdir(targetPath, {recursive: true});
++  }
++  return targetPath;
++}
++
++exports.getSharedFolderForAppUrl = getSharedFolderForAppUrl;
++
++async function getLocalFileForAppUrl(url) {
++  let sub = url.substring(url.indexOf('//') + 2);
++  sub = sub.substring(sub.indexOf('/'));
++  if (sub.includes('?')) {
++    sub = sub.substring(0, sub.indexOf('?'));
++  }
++  sub = sub.replace(/\//g, path.sep);
++
++  const targetPath = path.join(await getLocalAppsFolder() as string, sub);
++  logger.info(`[MCLOUD] Target path [getLocalFileForAppUrl]: ${targetPath}`);
++  return targetPath;
++}
++
++async function getFileContentLength(remoteUrl) {
++  const timeout = 10000;
++  const retries = 5;
++  const pollingInterval = 3000;
++
++  const requestOpts = {
++    url: remoteUrl,
++    responseType: 'stream' as ResponseType,
++    timeout,
++  };
++
++  // getting content-length with retry
++  let lastError;
++  const getLengthRequest = async () => {
++    for (let i = 0; i < retries; i++) {
++      try {
++        logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
++        const {
++          headers: responseHeaders,
++        } = await axios(requestOpts);
++        const responseLength = parseInt(responseHeaders['content-length'], 10);
++        logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
++        return responseLength;
++      } catch (error) {
++        lastError = error;
++        logger.warn(`[MCLOUD] Cannot fetch info about app size. Will retry attempt in ${pollingInterval}ms`);
++        await new Promise((resolve) => setTimeout(resolve, pollingInterval));
++      }
++    }
++  };
++  const length = await getLengthRequest();
++  if (length) {
++    return length;
++  } else {
++    throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
++  }
++}
++
++async function executeShell(shellCommand, description) {
++  const execPromisify = util.promisify(exec);
++  try {
++    const { stderr } = await execPromisify(shellCommand);
++    if (stderr) {
++      logger.info(`[MCLOUD] ${description} stderr: ${stderr}`);
++      return;
++    }
++    logger.info(`[MCLOUD] ${description} command was successfully executed`);
++  } catch (error) {
++    logger.info(`[MCLOUD] ${description} error: ${error.message}`);
++    return;
++  }
++}
++
++async function executeShellWPromise(shellCommand) {
++  const execPromisify = util.promisify(exec);
++  return await execPromisify(shellCommand);
++}
++
++async function parseWDAUrl() {
++  const wdaHost = process.env.WDA_HOST;
++  const wdaPort = process.env.WDA_PORT;
++  return `http://${wdaHost}:${wdaPort}/status`;
++}
++
++async function getWDAStatus(wdaURL) {
++  try {
++    return (await axios({
++      url: wdaURL,
++      method: 'GET',
++      timeout: 500,
++    })).data;
++    } catch (e) {
++    logger.info(`[MCLOUD] Cannot send GET request to '${wdaURL}'. Original error: ${e.message}`);
++    return undefined;
++    }
++}
++
++export {
++  isInSharedStorage,
++  getLocalAppsFolder,
++  getSharedFolderForAppUrl,
++  getLocalFileForAppUrl,
++  getFileContentLength,
++  executeShell,
++  executeShellWPromise,
++  parseWDAUrl,
++  getWDAStatus
++};
+diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
+index 02822a2..eda0353 100644
+--- a/packages/base-driver/lib/protocol/protocol.ts
++++ b/packages/base-driver/lib/protocol/protocol.ts
+@@ -474,6 +474,118 @@ function buildHandler(
+           })}`
+       );
+     } catch (err) {
++      // token: string - auth token from stf
++      // udid: string -  unique id of device
++      // note: string - comment with error for device which would shows in stf
++      // status: string - new status for device if null, update only note
++      async function updateDevice(token, udid, note?: string, status?: string) {
++        // skip without the STF settings: STF_AUTH_TOKEN, DEVICE_UDID and STF_API_URL
++        if (!token || !udid || !process.env.STF_API_URL) {
++          return;
++        }
++        const url = `${process.env.STF_API_URL}/devices/${udid}`;
++
++        const headers = {
++          'Authorization': `Bearer ${token}`,
++          'Content-Type': 'application/json'
++        };
++
++        const data = status ? { device: { status, note } } : { device: { note } };
++
++        try {
++          const response = await fetch(url, {
++            method: 'PUT',
++            headers,
++            body: JSON.stringify(data)
++          });
++
++          if (!response.ok) {
++            throw new Error(`[MCLOUD] HTTP Error ${response.status}.`);
++          }
++
++          const responseData = await response.json();
++          getLogger(driver, req.params.sessionId || newSessionId).info('[MCLOUD] Successful response: ', responseData);
++
++          return responseData;
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error('[MCLOUD] Request error: ', error.message);
++          throw error;
++        }
++      }
++
++      const token = process.env.STF_AUTH_TOKEN;
++      const udid = process.env.DEVICE_UDID;
++
++      // handling error with Cannot find any free port in range
++      if (err.message.toLowerCase().includes('cannot find any free port in range')) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Cannot find any free port in range. Error message: ${err.message} Appium exit with code 1.`);
++        // Exiting with code 1 to indicate an error
++        process.exit(1);
++      }
++
++      // handling error with ENOSPC: no space left on device, mkdir '/tmp/ and exit with code 0
++      if (err.message.toLowerCase().includes('no space left on device') || err.message.toLowerCase().includes('adb: failed to install')) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] ENOSPC error, no space left on device, Error message:${err.message}. exit code 0. Device is Unhealthy.`);
++        // process.exit(0);
++        try {
++          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++        }
++      }
++
++      // Check if the error 'socket hang up' occurred and do exit 0
++      if (err.message.toLowerCase().includes('socket hang up') && err.message.toLowerCase().includes('could not proxy command to the remote server')) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Proxy command error. Error message:${err.message}. Device is Unhealthy.`);
++        // process.exit(0);
++        try {
++          await updateDevice(token, udid, err.message); // device status will not change
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++        }
++      }
++
++      // Check if the error 'device setup is not yet complete' occurred and do exit 1
++      if (err.message.toLowerCase().includes('device setup is not yet complete')) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Device setup error. Error message:${err.message}. Device is Unhealthy.`);
++        // process.exit(0);
++        try {
++          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`);
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++        }
++      }
++
++       // Check if the error is related to executing the 'am' shell command and do exit code 0
++      if (err.message.toLowerCase().includes("cannot execute the 'am' shell command")) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Execute 'am' shell error. Error message:${err.message}. Device is Unhealthy.`);
++        // process.exit(0);
++        try {
++          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`);
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++        }
++      }
++
++      if (err.message.toLowerCase().includes('the session identified by') && err.message.toLowerCase().includes('is not known')) {
++        getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
++        // process.exit(0);
++        try {
++          await updateDevice(token, udid, err.message); // device status will not change
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Comment with Error details added in STF for device with UDID ${udid}.`);
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred while adding comment for device with UDID in STF ${udid}. Error: ${error}.`);
++        }
++      }
++
++      // PATCH #2 <appium>/node_modules/appium/node_modules/appium-base-driver/build/lib/protocol/protocol.js to return to carina "DEBUG info" about problematic step
++      if (err.message !== 'An element could not be located on the page using the given search parameters.') {
++        err.message = `${err.message}[[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]]`;
++      }
+       // if anything goes wrong, figure out what our response should be
+       // based on the type of error that we encountered
+       let actualErr;
+diff --git a/packages/base-driver/lib/protocol/routes.js b/packages/base-driver/lib/protocol/routes.js
+index 2cbe100..5a82d4b 100644
+--- a/packages/base-driver/lib/protocol/routes.js
++++ b/packages/base-driver/lib/protocol/routes.js
+@@ -34,6 +34,12 @@ export const METHOD_MAP = /** @type {const} */ ({
+   '/status': {
+     GET: {command: 'getStatus'},
+   },
++  '/status-wda': {
++    GET: {command: 'getStatusWDA', payloadParams: {optional: ['exitCode'], makeArgs: (jsonObj) => [jsonObj?.exitCode]}}
++  },
++  '/status-adb': {
++    GET: {command: 'getStatusADB', payloadParams: {optional: ['exitCode'], makeArgs: (jsonObj) => [jsonObj?.exitCode]}}
++  },
+   '/session/:sessionId/timeouts': {
+     GET: {command: 'getTimeouts'},
+     POST: {
+@@ -637,4 +643,4 @@ function toCommandNameCacheKey(endpoint, method) {
+ }
+ 
+ // driver commands that do not require a session to already exist
+-export const NO_SESSION_ID_COMMANDS = ['createSession', 'getStatus', 'getAppiumSessions'];
++export const NO_SESSION_ID_COMMANDS = ['createSession', 'getStatus', 'getAppiumSessions', 'getStatusWDA', 'getStatusADB'];

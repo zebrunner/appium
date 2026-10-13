@@ -1,0 +1,8 @@
+---
+ignored:
+  # STF_AUTH_TOKEN is declared empty as documentation of the supported env vars; the real value is passed at runtime
+  - DL3064
+  # androidusr (uid 1300) is the user of the base image; the image runs on Docker (mcloud-agent), not Kubernetes runAsNonRoot
+  - DL3066
+  # the apt packages come from the Ubuntu release of the pinned base image; exact versions break when the mirror drops them
+  - DL3008

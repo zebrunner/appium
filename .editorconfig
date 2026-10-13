@@ -1,0 +1,27 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{js,mjs}]
+indent_style = space
+indent_size = 2
+
+# shell scripts, also the style of shfmt
+[*.sh]
+indent_style = space
+indent_size = 2
+shell_variant = bash
+space_redirects = true
+
+[{files/healthcheck,tests/fixtures/fake-adb}]
+indent_style = space
+indent_size = 2
+shell_variant = bash
+space_redirects = true

@@ -1,0 +1,4 @@
+# Formatting-only commits, skipped by `git blame` (git config blame.ignoreRevsFile .git-blame-ignore-revs) and GitHub
+
+# style(scripts): format with shfmt
+65ea73e0a27d83ebaf6f3f287ce2cfec103df246

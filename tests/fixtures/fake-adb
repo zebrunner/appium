@@ -1,0 +1,30 @@
+#!/bin/bash
+# A fake adb for the tests of files/module/android.sh and files/healthcheck: the device answers come from env vars
+#   FAKE_RELEASE          ro.build.version.release
+#   FAKE_CHARACTERISTICS  ro.build.characteristics
+#   FAKE_HARDWARE         ro.hardware
+#   FAKE_STATE            the state of `adb devices` (device, offline), kept in FAKE_STATE_FILE
+#   FAKE_RECONNECT_STATE  the state after `adb reconnect`
+# Other adb commands do nothing; `adb reconnect` is logged into FAKE_STATE_FILE.log.
+FAKE_STATE_FILE="${FAKE_STATE_FILE:-/tmp/fake-adb.state}"
+[[ -f "$FAKE_STATE_FILE" ]] || echo "${FAKE_STATE:-device}" > "$FAKE_STATE_FILE"
+
+if [[ "$1" == "shell" && "$2" == "getprop" ]]; then
+  case "$3" in
+  "")
+    printf '[ro.build.characteristics]: [%s]\n' "$FAKE_CHARACTERISTICS"
+    printf '[ro.build.version.release]: [%s]\n' "$FAKE_RELEASE"
+    printf '[ro.hardware]: [%s]\n' "$FAKE_HARDWARE"
+    ;;
+  ro.build.characteristics) echo "$FAKE_CHARACTERISTICS" ;;
+  ro.build.version.release) echo "$FAKE_RELEASE" ;;
+  ro.hardware) echo "$FAKE_HARDWARE" ;;
+  esac
+elif [[ "$1" == "devices" ]]; then
+  echo "List of devices attached"
+  printf 'udid-1\t%s\n\n' "$(cat "$FAKE_STATE_FILE")"
+elif [[ "$1" == "reconnect" ]]; then
+  echo reconnect >> "$FAKE_STATE_FILE.log"
+  echo "${FAKE_RECONNECT_STATE:-device}" > "$FAKE_STATE_FILE"
+fi
+exit 0
