@@ -152,7 +152,7 @@ index 07258f3..a9e8d31 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..1993e5f 100644
+index b3bdf5a..8aad846 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
@@ -187,7 +187,7 @@ index b3bdf5a..1993e5f 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +165,193 @@ export async function configureApp(
+@@ -161,38 +165,226 @@ export async function configureApp(
              }
            }
          }
@@ -195,15 +195,6 @@ index b3bdf5a..1993e5f 100644
 -          if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
 -            logger.info(`Reusing previously downloaded application at '${cachedAppInfo.fullPath}'`);
 -            return verifyAppExtension(/** @type {string} */ (cachedAppInfo.fullPath), supportedAppExtensions);
--          }
--          logger.info(
--            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
--              `or its integrity has been damaged. Deleting it from the internal cache`
--          );
--          APPLICATIONS_CACHE.delete(appCacheKey);
--
--          if (!stream.closed) {
--            stream.destroy();
 +
 +        // ***** Custom logic for verification of local static path for APPs *****
 +        let downloadIsNeeded = true;
@@ -217,6 +208,62 @@ index b3bdf5a..1993e5f 100644
 +        const appSizeCheckDisabled = process.env.APPIUM_APP_SIZE_DISABLE?.toLowerCase?.() === 'true';
 +        const appFetchRetriesEnv = parseInt(`${process.env.APPIUM_APP_FETCH_RETRIES}`, 10);
 +        let appFetchRetries = appFetchRetriesEnv >= 0 ? appFetchRetriesEnv : 3; // 0 disables the retries
++        // the session owns the .lock (it downloads the app) only when it created the .lock
++        let lockOwned = false;
++
++        // the creation time of the .lock, null when there is no .lock (anymore)
++        const lockCreatedTime = async () => {
++          try {
++            return (await fs.stat(lockFile)).ctime;
++          } catch (err) {
++            if (err.code === 'ENOENT') {
++              return null;
++            }
++            throw err;
++          }
++        };
++        // waits until the parallel download of another session (another Appium of the host) removes the .lock
++        const waitForParallelDownload = async () => {
++          let lockDetails = '';
++          try {
++            lockDetails = await fs.readFile(lockFile, 'utf8');
++          } catch (err) {
++            if (err.code !== 'ENOENT') {
++              throw err;
++            }
++          }
++          logger.info(`[MCLOUD] Local version of app not found but .lock file exists. Waiting for .lock to disappear. Device/session details: ${lockDetails}`);
++          let attemptsCount = 0;
++          let createdTime;
++          while ((createdTime = await lockCreatedTime()) && (attemptsCount++ < maxAttemptsCount)) {
++            const diffInSeconds = (new Date().getTime() - createdTime.getTime()) / 1000;
++            if (diffInSeconds >= maxLockFileLifetime) {
++              logger.info(`[MCLOUD] Removing .lock file since its lifetime reached to the limit`);
++              await fs.rimraf(lockFile);
++              throw Error(`[MCLOUD] .lock file was removed due to lifetime limit. New download attempt will start for the next session request`);
++            }
++            await new Promise((resolve) => {
++              logger.info(`[MCLOUD] Attempt #${attemptsCount} for .lock file checking`);
++              setTimeout(resolve, waitingTime);
++            });
+           }
+-          logger.info(
+-            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
+-              `or its integrity has been damaged. Deleting it from the internal cache`
+-          );
+-          APPLICATIONS_CACHE.delete(appCacheKey);
+-
+-          if (!stream.closed) {
+-            stream.destroy();
++          if (await lockCreatedTime()) {
++            throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
+           }
+-          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
++          if (!await fs.exists(localFile)) {
++            throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
++          }
++          logger.info(`[MCLOUD] Local version of app was found after .lock file removal. Will use it for new session`);
++        };
 +
 +
 +        if (localAppsFolder !== undefined) {
@@ -259,42 +306,14 @@ index b3bdf5a..1993e5f 100644
 +              newApp = localFile;
 +              downloadIsNeeded = false;
 +            }
-+          } else if (await fs.exists(lockFile)) {
-+            logger.info(`[MCLOUD] Local version of app not found but .lock file exists. Waiting for .lock to disappear`);
-+            logger.info(`[MCLOUD] .lock file parameters. Created time: ${(await fs.stat(lockFile)).ctime.toLocaleString('en-US', { timeZoneName: 'short' })}; device/session details: ${await fs.readFile(lockFile, 'utf8')}`);
-+            // Wait for some time till App is downloaded by some parallel Appium instance
-+            let attemptsCount = 0;
-+            while (await fs.exists(lockFile) && (attemptsCount++ < maxAttemptsCount)) {
-+              const stats = await fs.stat(lockFile);
-+              let diffInSeconds = (new Date().getTime() - stats.ctime.getTime()) / 1000;
-+              if (diffInSeconds >= maxLockFileLifetime) {
-+                logger.info(`[MCLOUD] Removing .lock file since its lifetime reached to the limit`);
-+                if (await fs.exists(lockFile)) {
-+                  await fs.unlink(lockFile);
-+                  throw Error(`[MCLOUD] .lock file was removed due to lifetime limit. New download attempt will start for the next session request`);
-+                } else {
-+                  logger.warn(`[MCLOUD] Lock file ${lockFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
-+                }
-+              }
-+              await new Promise((resolve) => {
-+                logger.info(`[MCLOUD] Attempt #${attemptsCount} for .lock file checking`);
-+                setTimeout(resolve, waitingTime);
-+              });
-+            }
-+            if (await fs.exists(lockFile)) {
-+              throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
-+            }
-+            if (!await fs.exists(localFile)) {
-+              throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
-+            }
-+            logger.info(`[MCLOUD] Local version of app was found after .lock file removal. Will use it for new session`);
++          } else if (await lockCreatedTime()) {
++            await waitForParallelDownload();
 +            newApp = localFile;
 +            downloadIsNeeded = false;
 +          } else {
 +            logger.info(`[MCLOUD] Neither local version of app nor .lock file was found. Will download app from remote URL.`);
 +            downloadIsNeeded = true;
-           }
--          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
++          }
 +        } else {
 +          logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic. Use variable APPIUM_APPS_DIR for path setting`);
          }
@@ -311,20 +330,33 @@ index b3bdf5a..1993e5f 100644
 -            prefix: fileName,
 -            suffix: '',
 -          }));
-+        if (downloadIsNeeded) {
-+          if (localAppsFolder !== undefined) {
-+            logger.info(`[MCLOUD] Local version of app was not found. Hence using default Appium logic for downloading`);
-+            const sharedFolderPath = await getSharedFolderForAppUrl(app);
-+            logger.info(`[MCLOUD] Folder for local shared apps: ${sharedFolderPath}`);
-+            // @ts-ignore
-+            await fs.close(await fs.open(lockFile, 'w'));
-+            let sessionId = process.env.sessionId ?? 'could not define session ID';
-+            let deviceId = process.env.DEVICE_UDID ?? 'could not define device UUID';
-+            const msg = `device UUID: ${deviceId}, session ID: ${sessionId}`;
-+            logger.info(`[MCLOUD] session/device info: ${msg}`);
-+            await fs.writeFile(lockFile, msg);
++        if (downloadIsNeeded && localAppsFolder !== undefined) {
++          logger.info(`[MCLOUD] Local version of app was not found. Hence using default Appium logic for downloading`);
++          const sharedFolderPath = await getSharedFolderForAppUrl(app);
++          logger.info(`[MCLOUD] Folder for local shared apps: ${sharedFolderPath}`);
++          let sessionId = process.env.sessionId ?? 'could not define session ID';
++          let deviceId = process.env.DEVICE_UDID ?? 'could not define device UUID';
++          const msg = `device UUID: ${deviceId}, session ID: ${sessionId}`;
++          logger.info(`[MCLOUD] session/device info: ${msg}`);
++          // 'wx' fails when the .lock exists: only one of the sessions starting together downloads the app
++          try {
++            await fs.writeFile(lockFile, msg, {flag: 'wx'});
++            lockOwned = true;
 +            logger.info(`[MCLOUD] lock file was written successfully`);
++          } catch (err) {
++            if (err.code !== 'EEXIST') {
++              throw err;
++            }
++            logger.info(`[MCLOUD] Another session has just started the download of the app`);
++            await waitForParallelDownload();
++            newApp = /** @type {string} */ (localFile);
++            downloadIsNeeded = false;
 +          }
++        }
++
++        if (downloadIsNeeded) {
++          // the temporary copy of the downloaded app in the shared storage, renamed when complete
++          const localTmpFile = localFile ? `${localFile}.${process.pid}.tmp` : '';
 +          try {
 +            if (cachedAppInfo && status === HTTP_STATUS_NOT_MODIFIED) {
 +              if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
@@ -386,19 +418,19 @@ index b3bdf5a..1993e5f 100644
 +            // ***** Custom logic for copying of downloaded app to static location *****
 +            if (localAppsFolder !== undefined) {
 +              logger.info(`[MCLOUD] New app path: ${newApp}`);
++              // other sessions never see a partial app: the complete copy is renamed into place
 +              // @ts-ignore
-+              await fs.copyFile(newApp, localFile);
++              await fs.copyFile(newApp, localTmpFile);
++              // @ts-ignore
++              await fs.rename(localTmpFile, localFile);
 +            }
 +          } finally {
-+            if (localAppsFolder !== undefined) {
++            if (localTmpFile) {
++              await fs.rimraf(localTmpFile);
++            }
++            if (lockOwned) {
 +              logger.info(`[MCLOUD] Going to remove lock file ${lockFile}`);
-+              // @ts-ignore
-+              if (await fs.exists(lockFile)) {
-+                // @ts-ignore
-+                await fs.unlink(lockFile);
-+              } else {
-+                logger.warn(`[MCLOUD] Lock file ${lockFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
-+              }
++              await fs.rimraf(lockFile);
 +            }
 +          }
          }
@@ -408,7 +440,7 @@ index b3bdf5a..1993e5f 100644
            stream.destroy();
          }
        }
-@@ -218,7 +377,10 @@ export async function configureApp(
+@@ -218,7 +410,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
