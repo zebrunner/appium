@@ -1,5 +1,5 @@
 diff --git a/packages/base-driver/lib/basedriver/core.ts b/packages/base-driver/lib/basedriver/core.ts
-index 53170a358..e14522e9a 100644
+index 53170a3..e14522e 100644
 --- a/packages/base-driver/lib/basedriver/core.ts
 +++ b/packages/base-driver/lib/basedriver/core.ts
 @@ -22,6 +22,7 @@ import {errors} from '../protocol';
@@ -70,7 +70,7 @@ index 53170a358..e14522e9a 100644
     * method required by MJSONWP in order to determine whether it should
     * respond with an invalid session response
 diff --git a/packages/base-driver/lib/basedriver/driver.ts b/packages/base-driver/lib/basedriver/driver.ts
-index 07258f35b..03e3fea07 100644
+index 07258f3..a9e8d31 100644
 --- a/packages/base-driver/lib/basedriver/driver.ts
 +++ b/packages/base-driver/lib/basedriver/driver.ts
 @@ -1,4 +1,6 @@
@@ -80,7 +80,7 @@ index 07258f35b..03e3fea07 100644
  import {
    BASE_DESIRED_CAP_CONSTRAINTS,
    type AppiumServer,
-@@ -360,6 +362,34 @@ export class BaseDriver<
+@@ -360,6 +362,36 @@ export class BaseDriver<
  
      this.log.info(`Session created with session id: ${this.sessionId}`);
  
@@ -99,7 +99,9 @@ index 07258f35b..03e3fea07 100644
 +    };
 +    // directory where .recording-artifact file should be created
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
-+    // Skip per-session markers when the requesting session owns recording externally
++    // When the requesting session owns recording externally (e.g. Playwright bridge
++    // owns one marker per test) skip per-session markers so they don't start/stop
++    // capture per command. This is per-session (capability), not container-wide.
 +    if (String(this.caps?.mcloudExternalRecording) === 'true') {
 +      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact create');
 +    }
@@ -115,7 +117,7 @@ index 07258f35b..03e3fea07 100644
      return [this.sessionId, caps] as CreateResult;
    }
  
-@@ -392,6 +422,31 @@ export class BaseDriver<
+@@ -392,6 +424,33 @@ export class BaseDriver<
          queues[key] = [];
        }
      }
@@ -129,7 +131,9 @@ index 07258f35b..03e3fea07 100644
 +      }
 +    };
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
-+    // Skip per-session markers when the requesting session owns recording externally
++    // When the requesting session owns recording externally (e.g. Playwright bridge)
++    // skip per-session marker removal so command-end can't trigger share/stop of the
++    // test recording. This is per-session (capability), not container-wide.
 +    if (String(this.caps?.mcloudExternalRecording) === 'true') {
 +      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact remove');
 +    }
@@ -148,7 +152,7 @@ index 07258f35b..03e3fea07 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a2e..23ecdbf6e 100644
+index b3bdf5a..1993e5f 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
@@ -417,8 +421,9 @@ index b3bdf5a2e..23ecdbf6e 100644
        }
        const integrity = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-index e69de29bb..f400bf776 100644
---- a/packages/base-driver/lib/basedriver/mcloud-utils.ts
+new file mode 100644
+index 0000000..f400bf7
+--- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 @@ -0,0 +1,140 @@
 +import {fs} from '@appium/support';
@@ -562,7 +567,7 @@ index e69de29bb..f400bf776 100644
 +  getWDAStatus
 +};
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a28c..7687d2f85 100644
+index 02822a2..eda0353 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
 @@ -474,6 +474,118 @@ function buildHandler(
@@ -685,7 +690,7 @@ index 02822a28c..7687d2f85 100644
        // based on the type of error that we encountered
        let actualErr;
 diff --git a/packages/base-driver/lib/protocol/routes.js b/packages/base-driver/lib/protocol/routes.js
-index 2cbe100f1..8a82e013b 100644
+index 2cbe100..5a82d4b 100644
 --- a/packages/base-driver/lib/protocol/routes.js
 +++ b/packages/base-driver/lib/protocol/routes.js
 @@ -34,6 +34,12 @@ export const METHOD_MAP = /** @type {const} */ ({

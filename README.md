@@ -154,6 +154,10 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 
   `files/patch/appium-3_1_1.diff` is the same patch for the Appium sources.
 
+### Change the patch
+
+The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` copied into the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
+
 * Download the [go-ios](https://github.com/danielpaulus/go-ios/releases) v1.0.204 utility (`go-ios-mac.zip`) and put it into `/usr/local/bin`
 
   > Make sure to unblock it as it goes from not identified developer on MacOS
@@ -169,6 +173,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `make image` | the image build and contents, the Android module with a fake adb, the default capabilities with the installed drivers, Appium startup with the env vars of the image and of mcloud-agent, shutdown, the `appium-image` stage | Docker |
 | `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
 | `make e2e` | iOS and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd, video recording of sessions, `docker stop` | Docker |
+| `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
 
 The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides the tag, `REBUILD=true` forces a new build, `SKIP_BUILD=true` skips the build of `make image`). The image is amd64 only, so on Apple silicon it runs emulated and the docker tests take a while. With `JUNIT_DIR` set the results are also written as JUnit XML.
 

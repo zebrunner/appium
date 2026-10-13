@@ -4,10 +4,10 @@ VENV := .venv
 export PATH := $(CURDIR)/$(VENV)/bin:$(PATH)
 
 .DEFAULT_GOAL := help
-.PHONY: help check lint test docker image patch e2e
+.PHONY: help check lint test docker image patch e2e patch-sync patch-build
 
 help: ## this list
-	@grep -E '^[a-z0-9]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/'
+	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/'
 
 check: ## everything below, as CI runs it; every step runs, the failed ones fail the target
 	@status=0; for target in lint test docker; do $(MAKE) --no-print-directory $$target || status=1; done; exit $$status
@@ -18,8 +18,8 @@ lint: $(VENV)/.installed ## the linters (tests/lint.sh): yaml, workflows, Docker
 test: ## the tests of build.sh and the config generators, no docker needed
 	@status=0; for t in tests/build_test.sh tests/config_test.sh; do $$t || status=1; done; exit $$status
 
-docker: ## the docker tests: image, patch and e2e (the image is built once, IMAGE overrides its tag)
-	@status=0; for t in tests/image_test.sh tests/patch_test.sh tests/e2e_test.sh; do $$t || status=1; done; exit $$status
+docker: ## the docker tests: image, patch, e2e and patch-sync (the image is built once, IMAGE overrides its tag)
+	@status=0; for t in tests/image_test.sh tests/patch_test.sh tests/e2e_test.sh tests/patch_sync_test.sh; do $$t || status=1; done; exit $$status
 
 image: ## the image build, its contents and the Appium startup (tests/image_test.sh)
 	tests/image_test.sh
@@ -29,6 +29,12 @@ patch: ## the tests of the Appium patch inside the image (tests/patch_test.sh, t
 
 e2e: ## the device containers with a fake device: startup, health, video recording (tests/e2e_test.sh)
 	tests/e2e_test.sh
+
+patch-sync: ## the js files of the patch are the build of the patch diff (tests/patch_sync_test.sh)
+	tests/patch_sync_test.sh
+
+patch-build: ## rebuilds the js files of the patch from the patch diff (scripts/build-patch.sh)
+	scripts/build-patch.sh
 
 # The tools of tests/requirements-lint.txt in .venv; the hadolint-py wheel for macOS is broken, brew provides it there
 $(VENV)/.installed: tests/requirements-lint.txt
