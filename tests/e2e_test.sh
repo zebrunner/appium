@@ -196,6 +196,18 @@ check_shared "$IOS" ios-3 "back-to-back sessions, the second"
 
 check_shared_on_stop "$IOS" ios-4
 
+section "ios wireless"
+# a device without usb (WIRELESS=true): no usbmuxd forwarding, the WDA based detection still runs
+WIRELESS_IOS="${NET}-ios-wireless"
+start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true
+if check_starts "$WIRELESS_IOS"; then
+  check_contains "the usbmuxd setup is skipped" "WIRELESS=true: skipping usbmuxd setup" "$(docker logs "$WIRELESS_IOS" 2>&1)"
+  check "/var/run/usbmuxd is not forwarded" "no" "$(docker exec "$WIRELESS_IOS" bash -c 'test -S /var/run/usbmuxd && echo yes || echo no')"
+  check_contains "the platform version is detected from WDA" '"appium:platformVersion": "17.4"' \
+    "$(docker exec "$WIRELESS_IOS" cat /opt/config/defaultcapabilities.json)"
+fi
+docker rm -f "$WIRELESS_IOS" > /dev/null
+
 section "android"
 ANDROID="${NET}-android"
 start_device "$ANDROID" "" "${ANDROID_ENV[@]}"
