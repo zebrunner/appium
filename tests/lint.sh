@@ -26,6 +26,18 @@ run_check "hadolint" hadolint Dockerfile
 section "markdown"
 run_check "pymarkdown" pymarkdown scan README.md
 
+section "README"
+# the versions of the Dockerfile are listed in the README (Image contents)
+for pattern in 'FROM (appium\/appium:v[^ ]+) AS appium' 'appium driver install uiautomator2@([0-9.]+)' \
+  'appium driver install xcuitest@([0-9.]+)' 'ARG GO_IOS_VERSION=([^ ]+)' 'appium plugin install images@([0-9.]+)' 'sharp@([0-9.]+)'; do
+  version="$(sed -n -E "s/^.*${pattern}.*$/\1/p" Dockerfile | head -1)"
+  if [[ -n "$version" ]] && grep -qF "$version" README.md; then
+    pass "README lists ${version}"
+  else
+    fail "README lists the Dockerfile version of '${pattern}'" "'${version}' is missing in README.md" "update the Image contents of README.md"
+  fi
+done
+
 section "shell"
 scripts=(build.sh scripts/*.sh tests/fixtures/fake-adb files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh files/util/debug.sh tests/*.sh)
 for script in "${scripts[@]}"; do

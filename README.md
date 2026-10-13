@@ -1,12 +1,12 @@
 # Zebrunner MCloud Appium
 
-Enhanced Appium docker image for testing on physical devices (Android and iOS), including Phones, Tablets, TV and emulators/simulators.
+Enhanced Appium docker image for testing on Android and iOS devices: phones, tablets, Android TV, Apple TV (tvOS) and Android emulators including ReDroid.
 
 * It is built on top of [Appium](https://github.com/appium/appium/) and supports:
-  * Connection with iOS devices via the Linux Hardware
+  * iOS devices connected to a Linux host (usbmuxd of the connector container) and wireless tvOS devices
   * Integration with [STF](https://github.com/zebrunner/stf) for remote manual testing
   * Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure, etc.)
-  * Video recording capabilities including AppleTV, AndroidTV, and TizenTV
+  * Video recording of every session, including Apple TV and Android TV
   * Video recording for pre-conditions and mapping with test results in [Zebrunner Reporting](https://zebrunner.com/)
 
 Feel free to support the development with a [**donation**](https://www.paypal.com/donate/?hosted_button_id=MNHYYCYHAKUVA) for the next improvements.
@@ -16,6 +16,53 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 </p>
 
 > Follow the installation and configuration guide in [MCloud](https://github.com/zebrunner/mcloud) to reuse this image effectively.
+
+## Image contents
+
+| Component | Version |
+|---|---|
+| Base image | `appium/appium:v3.1.1-p0` (Appium 3.1.1) |
+| UiAutomator2 driver | 6.7.15 |
+| XCUITest driver | 10.18.2 |
+| go-ios | v1.0.204 |
+| images plugin, `appium-image` stage | 4.1.0 (with sharp 0.34.5) |
+
+The Appium base driver is patched for MCloud (`files/patch`): recording markers, the shared application storage, the device status endpoints and the STF device updates.
+
+## Run
+
+In MCloud every device has four containers, created by [mcloud-agent](https://github.com/zebrunner/mcloud-agent) (`roles/*devices/templates/zebrunner-farm` is the reference of all the options):
+
+* `connector`: the adb server (Android) or usbmuxd and WebDriverAgent (iOS) of the device
+* `device`: the STF provider and the screen broadcast of the device
+* `appium`: this image
+* `uploader`: uploads the artifacts of `/tmp/log` to S3
+
+The appium container reaches the others by the host names `connector` and `device` (`--link` or network aliases) and shares two volumes: the application storage of the host and the artifacts volume of the device with the uploader.
+
+```bash
+# Android
+docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
+  --link device-pixel-connector:connector --link device-pixel:device \
+  -v appium-storage-volume:/opt/appium-storage -v device-pixel:/tmp/log \
+  -e PLATFORM_NAME=android -e DEVICE_UDID=<udid> -e DEVICE_NAME=Pixel \
+  -e CONNECT_TO_GRID=true -e SELENIUM_HOST=<hub host> -e SELENIUM_PORT=4444 -e STF_PROVIDER_HOST=<host ip> \
+  -e DEFAULT_CAPABILITIES=true -e RELAXED_SECURITY=true \
+  -e STF_API_URL=<stf url>/api/v1 -e STF_AUTH_TOKEN=<token> \
+  -e APPIUM_PORT=4723 -p 4723:4723 \
+  public.ecr.aws/zebrunner/appium:<tag>
+
+# iOS: the same with
+#   -e PLATFORM_NAME=ios -e WDA_HOST=connector -e APPIUM_CLI=--session-override
+# a wireless tvOS device has no connector: -e WIRELESS=true -e WDA_HOST=<host of its WebDriverAgent>
+```
+
+## Health and restarts
+
+* The docker healthcheck (every 10 s) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
+* The container exits with `1` whenever Appium exits, so the `on-failure` restart policy starts it again. Appium exits with `101` when mcloud-grid finds the device or WDA down (`/status-adb`, `/status-wda` with `exitCode`): the container then waits `UNREGISTER_IF_STILL_DOWN_AFTER` plus 15 s for the hub to unregister the node.
+* A wrong configuration (e.g. `CONNECT_TO_GRID=true` without the hub) ends the container with the reason in its log; an iOS container ends when WebDriverAgent does not answer in `DEVICE_TIMEOUT`.
+* `DEBUG=true` keeps an ending container for `DEBUG_TIMEOUT` seconds to look into it.
 
 ## Build
 
@@ -169,11 +216,11 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 
 | Command | What is checked | Needs |
 |---|---|---|
-| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, the patch files | Python 3, hadolint on macOS: `brew install hadolint` |
+| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, the patch files, the Dockerfile versions in this README | Python 3, hadolint on macOS: `brew install hadolint` |
 | `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh` | bash, Python 3, jq |
-| `make image` | the image build and contents, the Android module with a fake adb, the default capabilities with the installed drivers, Appium startup with the env vars of the image and of mcloud-agent, shutdown, the `appium-image` stage | Docker |
+| `make image` | the image build and contents, the Android and iOS modules and the healthcheck with a fake adb and WDA, the default capabilities with the installed drivers, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
 | `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
-| `make e2e` | iOS and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd, video recording of sessions, `docker stop` | Docker |
+| `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions, `docker stop`, the exit code 101 of mcloud-grid | Docker |
 | `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
 
 The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides the tag, `REBUILD=true` forces a new build, `SKIP_BUILD=true` skips the build of `make image`). The image is amd64 only, so on Apple silicon it runs emulated and the docker tests take a while. With `JUNIT_DIR` set the results are also written as JUnit XML.
