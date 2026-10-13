@@ -152,26 +152,39 @@ index 07258f3..a9e8d31 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..8aad846 100644
+index b3bdf5a..abb26cb 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
  import AsyncLock from 'async-lock';
  import axios from 'axios';
  import B from 'bluebird';
-+import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength } from './mcloud-utils';
++import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage } from './mcloud-utils';
  
  // for compat with running tests transpiled and in-place
  export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
-@@ -28,6 +29,7 @@ const APPLICATIONS_CACHE = new LRUCache({
+@@ -27,7 +28,10 @@ const APPLICATIONS_CACHE = new LRUCache({
+       `The application '${app}' cached at '${fullPath}' has ` +
          `expired after ${CACHED_APPS_MAX_AGE_MS}ms`
      );
-     if (fullPath) {
+-    if (fullPath) {
++    if (fullPath && isInSharedStorage(fullPath)) {
++      logger.info(`[MCLOUD] APPLICATIONS_CACHE setting. Keeping the file of the shared storage: ${fullPath}`);
++    } else if (fullPath) {
 +      logger.info(`[MCLOUD] APPLICATIONS_CACHE setting. Deleting files by path: ${fullPath}`);
        fs.rimraf(fullPath);
      }
    },
-@@ -50,6 +52,7 @@ process.on('exit', () => {
+@@ -43,13 +47,15 @@ process.on('exit', () => {
+     return;
+   }
+ 
+-  const appPaths = [...APPLICATIONS_CACHE.values()].map(({fullPath}) => fullPath);
++  // the files of the shared storage are kept for the other Appium of the host
++  const appPaths = [...APPLICATIONS_CACHE.values()].map(({fullPath}) => fullPath).filter((fullPath) => !isInSharedStorage(fullPath));
+   logger.debug(
+     `Performing cleanup of ${appPaths.length} cached ` +
+       util.pluralize('application', appPaths.length)
    );
    for (const appPath of appPaths) {
      try {
@@ -179,7 +192,7 @@ index b3bdf5a..8aad846 100644
        // @ts-ignore it's defined
        fs.rimrafSync(appPath);
      } catch (e) {
-@@ -100,6 +103,7 @@ export async function configureApp(
+@@ -100,6 +106,7 @@ export async function configureApp(
    let newApp = app;
    const originalAppLink = app;
    let packageHash = null;
@@ -187,7 +200,7 @@ index b3bdf5a..8aad846 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +165,226 @@ export async function configureApp(
+@@ -161,38 +168,226 @@ export async function configureApp(
              }
            }
          }
@@ -440,7 +453,7 @@ index b3bdf5a..8aad846 100644
            stream.destroy();
          }
        }
-@@ -218,7 +410,10 @@ export async function configureApp(
+@@ -218,7 +413,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
@@ -454,10 +467,10 @@ index b3bdf5a..8aad846 100644
        const integrity = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..f400bf7
+index 0000000..e15aca3
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,152 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
@@ -475,6 +488,17 @@ index 0000000..f400bf7
 +  } else {
 +    return process.env.APPIUM_APPS_DIR;
 +  }
++}
++
++// whether the path is in the shared application storage (APPIUM_APPS_DIR): those files are kept for all the
++// Appium of the host and must not be removed by the cleanup of the cached applications
++function isInSharedStorage(fullPath?: string): boolean {
++  const appsDir = process.env.APPIUM_APPS_DIR;
++  if (!appsDir || !fullPath) {
++    return false;
++  }
++  const relative = path.relative(path.resolve(appsDir), path.resolve(fullPath));
++  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 +}
 +
 +async function getSharedFolderForAppUrl(url) {
@@ -589,6 +613,7 @@ index 0000000..f400bf7
 +}
 +
 +export {
++  isInSharedStorage,
 +  getLocalAppsFolder,
 +  getSharedFolderForAppUrl,
 +  getLocalFileForAppUrl,

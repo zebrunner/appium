@@ -2,12 +2,32 @@
 // (a volume shared by the devices of a host) and guarded by <app>.lock files during the download
 import {test, describe, before, after, beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {helpers, listen, tmpDir, withEnv} from './common.mjs';
+import {BASE_DRIVER_DIR, helpers, listen, tmpDir, withEnv} from './common.mjs';
 
 const {configureApp} = helpers;
 const OPTS = {supportedExtensions: ['.apk']};
+
+// session(url, env): configureApp in another node process, like a session of another device container of the host;
+// resolves {result} or {error}
+function session(url, env) {
+  const code = `
+    const {configureApp} = require(${JSON.stringify(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/helpers.js'))});
+    configureApp(${JSON.stringify(url)}, {supportedExtensions: ['.apk']})
+      .then((result) => console.log(JSON.stringify({result})), (e) => console.log(JSON.stringify({error: e.message})));`;
+  const child = spawn(process.execPath, ['-e', code], {env: {...process.env, ...env}, stdio: ['ignore', 'pipe', 'ignore']});
+  let out = '';
+  child.stdout.on('data', (chunk) => (out += chunk));
+  return new Promise((resolve) => child.on('close', () => {
+    try {
+      resolve(JSON.parse(out.trim().split('\n').pop()));
+    } catch {
+      resolve({error: `no result: ${out.slice(-200)}`});
+    }
+  }));
+}
 
 describe('shared application storage', () => {
   let remote;
@@ -116,6 +136,60 @@ describe('shared application storage', () => {
       assert.deepEqual(fs.readFileSync(localFile), app);
     });
     assert.equal(fs.existsSync(`${localFile}.lock`), false, 'no .lock left');
+  });
+
+  test('the stored app survives the exit of the Appium process that used it', async () => {
+    fs.mkdirSync(path.dirname(localFile), {recursive: true});
+    fs.writeFileSync(localFile, app);
+    const appsEnv = Object.fromEntries(Object.entries(env()).filter(([, value]) => value !== undefined));
+    const {result, error} = await session(url, appsEnv);
+    assert.equal(error, undefined);
+    assert.equal(result, localFile);
+    // the cleanup of the cached apps on the exit of the process keeps the files of the shared storage
+    assert.deepEqual(fs.readFileSync(localFile), app);
+  });
+
+  test('two Appium processes (devices of a host) starting together download the app once', async () => {
+    const appsEnv = Object.fromEntries(Object.entries(env()).filter(([, value]) => value !== undefined));
+    for (let run = 1; run <= 3; run++) {
+      // the first requests of both sessions are answered together, so both look for the stored app at the same time
+      const held = [];
+      let holding = true;
+      const release = () => {
+        holding = false;
+        held.splice(0).forEach((send) => send());
+      };
+      // a safety net when a session does not request at all
+      const timer = setTimeout(release, 10000);
+      const server = await listen((req, res) => {
+        const send = () => {
+          res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length});
+          res.end(app);
+        };
+        if (holding) {
+          held.push(send);
+          if (held.length === 2) {
+            clearTimeout(timer);
+            release();
+          }
+        } else {
+          send();
+        }
+      });
+      const dir = tmpDir('apps');
+      const stored = path.join(dir, 'race', 'app.apk');
+      try {
+        const results = await Promise.all([1, 2].map(() => session(`${server.url}/race/app.apk`, {...appsEnv, APPIUM_APPS_DIR: dir})));
+        const outcome = `run ${run}: ${JSON.stringify(results)}`;
+        assert.deepEqual(results.filter((r) => r.error), [], outcome);
+        assert.equal(results.filter((r) => r.result === stored).length, 1, `one session uses the stored app, ${outcome}`);
+        assert.deepEqual(fs.readFileSync(stored), app, outcome);
+        assert.deepEqual(fs.readdirSync(path.dirname(stored)), ['app.apk'], `no .lock or temporary file left, ${outcome}`);
+      } finally {
+        clearTimeout(timer);
+        await server.close();
+      }
+    }
   });
 
   test('a .lock that is not removed in APPIUM_APP_WAITING_TIMEOUT fails the session', async () => {
