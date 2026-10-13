@@ -27,7 +27,7 @@ section "markdown"
 run_check "pymarkdown" pymarkdown scan README.md
 
 section "shell"
-scripts=(build.sh scripts/*.sh files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh files/util/debug.sh tests/*.sh)
+scripts=(build.sh scripts/*.sh tests/fixtures/fake-adb files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh files/util/debug.sh tests/*.sh)
 for script in "${scripts[@]}"; do
   run_check "bash -n ${script}" bash -n "$script"
 done

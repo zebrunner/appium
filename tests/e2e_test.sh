@@ -170,8 +170,15 @@ fi
 
 section "ios recording"
 line="$(fake_log_lines)"
-session "$IOS" ios-1 8
+# the other files of LOG_DIR are reports of the session, the WDA log is shared only with SHARE_WDA_LOG=true
+docker exec "$IOS" bash -c 'touch /tmp/log/.recording-artifact-ios-1; echo report > /tmp/log/custom-report.txt; echo wda > /tmp/log/wda.log'
+sleep 8
+docker exec "$IOS" rm -f /tmp/log/.recording-artifact-ios-1
 check_shared "$IOS" ios-1 "a session"
+check "a session: the other files of LOG_DIR are moved to the session" "report|no" \
+  "$(docker exec "$IOS" bash -c 'echo "$(cat /tmp/log/ios-1/custom-report.txt)|$(test -e /tmp/log/custom-report.txt && echo yes || echo no)"')"
+check "a session: the WDA log is not shared by default" "no|wda" \
+  "$(docker exec "$IOS" bash -c 'echo "$(test -e /tmp/log/ios-1/wda.log && echo yes || echo no)|$(cat /tmp/log/wda.log)"')"
 check_contains "the video is read from the WDA MJPEG server" "[MJPEG] client connected" \
   "$(docker logs "$FAKE" 2>&1 | tail -n +"$((line + 1))")"
 check "the STF broadcast is not used" "" "$(stf_events_since "$line")"
@@ -187,14 +194,26 @@ check_shared "$IOS" ios-3 "back-to-back sessions, the second"
 check_shared_on_stop "$IOS" ios-4
 
 section "ios wireless"
-# a device without usb (WIRELESS=true): no usbmuxd forwarding, the WDA based detection still runs
+# a device without usb (WIRELESS=true): no usbmuxd forwarding, the WDA based detection still runs;
+# also SHARE_WDA_LOG=true and a MJPEG server without frames
 WIRELESS_IOS="${NET}-ios-wireless"
-start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true
+start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true SHARE_WDA_LOG=true MJPEG_PORT=8102
 if check_starts "$WIRELESS_IOS"; then
   check_contains "the usbmuxd setup is skipped" "WIRELESS=true: skipping usbmuxd setup" "$(docker logs "$WIRELESS_IOS" 2>&1)"
   check "/var/run/usbmuxd is not forwarded" "no" "$(docker exec "$WIRELESS_IOS" bash -c 'test -S /var/run/usbmuxd && echo yes || echo no')"
   check_contains "the platform version is detected from WDA" '"appium:platformVersion": "17.4"' \
     "$(docker exec "$WIRELESS_IOS" cat /opt/config/defaultcapabilities.json)"
+  docker exec "$WIRELESS_IOS" bash -c 'echo wda > /tmp/log/wda.log; touch /tmp/log/.recording-artifact-w1'
+  sleep 6
+  docker exec "$WIRELESS_IOS" rm -f /tmp/log/.recording-artifact-w1
+  if wait_for 60 shared "$WIRELESS_IOS" w1; then
+    check "SHARE_WDA_LOG=true: the WDA log is moved to the session" "wda|" \
+      "$(docker exec "$WIRELESS_IOS" bash -c 'echo "$(cat /tmp/log/w1/wda.log)|$(cat /tmp/log/wda.log)"')"
+    check "no video is shared when the MJPEG server sends no frames" "no" \
+      "$(docker exec "$WIRELESS_IOS" bash -c 'test -e /tmp/log/w1/video.mp4 && echo yes || echo no')"
+  else
+    fail "SHARE_WDA_LOG=true: the artifacts are shared" "no /tmp/log/.artifact-w1" "$(state_and_logs "$WIRELESS_IOS")"
+  fi
 fi
 docker rm -f "$WIRELESS_IOS" > /dev/null
 
@@ -229,5 +248,32 @@ check "back-to-back sessions: the first recording is finished before the second 
   "on connected closed off on connected closed off" "$(stf_events_since "$line")"
 
 check_shared_on_stop "$ANDROID" and-4
+
+section "hub down"
+# mcloud-grid checks the device with GET /status-adb {"exitCode": 101}: a missing device exits Appium with 101,
+# the container waits UNREGISTER_IF_STILL_DOWN_AFTER and 15 s for the hub to unregister the node, then exits with 1
+HUB_DOWN="${NET}-hub-down"
+start_device "$HUB_DOWN" "" "${ANDROID_ENV[@]}" UNREGISTER_IF_STILL_DOWN_AFTER=1000
+if wait_for 180 appium_up "$HUB_DOWN"; then
+  docker exec "$HUB_DOWN" curl -s -o /dev/null -X GET -H 'Content-Type: application/json' -d '{"exitCode": 101}' \
+    http://127.0.0.1:4723/wd/hub/status-adb
+  start=$SECONDS
+  if wait_for 90 container_exited "$HUB_DOWN"; then
+    elapsed=$((SECONDS - start))
+    check "/status-adb with exitCode 101 for a missing device: the container exits with 1" "1" \
+      "$(docker inspect "$HUB_DOWN" --format '{{.State.ExitCode}}')"
+    check_contains "/status-adb with exitCode 101 for a missing device: Appium exits with 101" "Exit status: 101" "$(docker logs "$HUB_DOWN" 2>&1)"
+    if [[ "$elapsed" -ge 15 ]]; then
+      pass "/status-adb with exitCode 101: the container waits for the hub before the exit"
+    else
+      fail "/status-adb with exitCode 101: the container waits for the hub before the exit" "exited after ${elapsed}s" \
+        "$(docker logs "$HUB_DOWN" 2>&1 | tail -10)"
+    fi
+  else
+    fail "/status-adb with exitCode 101 for a missing device: the container exits" "still running" "$(state_and_logs "$HUB_DOWN")"
+  fi
+else
+  fail "/status-adb with exitCode 101: Appium starts" "no Appium status" "$(state_and_logs "$HUB_DOWN")"
+fi
 
 finish

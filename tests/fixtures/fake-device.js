@@ -1,23 +1,27 @@
 // The device side of the appium container for tests/e2e_test.sh, run with node as the `connector` and `device` hosts:
-// WDA (8100), the WDA MJPEG server (8101), usbmuxd (2222) and the adb server (5037) of the connector (connections are
-// logged only)
+// WDA (8100), the WDA MJPEG server (8101), a MJPEG server without frames (8102), usbmuxd (2222) and the adb server
+// (5037) of the connector (connections are logged only)
 // and the STF screen broadcast (2223, 'on'/'off' control and the MJPEG stream).
-// The frames are JPEG files of FRAMES_DIR, the log lines are parsed by the test.
+// The frames are JPEG files of FRAMES_DIR (none without it), FAKE_OS_NAME / FAKE_OS_VERSION are the os of the WDA
+// status (iOS 17.4 by default), the log lines are parsed by the test.
 const http = require('http');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
 
 const dir = process.env.FRAMES_DIR ?? '/frames';
-const frames = fs.readdirSync(dir).filter(f => f.endsWith('.jpg')).sort().map(f => fs.readFileSync(path.join(dir, f)));
+const frames = fs.existsSync(dir)
+  ? fs.readdirSync(dir).filter(f => f.endsWith('.jpg')).sort().map(f => fs.readFileSync(path.join(dir, f)))
+  : [];
 let idx = 0;
-const next = () => frames[idx++ % frames.length];
+const next = () => frames[idx++ % frames.length] ?? Buffer.alloc(0);
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
 http.createServer((req, res) => {
   log('[WDA]', req.method, req.url);
   res.writeHead(200, {'Content-Type': 'application/json'});
-  res.end(JSON.stringify({value: {state: 'success', os: {name: 'iOS', version: '17.4'}, ready: true}, sessionId: null}));
+  const os = {name: process.env.FAKE_OS_NAME ?? 'iOS', version: process.env.FAKE_OS_VERSION ?? '17.4'};
+  res.end(JSON.stringify({value: {state: 'success', os, ready: true}, sessionId: null}));
 }).listen(8100);
 
 http.createServer((req, res) => {
@@ -31,6 +35,11 @@ http.createServer((req, res) => {
   }, 100);
   req.on('close', () => { clearInterval(t); log('[MJPEG] client closed'); });
 }).listen(8101);
+
+http.createServer((req, res) => {
+  log('[MJPEG] client connected, no frames');
+  res.writeHead(200, {'Content-Type': 'multipart/x-mixed-replace; boundary=frame'});
+}).listen(8102);
 
 net.createServer(sock => {
   log('[USBMUXD] client connected');

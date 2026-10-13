@@ -1,7 +1,8 @@
 // The error handler of the patched protocol: device context in error messages and STF device updates
 import {test, describe, before, after, beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {baseDriver, listen, request, startDriverServer, withEnv} from './common.mjs';
+import {spawnSync} from 'node:child_process';
+import {BASE_DRIVER_DIR, baseDriver, listen, request, startDriverServer, withEnv} from './common.mjs';
 
 const {BaseDriver} = baseDriver;
 
@@ -107,6 +108,19 @@ describe('error handler', () => {
       });
     }
   }
+
+  test('"Cannot find any free port in range" exits Appium with 1', () => {
+    // in a child node: the handler calls process.exit
+    const code = `
+      const http = require('http');
+      const b = require(${JSON.stringify(BASE_DRIVER_DIR)});
+      class D extends b.BaseDriver { async getStatus() { throw new Error('Cannot find any free port in range 8200..8299'); } }
+      b.server({routeConfiguringFunction: b.routeConfiguringFunction(new D({})), port: 0, hostname: '127.0.0.1'})
+        .then((server) => http.get({host: '127.0.0.1', port: server.address().port, path: '/status'}, () => process.exit(100))
+          .on('error', () => process.exit(101)));`;
+    const {status} = spawnSync(process.execPath, ['-e', code], {env: {...process.env, STF_API_URL: ''}, stdio: 'ignore', timeout: 60000});
+    assert.equal(status, 1);
+  });
 
   test('the error response is sent when STF fails', async () => {
     const res = await failWith('Device setup is not yet complete', {STF_API_URL: 'http://127.0.0.1:9/api/v1'});

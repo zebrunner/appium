@@ -105,6 +105,45 @@ check "Android 7.1 is not supported by UiAutomator2" "uiautomator2|Phone|7.1.2|[
 check "Android 6 is not supported by UiAutomator2" "uiautomator2|Phone|6.0|[warn] Android 6.0 is not supported" \
   "$(android_module 6.0 phone generic)"
 
+section "ios module"
+# ios_module <os name> <os version> [docker args...]: <exit status>|PLATFORM_VERSION|DEVICETYPE|<WDA error> of
+# files/module/ios.sh with a fake WDA (tests/fixtures/fake-device.js) in the container
+ios_module() {
+  docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures:/fixtures:ro" \
+    --env FAKE_OS_NAME="$1" --env FAKE_OS_VERSION="$2" --env WDA_HOST=127.0.0.1 --env USBMUXD_SOCKET_ADDRESS= \
+    "${@:3}" --entrypoint bash "$IMAGE" -c '
+    node /fixtures/fake-device.js > /tmp/fake.log 2>&1 &
+    for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:8100/status && break; sleep 0.5; done
+    detected="$(. /opt/ios.sh > /tmp/out 2>&1; echo "${PLATFORM_VERSION}|${DEVICETYPE}")"
+    status=$?
+    echo "${status}|${detected:-|}|$(grep -o "No response from WDA" /tmp/out)"' 2>&1
+}
+check "iOS 17.4 iPhone" "0|17.4|Phone|" "$(ios_module iOS 17.4)"
+check "iPadOS 17.4 is a tablet" "0|17.4|Tablet|" "$(ios_module iPadOS 17.4)"
+check "tvOS 18.0" "0|18.0|tvOS|" "$(ios_module tvOS 18.0)"
+check "no WDA in DEVICE_TIMEOUT: the startup stops" "1|||No response from WDA" \
+  "$(ios_module iOS 17.4 --env WDA_PORT=9 --env DEVICE_TIMEOUT=3)"
+
+section "healthcheck"
+# healthcheck_with <appium up: yes|no> <device state> <state after adb reconnect>: <exit status>|<adb reconnects>
+# of files/healthcheck with a fake adb (tests/fixtures/fake-adb) and a fake Appium status
+healthcheck_with() {
+  docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
+    --env APPIUM_UP="$1" --env FAKE_STATE="$2" --env FAKE_RECONNECT_STATE="$3" --entrypoint bash "$IMAGE" -c '
+    export PATH=/tmp/fakebin:$PATH
+    if [ "$APPIUM_UP" = yes ]; then
+      node -e "require(\"http\").createServer((req, res) => res.end(\"{}\")).listen(4723)" &
+      for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:4723/ && break; sleep 0.5; done
+    fi
+    healthcheck > /dev/null 2>&1
+    status=$?
+    echo "${status}|$(cat /tmp/fake-adb.state.log 2> /dev/null | wc -l | tr -d " ")"' 2>&1
+}
+check "Appium does not answer: unhealthy" "1|0" "$(healthcheck_with no device device)"
+check "the device is online: healthy" "0|0" "$(healthcheck_with yes device device)"
+check "the device is offline and comes back on adb reconnect: healthy" "0|1" "$(healthcheck_with yes offline device)"
+check "the device stays offline after adb reconnect: unhealthy" "1|1" "$(healthcheck_with yes offline offline)"
+
 section "startup"
 # the env vars of the appium container in zebrunner/mcloud-agent (roles/devices/templates/zebrunner-farm)
 MCLOUD_AGENT_ENV="PLATFORM_NAME=android DEVICE_UDID=udid-1 DEVICE_NAME=Pixel RETAIN_TASK=true CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=true"
@@ -120,6 +159,7 @@ variants=(
   "mcloud|the mcloud-agent settings (android)|${MCLOUD_AGENT_ENV}"
   "caps|DEFAULT_CAPABILITIES=true without the grid (android)|DEFAULT_CAPABILITIES=true PLATFORM_NAME=android DEVICE_UDID=udid-1"
   "caps-no-platform|DEFAULT_CAPABILITIES=true without PLATFORM_NAME|DEFAULT_CAPABILITIES=true"
+  "no-record|RECORD_ARTIFACTS=false|RECORD_ARTIFACTS=false"
   "grid|CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG|CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=false PLATFORM_NAME=android DEVICE_UDID=udid-1 SELENIUM_HOST=hub SELENIUM_PORT=4444 STF_PROVIDER_HOST=10.0.0.5"
 )
 for variant in "${variants[@]}"; do
@@ -181,6 +221,23 @@ if use_variant grid; then
     '"proxy": "com.zebrunner.mcloud.grid.MobileRemoteProxy"' "$(docker exec "$VARIANT" cat /opt/config/nodeconfig.json)"
   check_contains "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG: the ignored flag is logged" \
     "CUSTOM_NODE_CONFIG is ignored" "$(docker logs "$VARIANT" 2>&1)"
+fi
+
+# shellcheck disable=SC2329
+artifact_shared() {
+  docker exec "$1" test -f "/tmp/log/.artifact-$2"
+}
+if use_variant no-record; then
+  # a session of the patched driver: its marker is created and deleted
+  docker exec "$VARIANT" bash -c 'touch /tmp/log/.recording-artifact-s1; sleep 3; rm /tmp/log/.recording-artifact-s1'
+  if wait_for 60 artifact_shared "$VARIANT" s1; then
+    check "RECORD_ARTIFACTS=false: the session log is shared" "yes" \
+      "$(docker exec "$VARIANT" bash -c 'test -s /tmp/log/s1/session.log && echo yes || echo no')"
+    check "RECORD_ARTIFACTS=false: no video" "no" "$(docker exec "$VARIANT" bash -c 'test -e /tmp/log/s1/video.mp4 && echo yes || echo no')"
+    check_contains "RECORD_ARTIFACTS=false: the recording is skipped" "recording artifacts was disabled" "$(docker logs "$VARIANT" 2>&1)"
+  else
+    fail "RECORD_ARTIFACTS=false: the artifacts are shared" "no /tmp/log/.artifact-s1" "$(docker logs "$VARIANT" 2>&1 | tail -15)"
+  fi
 fi
 
 # APPIUM_CLI with several arguments reaches Appium as separate arguments
@@ -249,6 +306,15 @@ if [[ "${SKIP_PLUGIN_IMAGE:-false}" != "true" ]]; then
     check "the images plugin ${images_version} is installed" "$images_version" \
       "$(docker run --rm --platform "$PLATFORM" --entrypoint appium "${IMAGE}-images" plugin list --installed --json 2> /dev/null |
         python3 -c 'import json,sys; print(json.load(sys.stdin)["images"]["version"])' 2>&1)"
+    # APPIUM_PLUGINS=images of the stage reaches Appium
+    container="${PREFIX}-images"
+    docker run --detach --name "$container" --platform "$PLATFORM" "${IMAGE}-images" > /dev/null
+    if wait_for 120 appium_up "$container"; then
+      check_contains "APPIUM_PLUGINS=images: the plugin is active" "images@${images_version} (ACTIVE)" \
+        "$(docker exec "$container" cat /tmp/log/appium.log)"
+    else
+      fail "APPIUM_PLUGINS=images: the plugin is active" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
+    fi
   else
     fail "the appium-image stage builds (with the sharp check)" "docker build failed" "$(tail -60 "$WORK/docker-build-images.log")"
   fi

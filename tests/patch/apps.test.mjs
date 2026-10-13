@@ -16,6 +16,8 @@ describe('shared application storage', () => {
   let breaks = () => false;
   // onRequest(index): called for every request of the test app before the response
   let onRequest = () => {};
+  // the delay of every response, ms
+  let delay = 0;
   const counts = {};
 
   before(async () => {
@@ -23,12 +25,14 @@ describe('shared application storage', () => {
       res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length});
       const index = (counts[req.url] = (counts[req.url] ?? 0) + 1);
       onRequest(index);
-      if (breaks(index)) {
-        res.write(app.subarray(0, 10));
-        res.destroy();
-        return;
-      }
-      res.end(app);
+      setTimeout(() => {
+        if (breaks(index)) {
+          res.write(app.subarray(0, 10));
+          res.destroy();
+          return;
+        }
+        res.end(app);
+      }, delay);
     });
   });
   after(() => remote.close());
@@ -41,6 +45,7 @@ describe('shared application storage', () => {
     app = Buffer.alloc(2048, 1);
     breaks = () => false;
     onRequest = () => {};
+    delay = 0;
     appsDir = tmpDir('apps');
     // a new path every test: configureApp also keeps an in-memory cache by url
     n++;
@@ -100,6 +105,17 @@ describe('shared application storage', () => {
       assert.equal(await configureApp(url, OPTS), localFile);
     });
     assert.equal(remote.requests.filter((r) => r.url.startsWith(`/builds/${n}/`)).length, 1, 'only the initial request');
+  });
+
+  test('two parallel sessions of the same app download it once', async () => {
+    // a slow server: the second session starts while the first one downloads
+    delay = 500;
+    await withEnv(env(), async () => {
+      const results = await Promise.all([configureApp(url, OPTS), configureApp(url, OPTS)]);
+      assert.equal(results.filter((result) => result === localFile).length, 1, `one session uses the stored app: ${results}`);
+      assert.deepEqual(fs.readFileSync(localFile), app);
+    });
+    assert.equal(fs.existsSync(`${localFile}.lock`), false, 'no .lock left');
   });
 
   test('a .lock that is not removed in APPIUM_APP_WAITING_TIMEOUT fails the session', async () => {

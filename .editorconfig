@@ -20,7 +20,7 @@ indent_size = 2
 shell_variant = bash
 space_redirects = true
 
-[files/healthcheck]
+[{files/healthcheck,tests/fixtures/fake-adb}]
 indent_style = space
 indent_size = 2
 shell_variant = bash
