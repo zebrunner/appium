@@ -238,6 +238,20 @@ if use_variant no-record; then
   else
     fail "RECORD_ARTIFACTS=false: the artifacts are shared" "no /tmp/log/.artifact-s1" "$(docker logs "$VARIANT" 2>&1 | tail -15)"
   fi
+
+  # without ffmpeg (RECORD_ARTIFACTS=false) the video files of the sessions are put by the test: an ffmpeg output
+  # without frames (36 bytes) is not shared, a real video is
+  docker exec "$VARIANT" bash -c 'head -c 36 /dev/zero > /tmp/s2.mp4; head -c 4096 /dev/zero > /tmp/s3.mp4
+    touch /tmp/log/.recording-artifact-s2 /tmp/log/.recording-artifact-s3; sleep 2
+    rm /tmp/log/.recording-artifact-s2 /tmp/log/.recording-artifact-s3'
+  if wait_for 60 artifact_shared "$VARIANT" s2 && wait_for 60 artifact_shared "$VARIANT" s3; then
+    check "a video without frames (36 bytes) is not shared and removed" "no|no" \
+      "$(docker exec "$VARIANT" bash -c 'echo "$(test -e /tmp/log/s2/video.mp4 && echo yes || echo no)|$(test -e /tmp/s2.mp4 && echo yes || echo no)"')"
+    check_contains "a video without frames is logged" "video for s2 is 36 bytes (no frames captured)" "$(docker logs "$VARIANT" 2>&1)"
+    check "a video of 4 KB is shared" "4096" "$(docker exec "$VARIANT" bash -c 'wc -c < /tmp/log/s3/video.mp4' 2>&1 | tr -d ' ')"
+  else
+    fail "the video files of the sessions are handled" "no /tmp/log/.artifact-s2 or -s3" "$(docker logs "$VARIANT" 2>&1 | tail -15)"
+  fi
 fi
 
 # APPIUM_CLI with several arguments reaches Appium as separate arguments
