@@ -29,7 +29,7 @@ run_check "pymarkdown" pymarkdown scan README.md
 section "README"
 # the versions of the Dockerfile are listed in the README (Image contents)
 for pattern in 'FROM (appium\/appium:v[^ ]+) AS appium' 'appium driver install uiautomator2@([0-9.]+)' \
-  'appium driver install xcuitest@([0-9.]+)' 'ARG GO_IOS_VERSION=([^ ]+)' 'appium plugin install images@([0-9.]+)' 'sharp@([0-9.]+)'; do
+  'appium driver install xcuitest@([0-9.]+)' 'appium plugin install images@([0-9.]+)' 'sharp@([0-9.]+)'; do
   version="$(sed -n -E "s/^.*${pattern}.*$/\1/p" Dockerfile | head -1)"
   if [[ -n "$version" ]] && grep -qF "$version" README.md; then
     pass "README lists ${version}"

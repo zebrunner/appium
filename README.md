@@ -24,7 +24,6 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 | Base image | `appium/appium:v3.1.1-p0` (Appium 3.1.1) |
 | UiAutomator2 driver | 6.7.15 |
 | XCUITest driver | 10.18.2 |
-| go-ios | v1.0.204 |
 | images plugin, `appium-image` stage | 4.1.0 (with sharp 0.34.5) |
 
 The Appium base driver is patched for MCloud (`files/patch`): recording markers, the shared application storage, the device status endpoints and the STF device updates.
@@ -205,10 +204,6 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 ### Change the patch
 
 The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` copied into the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
-
-* Download the [go-ios](https://github.com/danielpaulus/go-ios/releases) v1.0.204 utility (`go-ios-mac.zip`) and put it into `/usr/local/bin`
-
-  > Make sure to unblock it as it goes from not identified developer on MacOS
 
 ## Checks
 

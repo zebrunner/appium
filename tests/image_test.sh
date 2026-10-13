@@ -40,8 +40,6 @@ for driver in uiautomator2 xcuitest; do
   check "${driver} driver ${version}" "$version" \
     "$(printf '%s' "$drivers" | python3 -c "import json,sys; print(json.load(sys.stdin)['${driver}']['version'])" 2>&1)"
 done
-go_ios_version="$(dockerfile_value 'ARG GO_IOS_VERSION=([^ ]+)')"
-check_contains "go-ios ${go_ios_version}" "\"version\":\"${go_ios_version}\"" "$(in_image 'ios --version')"
 check "the tools of the scripts are installed" "" \
   "$(in_image 'for t in adb curl ffmpeg ffprobe idevice_id inotifywait jq nc pgrep socat usbreset healthcheck; do command -v $t > /dev/null || echo "missing $t"; done')"
 

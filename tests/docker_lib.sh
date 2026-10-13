@@ -1,6 +1,6 @@
 #!/bin/bash
 # Shared helpers of the docker test scripts, sourced after lib.sh.
-# IMAGE overrides the tag of the tested image, PLATFORM its platform (the image is amd64 only: go-ios ios-amd64).
+# IMAGE overrides the tag of the tested image, PLATFORM its platform (the image is amd64 only, as its base image).
 
 # used by the scripts sourcing this file
 # shellcheck disable=SC2034
