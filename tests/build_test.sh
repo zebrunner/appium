@@ -42,12 +42,18 @@ else
   pass "-i: the last (appium-image) stage is built"
 fi
 
+OUT="$(echo | BUILD_PLATFORM=linux/arm64 PATH="$WORK/bin:$PATH" ./build.sh 1.2.3 2>&1)"
+STATUS=$?
+rm -f "$FAKE_DOCKER_ARGS"
+check "BUILD_PLATFORM=linux/arm64: exit status 1" "1" "$STATUS"
+check_contains "BUILD_PLATFORM=linux/arm64: the reason is printed" "the image is linux/amd64 only" "$OUT"
+check "BUILD_PLATFORM=linux/arm64: docker is not called" "" "$(cat "$FAKE_DOCKER_ARGS" 2> /dev/null)"
 ARGS_PLATFORM="$(
   rm -f "$FAKE_DOCKER_ARGS"
-  echo | BUILD_PLATFORM=linux/arm64 PATH="$WORK/bin:$PATH" ./build.sh 1.2.3 > /dev/null 2>&1
+  echo | BUILD_PLATFORM=linux/amd64 PATH="$WORK/bin:$PATH" ./build.sh 1.2.3 > /dev/null 2>&1
   cat "$FAKE_DOCKER_ARGS"
 )"
-check_contains "BUILD_PLATFORM overrides the platform" "--platform linux/arm64" "$ARGS_PLATFORM"
+check_contains "BUILD_PLATFORM=linux/amd64 is accepted" "--platform linux/amd64" "$ARGS_PLATFORM"
 
 section "result"
 run_build 0 1.2.3

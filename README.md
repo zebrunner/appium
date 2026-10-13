@@ -24,7 +24,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ./build.sh -i 3.1.1-img # the `appium-image` stage: plus the Appium images plugin and sharp
 ```
 
-The script shows the `docker build` command and waits for a confirmation; it exits with the status of the build. `BUILD_PLATFORM` overrides the platform (`linux/amd64` by default).
+The script shows the `docker build` command and waits for a confirmation; it exits with the status of the build. The image is `linux/amd64` only: another `BUILD_PLATFORM` or `docker build --platform` is rejected.
 
 ## Configuration
 
@@ -137,7 +137,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 
 ## Limitations
 
-* The image is `linux/amd64` only: go-ios is installed as `ios-amd64`. On Apple silicon it runs emulated.
+* The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
 * Android 8.0+ only: the image has the UiAutomator2 6.x driver, older devices get a warning at startup and their sessions fail.
 * Appium runs as `androidusr`, not root.
 

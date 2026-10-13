@@ -1,6 +1,12 @@
 #!/bin/bash
 
-cmd=(docker build . --progress plain --platform "${BUILD_PLATFORM:-linux/amd64}" --provenance=false)
+platform="${BUILD_PLATFORM:-linux/amd64}"
+if [[ "$platform" != "linux/amd64" ]]; then
+  echo "[error] the image is linux/amd64 only: the base image appium/appium is amd64 only, got BUILD_PLATFORM=${platform}"
+  exit 1
+fi
+
+cmd=(docker build . --progress plain --platform "$platform" --provenance=false)
 
 tagPath="public.ecr.aws/zebrunner/appium"
 

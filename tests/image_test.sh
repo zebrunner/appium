@@ -60,6 +60,11 @@ check "the healthcheck is configured" '["CMD","healthcheck"]' \
 check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \
   "$(in_image 'echo "$(readlink /var/run/usbmuxd) $(stat -c %U /tmp/usbmuxd)"')"
 check "the image is linux/amd64" "linux/amd64" "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')"
+if docker build --progress=plain --platform linux/arm64 --provenance=false --target appium "$REPO" > "$WORK/docker-build-arm64.log" 2>&1; then
+  fail "a linux/arm64 build stops with the reason" "the build succeeded" "$(tail -20 "$WORK/docker-build-arm64.log")"
+else
+  check_contains "a linux/arm64 build stops with the reason" "the image is linux/amd64 only" "$(cat "$WORK/docker-build-arm64.log")"
+fi
 check "the app downloads are retried 3 times by default" "3" "$(in_image 'echo "$APPIUM_APP_FETCH_RETRIES"')"
 
 # the generated default caps pass the validation of the installed drivers without type warnings

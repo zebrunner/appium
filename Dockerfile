@@ -1,5 +1,13 @@
 FROM appium/appium:v3.1.1-p0 AS appium
 
+# The base image is linux/amd64 only (Android platform-tools, OpenJDK path): another platform would build
+# an image with amd64 binaries, so the build stops
+ARG TARGETARCH
+RUN if [ -n "${TARGETARCH}" ] && [ "${TARGETARCH}" != "amd64" ]; then \
+      echo "[error] the image is linux/amd64 only: the base image appium/appium is amd64 only, got ${TARGETARCH}" >&2; \
+      exit 1; \
+    fi
+
 # Set environment variables
 ENV ANDROID_DEVTOOLS_PORT=9222
 
