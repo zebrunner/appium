@@ -91,7 +91,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 # Grab go-ios from github and extract it in a folder
 ARG GO_IOS_VERSION=v1.0.204
 RUN mkdir -p /tmp/go-ios && \
-    wget -O /tmp/go-ios/go-ios-linux.zip https://github.com/danielpaulus/go-ios/releases/download/${GO_IOS_VERSION}/go-ios-linux.zip && \
+    wget -nv -O /tmp/go-ios/go-ios-linux.zip https://github.com/danielpaulus/go-ios/releases/download/${GO_IOS_VERSION}/go-ios-linux.zip && \
     unzip /tmp/go-ios/go-ios-linux.zip -d /tmp/go-ios/ && \
     cp /tmp/go-ios/ios-amd64 /usr/local/bin/ios && \
     chown -R androidusr:androidusr /usr/local/bin/ios && \
@@ -131,10 +131,9 @@ COPY --chown=androidusr:androidusr \
 COPY --chown=androidusr:androidusr \
     files/patch/ /opt/mcloud/
 # Do not make backups because unpatched js files in the same folder might be used by Appium
-RUN cp -r -v /opt/mcloud/node_modules ${APPIUM_HOME}
-
 # Check appium
-RUN appium --version
+RUN cp -r -v /opt/mcloud/node_modules ${APPIUM_HOME} && \
+    appium --version
 
 # Override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
 CMD ["/opt/entrypoint/entrypoint.sh"]
@@ -156,6 +155,8 @@ RUN appium plugin install images@4.1.0
 USER root
 
 # Install sharp in separate folder
+# sharp is pinned; hadolint takes the --prefix value for an unpinned package
+# hadolint ignore=DL3016
 RUN mkdir -p ${EXTRA_MODULE_DIR} && \
     chown -R androidusr:androidusr ${EXTRA_MODULE_DIR} && \
     npm install \
