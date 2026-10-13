@@ -27,6 +27,28 @@ ensure_image() {
   fi
 }
 
+# the helpers below are used by the scripts sourcing this file, also through wait_for
+# shellcheck disable=SC2329
+# appium_up <container>: Appium of the container answers its status
+appium_up() {
+  [[ "$(docker exec "$1" curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4723/wd/hub/status 2> /dev/null)" == "200" ]]
+}
+
+# shellcheck disable=SC2329
+container_running() {
+  [[ "$(docker inspect "$1" --format '{{.State.Running}}' 2> /dev/null)" == "true" ]]
+}
+
+# shellcheck disable=SC2329
+container_exited() {
+  [[ "$(docker inspect "$1" --format '{{.State.Running}}' 2> /dev/null)" == "false" ]]
+}
+
+# dockerfile_value <sed -E regex with one group>: the group of the first Dockerfile line matching the regex
+dockerfile_value() {
+  sed -n -E "s/^.*$1.*$/\1/p" "$REPO/Dockerfile" | head -1
+}
+
 # wait_for <seconds> <command...>: retries the command every second until it succeeds
 wait_for() {
   local deadline=$((SECONDS + $1))

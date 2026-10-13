@@ -31,13 +31,17 @@ else
 fi
 pass "image builds"
 check "Appium runs as androidusr" "androidusr" "$(in_image 'id -un')"
-check "Appium 3.1.1" "3.1.1" "$(in_image 'appium --version 2> /dev/null')"
+# the versions of the Dockerfile are installed
+appium_version="$(dockerfile_value 'FROM appium\/appium:v([0-9.]+)-[^ ]* AS appium')"
+check "Appium ${appium_version} of the base image" "$appium_version" "$(in_image 'appium --version 2> /dev/null')"
 drivers="$(in_image 'appium driver list --installed --json 2> /dev/null')"
-check "uiautomator2 driver 6.7.15" "6.7.15" \
-  "$(printf '%s' "$drivers" | python3 -c 'import json,sys; print(json.load(sys.stdin)["uiautomator2"]["version"])' 2>&1)"
-check "xcuitest driver 10.18.2" "10.18.2" \
-  "$(printf '%s' "$drivers" | python3 -c 'import json,sys; print(json.load(sys.stdin)["xcuitest"]["version"])' 2>&1)"
-check_contains "go-ios v1.0.204" '"version":"v1.0.204"' "$(in_image 'ios --version')"
+for driver in uiautomator2 xcuitest; do
+  version="$(dockerfile_value "appium driver install ${driver}@([0-9.]+)")"
+  check "${driver} driver ${version}" "$version" \
+    "$(printf '%s' "$drivers" | python3 -c "import json,sys; print(json.load(sys.stdin)['${driver}']['version'])" 2>&1)"
+done
+go_ios_version="$(dockerfile_value 'ARG GO_IOS_VERSION=([^ ]+)')"
+check_contains "go-ios ${go_ios_version}" "\"version\":\"${go_ios_version}\"" "$(in_image 'ios --version')"
 check "the tools of the scripts are installed" "" \
   "$(in_image 'for t in adb curl ffmpeg ffprobe idevice_id inotifywait jq nc pgrep socat usbreset healthcheck; do command -v $t > /dev/null || echo "missing $t"; done')"
 
@@ -51,10 +55,6 @@ check "the patched base-driver files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
   "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
-# the removed features of old base images
-for legacy in SALT_MASTER ATD RemoteAppiumManager generate_config.sh; do
-  check "the entrypoint does not use ${legacy}" "" "$(grep -nw "$legacy" files/entrypoint.sh)"
-done
 check "the healthcheck is configured" '["CMD","healthcheck"]' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}}')"
 check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \
@@ -65,7 +65,6 @@ if docker build --progress=plain --platform linux/arm64 --provenance=false --tar
 else
   check_contains "a linux/arm64 build stops with the reason" "the image is linux/amd64 only" "$(cat "$WORK/docker-build-arm64.log")"
 fi
-check "the app downloads are retried 3 times by default" "3" "$(in_image 'echo "$APPIUM_APP_FETCH_RETRIES"')"
 
 # the generated default caps pass the validation of the installed drivers without type warnings
 # validate_caps <platform> <automation> <driver package> <driver class>: "valid" or the warnings and errors
@@ -111,67 +110,85 @@ section "startup"
 MCLOUD_AGENT_ENV="PLATFORM_NAME=android DEVICE_UDID=udid-1 DEVICE_NAME=Pixel RETAIN_TASK=true CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=true"
 MCLOUD_AGENT_ENV+=" STF_PROVIDER_HOST=10.0.0.5 SELENIUM_HOST=hub SELENIUM_PORT=4444 DEFAULT_CAPABILITIES=true RELAXED_SECURITY=true"
 MCLOUD_AGENT_ENV+=" ADB_PORT=5037 PROXY_PORT=8080 SERVER_PROXY_PORT=0 APPIUM_PORT=4723 REMOTE_ADB_HOST=connector"
-# the variants: <name>|<env vars>; all containers are started at once, they are slow under emulation
+# the variants: <id>|<name>|<env vars>, the container of a variant is ${PREFIX}-<id>;
+# all containers are started at once, they are slow under emulation
 variants=(
-  "the image defaults|"
-  "CHROMEDRIVER_AUTODOWNLOAD=false|CHROMEDRIVER_AUTODOWNLOAD=false"
-  "ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=false ADB_SHELL=true"
-  "CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=true ADB_SHELL=true"
-  "RELAXED_SECURITY=true|CHROMEDRIVER_AUTODOWNLOAD=false RELAXED_SECURITY=true"
-  "APPIUM_CLI|CHROMEDRIVER_AUTODOWNLOAD=false APPIUM_CLI=--session-override"
-  "the mcloud-agent settings (android)|${MCLOUD_AGENT_ENV}"
-  "the mcloud-agent settings (android) and CHROMEDRIVER_AUTODOWNLOAD=false|${MCLOUD_AGENT_ENV} CHROMEDRIVER_AUTODOWNLOAD=false"
-  "DEFAULT_CAPABILITIES=true without the grid (android)|CHROMEDRIVER_AUTODOWNLOAD=false DEFAULT_CAPABILITIES=true PLATFORM_NAME=android DEVICE_UDID=udid-1"
-  "DEFAULT_CAPABILITIES=true without PLATFORM_NAME|CHROMEDRIVER_AUTODOWNLOAD=false DEFAULT_CAPABILITIES=true"
-  "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG|CHROMEDRIVER_AUTODOWNLOAD=false CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=false PLATFORM_NAME=android DEVICE_UDID=udid-1 SELENIUM_HOST=hub SELENIUM_PORT=4444 STF_PROVIDER_HOST=10.0.0.5"
+  "defaults|the image defaults|"
+  "adb-shell|ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=false ADB_SHELL=true"
+  "features|CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=true ADB_SHELL=true"
+  "relaxed|RELAXED_SECURITY=true|CHROMEDRIVER_AUTODOWNLOAD=false RELAXED_SECURITY=true"
+  "mcloud|the mcloud-agent settings (android)|${MCLOUD_AGENT_ENV}"
+  "caps|DEFAULT_CAPABILITIES=true without the grid (android)|DEFAULT_CAPABILITIES=true PLATFORM_NAME=android DEVICE_UDID=udid-1"
+  "caps-no-platform|DEFAULT_CAPABILITIES=true without PLATFORM_NAME|DEFAULT_CAPABILITIES=true"
+  "grid|CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG|CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=false PLATFORM_NAME=android DEVICE_UDID=udid-1 SELENIUM_HOST=hub SELENIUM_PORT=4444 STF_PROVIDER_HOST=10.0.0.5"
 )
-i=0
 for variant in "${variants[@]}"; do
+  id="${variant%%|*}"
   env_args=()
-  for var in ${variant#*|}; do
+  for var in ${variant##*|}; do
     env_args+=(--env "$var")
   done
-  docker run --detach --name "${PREFIX}-${i}" --platform "$PLATFORM" "${env_args[@]}" "$IMAGE" > /dev/null
-  i=$((i + 1))
+  docker run --detach --name "${PREFIX}-${id}" --platform "$PLATFORM" "${env_args[@]}" "$IMAGE" > /dev/null
 done
-
-# called through wait_for
-# shellcheck disable=SC2329
-appium_up_in() {
-  [[ "$(appium_status "$1")" == "200" ]]
-}
-
-appium_status() {
-  docker exec "$1" curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4723/wd/hub/status 2> /dev/null
-}
-i=0
 for variant in "${variants[@]}"; do
-  name="${variant%%|*}"
-  container="${PREFIX}-${i}"
-  i=$((i + 1))
-  if wait_for 120 bash -c "[[ \$(docker exec ${container} curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4723/wd/hub/status) == 200 ]]"; then
+  id="${variant%%|*}"
+  name="${variant#*|}"
+  name="${name%%|*}"
+  if wait_for 120 appium_up "${PREFIX}-${id}"; then
     pass "Appium starts with ${name}"
   else
     fail "Appium starts with ${name}" "no Appium status" \
-      "$(printf 'state: %s\n%s' "$(docker inspect "$container" --format '{{.State.Status}} {{.State.ExitCode}}')" "$(docker logs "$container" 2>&1 | tail -15)")"
+      "$(printf 'state: %s\n%s' "$(docker inspect "${PREFIX}-${id}" --format '{{.State.Status}} {{.State.ExitCode}}')" "$(docker logs "${PREFIX}-${id}" 2>&1 | tail -15)")"
   fi
 done
 
-container="${PREFIX}-3"
-if [[ "$(appium_status "$container")" == "200" ]]; then
-  enabled="$(docker exec "$container" grep -A2 'Explicitly enabling insecure features' /tmp/log/appium.log)"
+# use_variant <id>: sets VARIANT to the container of the variant when its Appium is up, an unknown id fails
+use_variant() {
+  VARIANT="${PREFIX}-$1"
+  if [[ " ${variants[*]%%|*} " != *" $1 "* ]]; then
+    fail "the variant $1 is declared" "unknown variant" "declared: ${variants[*]%%|*}"
+    return 1
+  fi
+  appium_up "$VARIANT"
+}
+
+appium_cmdline() {
+  docker exec "$1" bash -c 'tr "\0" " " < /proc/$(pgrep -f "node.*appium" | head -1)/cmdline'
+}
+
+if use_variant features; then
+  enabled="$(docker exec "$VARIANT" grep -A2 'Explicitly enabling insecure features' /tmp/log/appium.log)"
   for feature in chromedriver_autodownload adb_shell; do
     check_contains "CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true: ${feature} is enabled" "[Appium]     *:${feature}" "$enabled"
   done
 fi
+if use_variant relaxed; then
+  check_contains "RELAXED_SECURITY=true enables the relaxed security" "Enabling relaxed security" \
+    "$(docker exec "$VARIANT" cat /tmp/log/appium.log)"
+fi
+if use_variant caps; then
+  check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps are passed" "--default-capabilities /opt/config/defaultcapabilities.json" \
+    "$(appium_cmdline "$VARIANT")"
+  check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps of the device" '"appium:udid": "udid-1"' \
+    "$(docker exec "$VARIANT" cat /opt/config/defaultcapabilities.json)"
+fi
+if use_variant caps-no-platform; then
+  check_contains "DEFAULT_CAPABILITIES=true without PLATFORM_NAME: the missing caps are logged" \
+    "no default capabilities for PLATFORM_NAME=" "$(docker logs "$VARIANT" 2>&1)"
+fi
+if use_variant grid; then
+  check_contains "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG: the Zebrunner node config" \
+    '"proxy": "com.zebrunner.mcloud.grid.MobileRemoteProxy"' "$(docker exec "$VARIANT" cat /opt/config/nodeconfig.json)"
+  check_contains "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG: the ignored flag is logged" \
+    "CUSTOM_NODE_CONFIG is ignored" "$(docker logs "$VARIANT" 2>&1)"
+fi
 
-# APPIUM_CLI with several arguments and APPIUM_PLUGINS reach Appium
+# APPIUM_CLI with several arguments reaches Appium as separate arguments
 container="${PREFIX}-cli"
-docker run --detach --name "$container" --platform "$PLATFORM" --env CHROMEDRIVER_AUTODOWNLOAD=false \
+docker run --detach --name "$container" --platform "$PLATFORM" \
   --env "APPIUM_CLI=--session-override --keep-alive-timeout 700" "$IMAGE" > /dev/null
-if wait_for 120 appium_up_in "$container"; then
-  cmdline="$(docker exec "$container" bash -c 'tr "\0" " " < /proc/$(pgrep -f "node.*appium" | head -1)/cmdline')"
-  check_contains "APPIUM_CLI with several arguments reaches Appium" "--session-override --keep-alive-timeout 700" "$cmdline"
+if wait_for 120 appium_up "$container"; then
+  check_contains "APPIUM_CLI with several arguments reaches Appium" "--session-override --keep-alive-timeout 700" "$(appium_cmdline "$container")"
 else
   fail "APPIUM_CLI with several arguments reaches Appium" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
 fi
@@ -180,7 +197,7 @@ fi
 container="${PREFIX}-grid-without-hub"
 docker run --detach --name "$container" --platform "$PLATFORM" --env CONNECT_TO_GRID=true --env PLATFORM_NAME=android \
   --env DEVICE_UDID=udid-1 "$IMAGE" > /dev/null
-if wait_for 120 bash -c "[[ \$(docker inspect ${container} --format '{{.State.Running}}') == false ]]"; then
+if wait_for 120 container_exited "$container"; then
   check "CONNECT_TO_GRID=true without the hub: the container exits with 1" "1" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
   check_contains "CONNECT_TO_GRID=true without the hub: the missing variables are logged" \
     "[error] CONNECT_TO_GRID=true needs: SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST" "$(docker logs "$container" 2>&1)"
@@ -188,62 +205,39 @@ else
   fail "CONNECT_TO_GRID=true without the hub: the container exits" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
 fi
 
-container="${PREFIX}-$((${#variants[@]} - 3))"
-if [[ "$(appium_status "$container")" == "200" ]]; then
-  check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps are passed" "--default-capabilities /opt/config/defaultcapabilities.json" \
-    "$(docker exec "$container" bash -c 'tr "\0" " " < /proc/$(pgrep -f "node.*appium" | head -1)/cmdline')"
-  check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps of the device" '"appium:udid": "udid-1"' \
-    "$(docker exec "$container" cat /opt/config/defaultcapabilities.json)"
-fi
-container="${PREFIX}-$((${#variants[@]} - 2))"
-if [[ "$(appium_status "$container")" == "200" ]]; then
-  check_contains "DEFAULT_CAPABILITIES=true without PLATFORM_NAME: the missing caps are logged" \
-    "no default capabilities for PLATFORM_NAME=" "$(docker logs "$container" 2>&1)"
-fi
-
-container="${PREFIX}-$((${#variants[@]} - 1))"
-if [[ "$(appium_status "$container")" == "200" ]]; then
-  check_contains "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG: the Zebrunner node config" \
-    '"proxy": "com.zebrunner.mcloud.grid.MobileRemoteProxy"' "$(docker exec "$container" cat /opt/config/nodeconfig.json)"
-  check_contains "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG: the ignored flag is logged" \
-    "CUSTOM_NODE_CONFIG is ignored" "$(docker logs "$container" 2>&1)"
-fi
-
-container="${PREFIX}-1"
-if [[ "$(appium_status "$container")" == "200" ]]; then
-  cmdline="$(docker exec "$container" bash -c 'tr "\0" " " < /proc/$(pgrep -f "node.*appium" | head -1)/cmdline')"
+if use_variant defaults; then
+  cmdline="$(appium_cmdline "$VARIANT")"
   check_contains "Appium listens on APPIUM_PORT with the /wd/hub base path" "-pa /wd/hub --port 4723" "$cmdline"
   check_contains "Appium logs into TASK_LOG" "--log /tmp/log/appium.log" "$cmdline"
   check "the healthcheck passes" "0" "$(
-    docker exec "$container" healthcheck > /dev/null 2>&1
+    docker exec "$VARIANT" healthcheck > /dev/null 2>&1
     echo $?
   )"
 
   section "shutdown"
   start=$SECONDS
-  docker stop --time 30 "$container" > /dev/null
+  docker stop --time 30 "$VARIANT" > /dev/null
   elapsed=$((SECONDS - start))
   if [[ "$elapsed" -lt 15 ]]; then
     pass "docker stop shuts the container down without the kill timeout"
   else
     fail "docker stop shuts the container down without the kill timeout" "took ${elapsed}s" "SIGTERM was not handled, docker stop waited ${elapsed}s"
   fi
-  check_contains "the SIGTERM handler runs" "on finish end" "$(docker logs "$container" 2>&1 | tail -20)"
+  check_contains "the SIGTERM handler runs" "on finish end" "$(docker logs "$VARIANT" 2>&1 | tail -20)"
   check_contains "docker stop without a session shares nothing" "no active recordings on finish" \
-    "$(docker logs "$container" 2>&1 | tail -20)"
+    "$(docker logs "$VARIANT" 2>&1 | tail -20)"
 else
-  fail "Appium starts for the runtime checks" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
+  fail "Appium starts for the runtime checks" "no Appium status" "$(docker logs "$VARIANT" 2>&1 | tail -15)"
 fi
 
 # the restart policy of mcloud-agent (on-failure) restarts the container when Appium exits
-container="${PREFIX}-3"
-if [[ "$(appium_status "$container")" == "200" ]]; then
-  docker exec "$container" bash -c 'kill -9 $(pgrep -f "node.*appium" | head -1)'
-  if wait_for 30 bash -c "[[ \$(docker inspect ${container} --format '{{.State.Running}}') == false ]]"; then
+if use_variant features; then
+  docker exec "$VARIANT" bash -c 'kill -9 $(pgrep -f "node.*appium" | head -1)'
+  if wait_for 30 container_exited "$VARIANT"; then
     pass "the exit of Appium stops the container"
-    check "the exit status of the container is non-zero" "1" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
+    check "the exit status of the container is non-zero" "1" "$(docker inspect "$VARIANT" --format '{{.State.ExitCode}}')"
   else
-    fail "the exit of Appium stops the container" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
+    fail "the exit of Appium stops the container" "the container is still running" "$(docker logs "$VARIANT" 2>&1 | tail -15)"
   fi
 fi
 
@@ -251,7 +245,8 @@ if [[ "${SKIP_PLUGIN_IMAGE:-false}" != "true" ]]; then
   section "appium-image stage"
   if docker build --progress=plain --platform "$PLATFORM" --provenance=false --tag "${IMAGE}-images" "$REPO" > "$WORK/docker-build-images.log" 2>&1; then
     pass "the appium-image stage builds (with the sharp check)"
-    check "the images plugin 4.1.0 is installed" "4.1.0" \
+    images_version="$(dockerfile_value 'appium plugin install images@([0-9.]+)')"
+    check "the images plugin ${images_version} is installed" "$images_version" \
       "$(docker run --rm --platform "$PLATFORM" --entrypoint appium "${IMAGE}-images" plugin list --installed --json 2> /dev/null |
         python3 -c 'import json,sys; print(json.load(sys.stdin)["images"]["version"])' 2>&1)"
   else

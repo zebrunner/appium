@@ -40,17 +40,7 @@ start_device() {
   docker run --detach --name "$1" --platform "$PLATFORM" --network "$NET" ${2:+--user "$2"} "${env_args[@]}" "$IMAGE" > /dev/null
 }
 
-# the predicates below are called through wait_for
-# shellcheck disable=SC2329
-appium_up() {
-  [[ "$(docker exec "$1" curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4723/wd/hub/status 2> /dev/null)" == "200" ]]
-}
-
-# shellcheck disable=SC2329
-running() {
-  [[ "$(docker inspect "$1" --format '{{.State.Running}}' 2> /dev/null)" == "true" ]]
-}
-
+# called through wait_for
 # shellcheck disable=SC2329
 healthy() {
   [[ "$(docker inspect "$1" --format '{{.State.Health.Status}}' 2> /dev/null)" == "healthy" ]]
@@ -63,7 +53,7 @@ state_and_logs() {
 
 # check_starts <container>: Appium is up and the container keeps running
 check_starts() {
-  if wait_for 180 appium_up "$1" && sleep 15 && running "$1" && appium_up "$1"; then
+  if wait_for 180 appium_up "$1" && sleep 15 && container_running "$1" && appium_up "$1"; then
     pass "Appium starts and the container keeps running"
     return 0
   fi
@@ -172,7 +162,7 @@ check "GET /status-wda reports WDA" "200" \
 # the exit of a helper process must not stop the container (the entrypoint waits for Appium only)
 docker exec "$IOS" bash -c 'kill $(pgrep -f "socat UNIX-LISTEN")'
 sleep 5
-if running "$IOS" && appium_up "$IOS"; then
+if container_running "$IOS" && appium_up "$IOS"; then
   pass "the exit of the usbmuxd forwarding does not stop the container"
 else
   fail "the exit of the usbmuxd forwarding does not stop the container" "the container is not running" "$(state_and_logs "$IOS")"
@@ -215,8 +205,10 @@ if ! check_starts "$ANDROID"; then
   finish
 fi
 if wait_for 90 healthy "$ANDROID"; then pass "the container is healthy"; else fail "the container is healthy" "not healthy" "$(state_and_logs "$ANDROID")"; fi
-check "the adb server port is forwarded" "yes" \
-  "$(docker exec "$ANDROID" bash -c 'echo > /dev/tcp/127.0.0.1/5037 && echo yes || echo no' 2>&1)"
+line="$(fake_log_lines)"
+docker exec "$ANDROID" bash -c 'echo > /dev/tcp/127.0.0.1/5037' > /dev/null 2>&1
+check_contains "the adb server port is forwarded to the connector" "[ADB] client connected" \
+  "$(docker logs "$FAKE" 2>&1 | tail -n +"$((line + 1))")"
 
 section "android recording"
 line="$(fake_log_lines)"
