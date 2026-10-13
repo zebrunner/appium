@@ -187,6 +187,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 * The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
 * Android 8.0+ only: the image has the UiAutomator2 6.x driver, older devices get a warning at startup and their sessions fail.
 * Appium runs as `androidusr`, not root.
+* The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
 
 ## Patch local appium
 
