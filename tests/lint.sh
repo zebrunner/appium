@@ -1,8 +1,15 @@
 #!/bin/bash
 # Static checks of the project files, every linter run is a check (also in JUnit XML with JUNIT_DIR);
 # the tools: pip install -r tests/requirements-lint.txt (hadolint on macOS: brew install hadolint)
+# The shared part is the same in all the repositories, see CONVENTIONS.md.
 source "$(dirname "$0")/lib.sh"
 cd "$REPO" || exit 1
+
+# the shell scripts of the project
+scripts=(build.sh scripts/*.sh tests/fixtures/fake-adb files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh
+  files/util/debug.sh tests/*.sh)
+# the generated files kept byte for byte: no text file checks
+generated=(files/patch)
 
 missing=""
 for tool in actionlint hadolint pymarkdown shellcheck shfmt yamllint; do
@@ -18,13 +25,14 @@ section "yaml"
 run_check "yamllint" yamllint --strict .
 
 section "GitHub workflows"
-run_check "actionlint" actionlint
+# the files are listed: actionlint looks for the project by .git otherwise, and the sources may come without it
+run_check "actionlint" actionlint .github/workflows/*.yml
 
 section "Dockerfile"
 run_check "hadolint" hadolint Dockerfile
 
 section "markdown"
-run_check "pymarkdown" pymarkdown scan README.md
+run_check "pymarkdown" pymarkdown scan ./*.md
 
 section "README"
 # the versions of the Dockerfile are listed in the README (Image contents)
@@ -53,15 +61,6 @@ env_vars="$(sed -n -E 's/^(ENV)?[[:space:]]+([A-Z][A-Z0-9_]*)=.*/\2/p; s/^ENV ([
 check "README documents every env var of the Dockerfile" "" \
   "$(for var in $env_vars; do grep -qF "\`${var}\`" README.md || echo "${var} is missing in README.md"; done)"
 
-section "shell"
-scripts=(build.sh scripts/*.sh tests/fixtures/fake-adb files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh files/util/debug.sh tests/*.sh)
-for script in "${scripts[@]}"; do
-  run_check "bash -n ${script}" bash -n "$script"
-done
-run_check "shellcheck" shellcheck --severity=info "${scripts[@]}"
-# style of .editorconfig
-run_check "shfmt" shfmt -d "${scripts[@]}"
-
 section "javascript"
 for script in tests/image_checks.js tests/fixtures/fake-device.js tests/patch/*.mjs; do
   run_check "node --check ${script}" node --check "$script"
@@ -78,6 +77,35 @@ check "the patch diff is the one of Appium ${appium_version} of the base image" 
 run_check "the patch diff is well-formed" git apply --stat "$diff_file"
 check "no non-ASCII characters in the patched js code" "" \
   "$(LC_ALL=C grep -sn '[^[:print:][:space:]]' files/patch/node_modules/@appium/base-driver/build/lib/*/*.js "$diff_file")"
+
+section "shell"
+for script in "${scripts[@]}"; do
+  run_check "bash -n ${script}" bash -n "$script"
+done
+run_check "shellcheck" shellcheck --severity=info "${scripts[@]}"
+# style of .editorconfig
+run_check "shfmt" shfmt -d "${scripts[@]}"
+# the rules of CONVENTIONS.md that shfmt and shellcheck do not check, the comment lines are skipped
+check "tests use [[ ]] only" "" \
+  "$(grep -nE '(^|[[:space:];&|(!])\[[[:space:]]' "${scripts[@]}" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')"
+check "functions are defined without the function keyword" "" \
+  "$(grep -nE '^[[:space:]]*function[[:space:]]' "${scripts[@]}")"
+
+section "text files"
+# every text file of the project but the generated ones
+prune=(-name .git -o -name .venv -o -name .idea)
+for path in "${generated[@]}"; do
+  prune+=(-o -path "./${path}")
+done
+text_files=()
+while IFS= read -r file; do
+  grep -Iq '' "$file" 2> /dev/null && text_files+=("$file")
+done < <(find . \( "${prune[@]}" \) -prune -o -type f -print | sort)
+check "ASCII characters only" "" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "${text_files[@]}")"
+check "LF line ends" "" "$(grep -l $'\r' "${text_files[@]}")"
+check "no trailing whitespace" "" "$(grep -nE '[[:blank:]]+$' "${text_files[@]}")"
+check "a final newline" "" "$(for file in "${text_files[@]}"; do [[ -z "$(tail -c 1 "$file")" ]] || echo "$file"; done)"
+check "tabs only in the Makefile" "" "$(grep -l $'\t' "${text_files[@]}" | grep -v '^\./Makefile$')"
 
 [[ "$FAILED" -eq 0 ]] && echo "lint: ok"
 finish

@@ -1,7 +1,9 @@
-# Project checks; `make check` runs the linters, the script tests and the docker image tests
+# Project checks; `make check` runs the linters, the script tests and the docker image tests (CONVENTIONS.md)
 SHELL := /bin/bash
 VENV := .venv
 export PATH := $(CURDIR)/$(VENV)/bin:$(PATH)
+# the tests of `make docker`, every other tests/*_test.sh is a test of `make test`
+DOCKER_TESTS := tests/image_test.sh tests/patch_test.sh tests/e2e_test.sh tests/patch_sync_test.sh
 
 .DEFAULT_GOAL := help
 .PHONY: help check lint test docker image patch e2e patch-sync patch-build
@@ -12,14 +14,14 @@ help: ## this list
 check: ## everything below, as CI runs it; every step runs, the failed ones fail the target
 	@status=0; for target in lint test docker; do $(MAKE) --no-print-directory $$target || status=1; done; exit $$status
 
-lint: $(VENV)/.installed ## the linters (tests/lint.sh): yaml, workflows, Dockerfile, markdown, shell, the patch
+lint: $(VENV)/.installed ## the linters and the text file checks (tests/lint.sh)
 	tests/lint.sh
 
-test: ## the tests of build.sh and the config generators, no docker needed
-	@status=0; for t in tests/build_test.sh tests/config_test.sh; do $$t || status=1; done; exit $$status
+test: ## every tests/*_test.sh but DOCKER_TESTS: stubs instead of the real tools, no docker needed
+	@status=0; for t in $(filter-out $(DOCKER_TESTS),$(sort $(wildcard tests/*_test.sh))); do $$t || status=1; done; exit $$status
 
-docker: ## the docker tests: image, patch, e2e and patch-sync (the image is built once, IMAGE overrides its tag)
-	@status=0; for t in tests/image_test.sh tests/patch_test.sh tests/e2e_test.sh tests/patch_sync_test.sh; do $$t || status=1; done; exit $$status
+docker: ## DOCKER_TESTS: the image is built once, IMAGE overrides its tag and REBUILD=true rebuilds it
+	@status=0; for t in $(DOCKER_TESTS); do $$t || status=1; done; exit $$status
 
 image: ## the image build, its contents and the Appium startup (tests/image_test.sh)
 	tests/image_test.sh
@@ -35,6 +37,7 @@ patch-sync: ## the js files of the patch are the build of the patch diff (tests/
 
 patch-build: ## rebuilds the js files of the patch from the patch diff (scripts/build-patch.sh)
 	scripts/build-patch.sh
+
 
 # The tools of tests/requirements-lint.txt in .venv; the hadolint-py wheel for macOS is broken, brew provides it there
 $(VENV)/.installed: tests/requirements-lint.txt
