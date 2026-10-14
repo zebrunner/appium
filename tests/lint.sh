@@ -52,9 +52,9 @@ section "patch"
 # shellcheck disable=SC2016
 run_check "node --check of the patched js files" bash -c \
   'for f in files/patch/node_modules/@appium/base-driver/build/lib/*/*.js; do node --check "$f" || exit 1; done'
-run_check "the patch diff is well-formed" git apply --stat files/patch/appium-3_1_1.diff
+run_check "the patch diff is well-formed" git apply --stat files/patch/appium-3_3_0.diff
 check "no non-ASCII characters in the patched js code" "" \
-  "$(LC_ALL=C grep -n '[^[:print:][:space:]]' files/patch/node_modules/@appium/base-driver/build/lib/*/*.js files/patch/appium-3_1_1.diff)"
+  "$(LC_ALL=C grep -n '[^[:print:][:space:]]' files/patch/node_modules/@appium/base-driver/build/lib/*/*.js files/patch/appium-3_3_0.diff)"
 
 [[ "$FAILED" -eq 0 ]] && echo "lint: ok"
 finish

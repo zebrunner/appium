@@ -21,7 +21,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 | Component | Version |
 |---|---|
-| Base image | `appium/appium:v3.1.1-p0` (Appium 3.1.1) |
+| Base image | `appium/appium:v3.3.0-p0` (Appium 3.3.0) |
 | UiAutomator2 driver | 6.7.15 |
 | XCUITest driver | 10.18.2 |
 | images plugin, `appium-image` stage | 4.1.0 (with sharp 0.34.5) |
@@ -66,8 +66,8 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
 ## Build
 
 ```bash
-./build.sh 3.1.1        # public.ecr.aws/zebrunner/appium:3.1.1, the `appium` stage
-./build.sh -i 3.1.1-img # the `appium-image` stage: plus the Appium images plugin and sharp
+./build.sh 3.3.0        # public.ecr.aws/zebrunner/appium:3.3.0, the `appium` stage
+./build.sh -i 3.3.0-img # the `appium-image` stage: plus the Appium images plugin and sharp
 ```
 
 The script shows the `docker build` command and waits for a confirmation; it exits with the status of the build. The image is `linux/amd64` only: another `BUILD_PLATFORM` or `docker build --platform` is rejected.
@@ -187,11 +187,11 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 * The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
 * Android 8.0+ only: the image has the UiAutomator2 6.x driver, older devices get a warning at startup and their sessions fail.
 * Appium runs as `androidusr`, not root.
-* The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
+* The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 7.1.2) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
 
 ## Patch local appium
 
-* Clone Zebrunner Appium and copy the patched files into Appium 3.1.1:
+* Clone Zebrunner Appium and copy the patched files into Appium 3.3.0:
 
   ```bash
   git clone https://github.com/zebrunner/appium.git
@@ -200,7 +200,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
   cp -R -v ./files/patch/node_modules "${APPIUM_HOME}/"
   ```
 
-  `files/patch/appium-3_1_1.diff` is the same patch for the Appium sources.
+  `files/patch/appium-3_3_0.diff` is the same patch for the Appium sources.
 
 ### Change the patch
 

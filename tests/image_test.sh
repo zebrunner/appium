@@ -74,7 +74,7 @@ validate_caps() {
   docker run --rm --platform "$PLATFORM" --env PLATFORM_NAME="$1" --env AUTOMATION_NAME="$2" --env DEVICE_UDID=udid-1 \
     --env PLATFORM_VERSION=17.4 --env DEVICE_NAME=device --entrypoint bash "$IMAGE" -c "
     /opt/zbr-default-caps-gen.sh > /tmp/caps.json
-    cd /usr/lib/node_modules/appium/node_modules/$3 && node -e '
+    cd /usr/local/lib/node_modules/appium/node_modules/$3 && node -e '
       const caps = require(\"/tmp/caps.json\");
       const plain = Object.fromEntries(Object.entries(caps).map(([k, v]) => [k.replace(/^appium:/, \"\"), v]));
       new (require(\".\").$4)({}).validateDesiredCaps(plain);
