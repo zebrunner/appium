@@ -2,12 +2,12 @@
 
 Enhanced Appium docker image for testing on Android and iOS devices: phones, tablets, Android TV, Apple TV (tvOS) and Android emulators including ReDroid.
 
-* It is built on top of [Appium](https://github.com/appium/appium/) and supports:
-  * iOS devices connected to a Linux host (usbmuxd of the connector container) and wireless tvOS devices
-  * Integration with [STF](https://github.com/zebrunner/stf) for remote manual testing
-  * Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure, etc.)
-  * Video recording of every session, including Apple TV and Android TV
-  * Video recording for pre-conditions and mapping with test results in [Zebrunner Reporting](https://zebrunner.com/)
+- It is built on top of [Appium](https://github.com/appium/appium/) and supports:
+  - iOS devices connected to a Linux host (usbmuxd of the connector container) and wireless tvOS devices
+  - Integration with [STF](https://github.com/zebrunner/stf) for remote manual testing
+  - Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure, etc.)
+  - Video recording of every session, including Apple TV and Android TV
+  - Video recording for pre-conditions and mapping with test results in [Zebrunner Reporting](https://zebrunner.com/)
 
 Feel free to support the development with a [**donation**](https://www.paypal.com/donate/?hosted_button_id=MNHYYCYHAKUVA) for the next improvements.
 
@@ -20,7 +20,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Image contents
 
 | Component | Version |
-|---|---|
+| --- | --- |
 | Base image | `appium/appium:v3.1.1-p0` (Appium 3.1.1) |
 | UiAutomator2 driver | 6.7.15 |
 | XCUITest driver | 10.18.2 |
@@ -28,14 +28,23 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 The Appium base driver is patched for MCloud (`files/patch`): recording markers, the shared application storage, the device status endpoints and the STF device updates.
 
+## Build
+
+```bash
+./build.sh 3.1.1        # public.ecr.aws/zebrunner/appium:3.1.1, the `appium` stage
+./build.sh -i 3.1.1-img # the `appium-image` stage: plus the Appium images plugin and sharp
+```
+
+The script shows the `docker build` command and waits for a confirmation; it exits with the status of the build. The image is `linux/amd64` only: another `BUILD_PLATFORM` or `docker build --platform` is rejected.
+
 ## Run
 
 In MCloud every device has four containers, created by [mcloud-agent](https://github.com/zebrunner/mcloud-agent) (`roles/*devices/templates/zebrunner-farm` is the reference of all the options):
 
-* `connector`: the adb server (Android) or usbmuxd and WebDriverAgent (iOS) of the device
-* `device`: the STF provider and the screen broadcast of the device
-* `appium`: this image
-* `uploader`: uploads the artifacts of `/tmp/log` to S3
+- `connector`: the adb server (Android) or usbmuxd and WebDriverAgent (iOS) of the device
+- `device`: the STF provider and the screen broadcast of the device
+- `appium`: this image
+- `uploader`: uploads the artifacts of `/tmp/log` to S3
 
 The appium container reaches the others by the host names `connector` and `device` (`--link` or network aliases) and shares two volumes: the application storage of the host and the artifacts volume of the device with the uploader.
 
@@ -56,22 +65,6 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
 # a wireless tvOS device has no connector: -e WIRELESS=true -e WDA_HOST=<host of its WebDriverAgent>
 ```
 
-## Health and restarts
-
-* The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
-* The container exits with `1` whenever Appium exits, so the `on-failure` restart policy starts it again. Appium exits with `101` when mcloud-grid finds the device or WDA down (`/status-adb`, `/status-wda` with `exitCode`): the container then waits `UNREGISTER_IF_STILL_DOWN_AFTER` plus 15 s for the hub to unregister the node.
-* A wrong configuration (e.g. `CONNECT_TO_GRID=true` without the hub) ends the container with the reason in its log; an iOS container ends when WebDriverAgent does not answer in `DEVICE_TIMEOUT`.
-* `DEBUG=true` keeps an ending container for `DEBUG_TIMEOUT` seconds to look into it.
-
-## Build
-
-```bash
-./build.sh 3.1.1        # public.ecr.aws/zebrunner/appium:3.1.1, the `appium` stage
-./build.sh -i 3.1.1-img # the `appium-image` stage: plus the Appium images plugin and sharp
-```
-
-The script shows the `docker build` command and waits for a confirmation; it exits with the status of the build. The image is `linux/amd64` only: another `BUILD_PLATFORM` or `docker build --platform` is rejected.
-
 ## Configuration
 
 The container is configured with environment variables; the defaults are the values of the image. In MCloud they are set by [mcloud-agent](https://github.com/zebrunner/mcloud-agent).
@@ -79,7 +72,7 @@ The container is configured with environment variables; the defaults are the val
 ### Device
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `PLATFORM_NAME` | | `android` or `ios` (any case): the device module to run, the default capabilities and the video source |
 | `DEVICE_UDID` | | the udid of the device: capabilities, `/status-adb`, STF updates |
 | `DEVICE_NAME` | | the device name in the node config and the default capabilities |
@@ -90,7 +83,7 @@ The container is configured with environment variables; the defaults are the val
 ### Appium
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `APPIUM_PORT` | `4723` | the port of Appium, the base path is `/wd/hub` |
 | `APPIUM_CLI` | | extra Appium arguments, e.g. `--session-override` |
 | `APPIUM_PLUGINS` | | the plugins to use (`--use-plugins`), `images` in the `appium-image` stage |
@@ -105,7 +98,7 @@ The container is configured with environment variables; the defaults are the val
 ### Selenium Grid (mcloud-grid)
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `CONNECT_TO_GRID` | | `true` registers Appium in [mcloud-grid](https://github.com/zebrunner/mcloud-grid) with a generated node config (`MobileRemoteProxy`) |
 | `SELENIUM_HOST`, `SELENIUM_PORT` | | the hub, required with `CONNECT_TO_GRID=true` |
 | `STF_PROVIDER_HOST` | | the host of the node url, required with `CONNECT_TO_GRID=true` |
@@ -119,7 +112,7 @@ A missing required variable or a wrong number ends the container with the reason
 Remote applications are kept in a shared storage, so the devices of a host download an application once.
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `APPIUM_APPS_DIR` | `/opt/appium-storage` | the storage, an application is stored by its url path; empty disables the storage |
 | `APPIUM_APP_SIZE_DISABLE` | `false` | `true` uses a stored application without comparing its size with the remote one |
 | `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file) |
@@ -131,7 +124,7 @@ Remote applications are kept in a shared storage, so the devices of a host downl
 Every session is recorded: the patched Appium creates `${LOG_DIR}/.recording-artifact-<session id>` on a new session and deletes it on the session end. The video, the session log and the other files of `LOG_DIR` are then moved to `${LOG_DIR}/<session id>/` and `${LOG_DIR}/.artifact-<session id>` is created for the uploader. `docker stop` finishes the active sessions the same way.
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `RECORD_ARTIFACTS` | `true` | `false` disables the video, the logs are still shared |
 | `LOG_DIR` | `/tmp/log` | the artifacts, a volume shared with the uploader |
 | `TASK_LOG` | `/tmp/log/appium.log` | the Appium log, shared as the session log |
@@ -146,7 +139,7 @@ A session with the `appium:mcloudExternalRecording: true` capability creates no 
 ### STF
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `STF_API_URL` | | the STF API, e.g. `https://stf.example.com/api/v1` |
 | `STF_AUTH_TOKEN` | | the STF access token |
 
@@ -155,7 +148,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 ### Android
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `REMOTE_ADB_HOST` | `connector` | the adb server of the device container, the default `remoteAdbHost` capability |
 | `ADB_SERVER_SOCKET` | `tcp:connector:5037` | the adb server for the adb client of the container |
 | `CHROMEDRIVER_PORT` | `8200` | the chromedriver port, forwarded to the connector |
@@ -165,7 +158,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 ### iOS
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `WDA_HOST`, `WDA_PORT` | `connector`, `8100` | WebDriverAgent, the default `webDriverAgentUrl` capability |
 | `MJPEG_PORT` | `8101` | the WDA MJPEG server, the video source |
 | `DEVICE_TIMEOUT` | `300` | s, how long the startup waits for WDA |
@@ -175,7 +168,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 ### Debug
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `DEBUG` | `false` | `true` keeps the container for `DEBUG_TIMEOUT` seconds (`3600`) after the entrypoint exits |
 | `VERBOSE` | `false` | `true` traces the entrypoint (`set -x`) |
 
@@ -185,20 +178,20 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 
 ## Limitations
 
-* The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
-* Android 8.0+ only (the minimum of the UiAutomator2 driver of the image, `MIN_ANDROID` of `files/module/android.sh`): older devices get a warning at startup and their sessions fail.
-* Chrome and the WebView contexts need Chrome and Android System WebView 87+ on the device: they are reached through the fixed DevTools port (`androidDevToolsPort`), which older chromedrivers reject with `unrecognized chrome option: androidDevToolsPort`. An older Chrome or WebView gets a warning at startup; update it on the device.
-* Appium runs as `androidusr`, not root.
-* The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
+- The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
+- Android 8.0+ only (the minimum of the UiAutomator2 driver of the image, `MIN_ANDROID` of `files/module/android.sh`): older devices get a warning at startup and their sessions fail.
+- Chrome and the WebView contexts need Chrome and Android System WebView 87+ on the device: they are reached through the fixed DevTools port (`androidDevToolsPort`), which older chromedrivers reject with `unrecognized chrome option: androidDevToolsPort`. An older Chrome or WebView gets a warning at startup; update it on the device.
+- Appium runs as `androidusr`, not root.
+- The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
 
 ## Troubleshooting
 
-* `session not created: please close '<package>' and try again` on a switch to a `WEBVIEW_<package>` context: the WebView belongs to another app than the `appPackage` of the session (e.g. `org.chromium.webview_shell` on ReDroid). Appium passes the `appPackage` to chromedriver as the package it expects in the DevTools, and chromedriver finds `<package>` there. Set `appium:chromeAndroidPackage` to the package of the WebView, e.g. `"appium:chromeAndroidPackage": "org.chromium.webview_shell"`.
-* ReDroid has no Chrome: a mobile web session (`browserName: Chrome`) fails with `Either provide 'app' option to install 'com.android.chrome'…`. Use a WebView app (e.g. `org.chromium.webview_shell`, preinstalled on ReDroid) or install Chrome.
+- `session not created: please close '<package>' and try again` on a switch to a `WEBVIEW_<package>` context: the WebView belongs to another app than the `appPackage` of the session (e.g. `org.chromium.webview_shell` on ReDroid). Appium passes the `appPackage` to chromedriver as the package it expects in the DevTools, and chromedriver finds `<package>` there. Set `appium:chromeAndroidPackage` to the package of the WebView, e.g. `"appium:chromeAndroidPackage": "org.chromium.webview_shell"`.
+- ReDroid has no Chrome: a mobile web session (`browserName: Chrome`) fails with `Either provide 'app' option to install 'com.android.chrome'...`. Use a WebView app (e.g. `org.chromium.webview_shell`, preinstalled on ReDroid) or install Chrome.
 
 ## Patch local appium
 
-* Clone Zebrunner Appium and copy the patched files into Appium 3.1.1:
+- Clone Zebrunner Appium and copy the patched files into Appium 3.1.1:
 
   ```bash
   git clone https://github.com/zebrunner/appium.git
@@ -213,14 +206,22 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 
 The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` copied into the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
 
-## Checks
+## Exit codes and health
+
+- The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
+- The container exits with `1` whenever Appium exits, so the `on-failure` restart policy starts it again. Appium exits with `101` when mcloud-grid finds the device or WDA down (`/status-adb`, `/status-wda` with `exitCode`): the container then waits `UNREGISTER_IF_STILL_DOWN_AFTER` plus 15 s for the hub to unregister the node.
+- A wrong configuration (e.g. `CONNECT_TO_GRID=true` without the hub) ends the container with the reason in its log; an iOS container ends when WebDriverAgent does not answer in `DEVICE_TIMEOUT`.
+- `DEBUG=true` keeps an ending container for `DEBUG_TIMEOUT` seconds to look into it.
+
+## Development
 
 `make check` runs everything CI runs, `make help` lists the single steps:
 
-| Command | What is checked | Needs |
-|---|---|---|
-| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, `node --check`, the patch files, the Dockerfile versions in this README and no other Appium version or patch diff mentioned, every env var of the Dockerfile documented |
-| `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh` | bash, Python 3, jq |
+| Target | What it checks | Needs |
+| --- | --- | --- |
+| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, `node --check`, the patch files, the Dockerfile versions in this README and no other Appium version or patch diff mentioned, every env var of the Dockerfile documented, the text file checks of CONVENTIONS.md | Python 3; on macOS `brew install hadolint` |
+| `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh`, the debug mode of `files/util/debug.sh` | bash, Python 3, jq |
+| `make docker` | the docker tests below: `make image`, `make patch`, `make e2e` and `make patch-sync` | Docker |
 | `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
 | `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
 | `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions, `docker stop`, the exit code 101 of mcloud-grid | Docker |
@@ -230,14 +231,16 @@ The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides th
 
 The shell scripts are formatted with shfmt (`.editorconfig`). Formatting-only commits are listed in `.git-blame-ignore-revs`, GitHub skips them in blame; locally: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
-## Documentation and free support
+The conventions of the style, the formatting and the tooling of this repository are in [CONVENTIONS.md](CONVENTIONS.md), the same in all the MCloud docker image repositories.
 
-* [Zebrunner PRO](https://zebrunner.com)
-* [Zebrunner CE](https://zebrunner.github.io/community-edition)
-* [Zebrunner Reporting](https://zebrunner.com/documentation)
-* [Carina Guide](http://zebrunner.github.io/carina)
-* [Demo Project](https://github.com/zebrunner/carina-demo)
-* [Telegram Channel](https://t.me/zebrunner)
+## Support
+
+- [Zebrunner PRO](https://zebrunner.com)
+- [Zebrunner CE](https://zebrunner.github.io/community-edition)
+- [Zebrunner Reporting](https://zebrunner.com/documentation)
+- [Carina Guide](http://zebrunner.github.io/carina)
+- [Demo Project](https://github.com/zebrunner/carina-demo)
+- [Telegram Channel](https://t.me/zebrunner)
 
 ## License
 
