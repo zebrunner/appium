@@ -27,7 +27,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 # image keeps its own drivers in ~/.appium); a new base image may move Appium, tests/image_test.sh checks it
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
 RUN appium_dir="$(dirname "$(readlink -f "$(command -v appium)")")" && \
-    if [ "$appium_dir" != "$APPIUM_HOME" ]; then \
+    if [ "${appium_dir}" != "${APPIUM_HOME}" ]; then \
       echo "[error] APPIUM_HOME is ${APPIUM_HOME} but the Appium of the base image is in ${appium_dir}" >&2; \
       exit 1; \
     fi
@@ -105,8 +105,8 @@ USER root
 # The dirs of the apps, the configs, the logs and the entrypoint; the usbmuxd socket forwarded by ios.sh is in
 # a dir of androidusr, /var/run is root only
 ARG ENTRYPOINT_DIR=/opt/entrypoint
-RUN mkdir -p $APPIUM_APPS_DIR $APPIUM_CONFIG_DIR $LOG_DIR /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
-    chown -R androidusr:androidusr $APPIUM_APPS_DIR $APPIUM_CONFIG_DIR $LOG_DIR /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
+RUN mkdir -p ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
+    chown -R androidusr:androidusr ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
     ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd
 
 USER androidusr
@@ -148,7 +148,7 @@ CMD ["/opt/entrypoint/entrypoint.sh"]
 HEALTHCHECK --interval=10s --timeout=10s --start-period=60s --retries=3 CMD ["healthcheck"]
 
 # ==============================
-# Stage 2 — Appium Image Plugin
+# Stage 2 - Appium Image Plugin
 # ==============================
 FROM appium AS appium-image
 

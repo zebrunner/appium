@@ -209,7 +209,7 @@ healthcheck_with() {
   docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
     --env APPIUM_UP="$1" --env FAKE_STATE="$2" --env FAKE_RECONNECT_STATE="$3" --entrypoint bash "$IMAGE" -c '
     export PATH=/tmp/fakebin:$PATH
-    if [ "$APPIUM_UP" = yes ]; then
+    if [[ "$APPIUM_UP" = yes ]]; then
       node -e "require(\"http\").createServer((req, res) => res.end(\"{}\")).listen(4723)" &
       for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:4723/ && break; sleep 0.5; done
     fi

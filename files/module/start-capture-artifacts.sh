@@ -1,7 +1,7 @@
 #!/bin/bash
 
 sessionId=$1
-if [ -z "$sessionId" ]; then
+if [[ -z "$sessionId" ]]; then
   echo "[warn] [CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
   exit 0
 fi

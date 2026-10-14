@@ -61,9 +61,9 @@ export PLATFORM_VERSION
 
 deviceClass=$(echo "$deviceInfo" | jq -r '.value.os.name')
 export DEVICETYPE='Phone'
-if [ "$deviceClass" = "iPadOS" ]; then
+if [[ "$deviceClass" = "iPadOS" ]]; then
   export DEVICETYPE='Tablet'
 fi
-if [ "$deviceClass" = "tvOS" ]; then
+if [[ "$deviceClass" = "tvOS" ]]; then
   export DEVICETYPE='tvOS'
 fi

@@ -46,8 +46,8 @@ MIN_CHROME=87
 if [[ $CHROME_OPTIONS == *androidDevToolsPort* ]]; then
   # "  Current WebView package (name, version): (com.google.android.webview, 120.0.6099.193)"
   webview=$(adb shell dumpsys webviewupdate 2> /dev/null | sed -n -E 's/.*Current WebView package \(name, version\): \(([^,]+), ([0-9]+)[^)]*\).*/\1 \2/p' | head -1)
-  chrome_major=$(adb shell dumpsys package com.android.chrome 2> /dev/null | sed -n -E 's/.*versionName=([0-9]+)\..*/\1/p' | sort -n | tail -1)
-  for browser in "${webview:+WebView ${webview}}" "${chrome_major:+Chrome com.android.chrome ${chrome_major}}"; do
+  chromeMajor=$(adb shell dumpsys package com.android.chrome 2> /dev/null | sed -n -E 's/.*versionName=([0-9]+)\..*/\1/p' | sort -n | tail -1)
+  for browser in "${webview:+WebView ${webview}}" "${chromeMajor:+Chrome com.android.chrome ${chromeMajor}}"; do
     [[ -n $browser ]] || continue
     major=${browser##* }
     if [[ $major =~ ^[0-9]+$ ]] && [[ $major -lt ${MIN_CHROME} ]]; then
