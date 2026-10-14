@@ -33,8 +33,10 @@ fi
 
 # the only Android driver of the image; Appium 3 has no 'Appium' (UiAutomator 1) driver for old devices
 export AUTOMATION_NAME='uiautomator2'
-if [[ ${PLATFORM_VERSION%%.*} =~ ^[0-9]+$ ]] && [[ ${PLATFORM_VERSION%%.*} -lt 8 ]]; then
-  echo "[warn] Android ${PLATFORM_VERSION} is not supported by UiAutomator2 6.x (needs 8.0+), sessions will fail"
+# the minimum Android major version of the UiAutomator2 driver of the image (tests/image_test.sh checks it)
+MIN_ANDROID=8
+if [[ ${PLATFORM_VERSION%%.*} =~ ^[0-9]+$ ]] && [[ ${PLATFORM_VERSION%%.*} -lt ${MIN_ANDROID} ]]; then
+  echo "[warn] Android ${PLATFORM_VERSION} is not supported by the UiAutomator2 driver (needs ${MIN_ANDROID}+), sessions will fail"
 fi
 
 # Forward adb port

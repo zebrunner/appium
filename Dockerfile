@@ -23,8 +23,14 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         libimobiledevice-utils libimobiledevice6 socat inotify-tools && \
     rm -rf /var/lib/apt/lists/*
 
-# The drivers are installed into APPIUM_HOME (the base image keeps its own drivers in ~/.appium)
+# The Appium of the base image: the drivers are installed and the patch is copied into APPIUM_HOME (the base
+# image keeps its own drivers in ~/.appium); a new base image may move Appium, tests/image_test.sh checks it
 ENV APPIUM_HOME=/usr/lib/node_modules/appium
+RUN appium_dir="$(dirname "$(readlink -f "$(command -v appium)")")" && \
+    if [ "$appium_dir" != "$APPIUM_HOME" ]; then \
+      echo "[error] APPIUM_HOME is ${APPIUM_HOME} but the Appium of the base image is in ${appium_dir}" >&2; \
+      exit 1; \
+    fi
 
 USER androidusr
 
@@ -48,7 +54,6 @@ ENV \
     ROUTER_UUID="" \
     # Appium settings
     APPIUM_PORT=4723 \
-    APPIUM_HOME=/usr/lib/node_modules/appium \
     APPIUM_APPS_DIR=/opt/appium-storage \
     APPIUM_CONFIG_DIR=/opt/config \
     APPIUM_APP_WAITING_TIMEOUT=600 \
@@ -135,7 +140,8 @@ LABEL org.opencontainers.image.title="Zebrunner MCloud Appium" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}"
 
-# Override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
+# The entrypoint is PID 1 to handle SIGTERM: no ENTRYPOINT of the base image (e.g. sh -c) runs it
+ENTRYPOINT []
 CMD ["/opt/entrypoint/entrypoint.sh"]
 
 # Appium starts in 10-30 s, an iOS container waits for WDA up to DEVICE_TIMEOUT

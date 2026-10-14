@@ -7,8 +7,12 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 
+// the patched base driver of the Appium of the image (APPIUM_HOME is set by the image)
+if (!process.env.BASE_DRIVER_DIR && !process.env.APPIUM_HOME) {
+  throw new Error('APPIUM_HOME (or BASE_DRIVER_DIR) is not set: run the tests in the image');
+}
 export const BASE_DRIVER_DIR =
-  process.env.BASE_DRIVER_DIR ?? '/usr/lib/node_modules/appium/node_modules/@appium/base-driver';
+  process.env.BASE_DRIVER_DIR ?? path.join(process.env.APPIUM_HOME, 'node_modules', '@appium', 'base-driver');
 export const baseDriver = require(BASE_DRIVER_DIR);
 export const helpers = require(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/helpers.js'));
 
