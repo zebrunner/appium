@@ -1,12 +1,14 @@
 # Conventions
 
-The conventions of the style, the formatting and the tooling of the Zebrunner MCloud docker image repositories:
+The conventions of the style, the formatting and the tooling of the Zebrunner MCloud repositories:
 
 - [appium](https://github.com/zebrunner/appium)
 - [mcloud-android-connector](https://github.com/zebrunner/mcloud-android-connector)
 - [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector)
+- [mcloud-grid](https://github.com/zebrunner/mcloud-grid)
+- [mcloud-agent](https://github.com/zebrunner/mcloud-agent)
 
-This file is the same in all of them: a change of a convention is made in every repository, and a new repository starts with a copy of it and of the shared files listed below. Most of the rules are checked by `make lint`; the rest is kept by review.
+This file is the same in all of them: a change of a convention is made in every repository, and a new repository starts with a copy of it and of the shared files listed below. Most of the rules are checked by `make lint`; the rest is kept by review. The rules that come from the kind of a project (Java, Ansible) are in [Project rules](#project-rules).
 
 ## Contents
 
@@ -22,15 +24,16 @@ This file is the same in all of them: a change of a convention is made in every 
 - [Makefile](#makefile)
 - [License](#license)
 - [Git](#git)
+- [Project rules](#project-rules)
 - [New repository checklist](#new-repository-checklist)
 
 ## Repository layout
 
 | Path | What it is |
 | --- | --- |
-| `Dockerfile` | the image |
-| `entrypoint.sh`, `util/`, `bin/` | the scripts and binaries of the image (`files/` in appium) |
-| `tests/lib.sh` | the shared helpers of the test scripts |
+| `Dockerfile` | the image (mcloud-agent has none) |
+| `entrypoint.sh`, `util/`, `bin/` | the scripts and binaries of the image (`files/` in appium, `src/` in mcloud-grid, `roles/` in mcloud-agent) |
+| `tests/lib.sh` | the shared helpers of the test scripts; `tests/project_lib.sh` the helpers of the project |
 | `tests/lint.sh` | the static checks of `make lint` |
 | `tests/<subject>_test.sh` | a test script; the docker ones are listed in `DOCKER_TESTS` of the `Makefile` |
 | `tests/requirements-lint.txt` | the pinned linters, installed into `.venv` by `make lint` |
@@ -49,21 +52,24 @@ This file is the same in all of them: a change of a convention is made in every 
 These files are kept identical in all the repositories, a change goes to every one of them:
 
 - `CONVENTIONS.md`, `LICENSE`
-- `.shellcheckrc`, `.yamllint`, `.pymarkdown`, `.gitignore`
-- `tests/lib.sh`, `tests/requirements-lint.txt`
-- the debug mode `util/debug.sh` and the logger `util/logger.sh` (`files/util/` in appium) with their tests `tests/debug_test.sh` and `tests/logger_test.sh` (the path of the script is the only difference)
+- `.shellcheckrc`, `.pymarkdown`
+- `tests/lib.sh`: the helpers of a project go to `tests/project_lib.sh`, which `tests/lib.sh` sources when it exists
+- in the images of shell scripts: the debug mode `util/debug.sh` and the logger `util/logger.sh` (`files/util/` in appium) with their tests `tests/debug_test.sh` and `tests/logger_test.sh` (the path of the script is the only difference)
 
 These files have a shared part and a project part, the shared part is the same everywhere:
 
 | File | Project part |
 | --- | --- |
-| `.editorconfig` | the sections after the shared ones: shell scripts without the `.sh` extension, generated files |
+| `.editorconfig` | the sections after the shared ones: shell scripts without the `.sh` extension, other languages, generated files |
+| `.gitignore` | the lines after the shared ones |
+| `.yamllint` | the rules after the shared ones (mcloud-agent) |
+| `tests/requirements-lint.txt` | the linters after the shared ones, the shared ones at the same versions |
 | `.dockerignore` | the comment with the paths the image build needs |
 | `.hadolint.yaml` | the ignored rules, each one with its reason |
-| `tests/lint.sh` | `generated`, the list of `scripts` and the project sections between `markdown` and `shell` |
-| `Makefile` | `DOCKER_TESTS` and the targets after `docker` |
-| `.github/workflows/ci.yml` | the steps of the `docker` job and the jobs after it, the timeouts of the docker jobs |
-| `.github/dependabot.yml` | the ecosystems: `docker` only when the base image can be updated without a manual change |
+| `tests/lint.sh` | `scripts`, `generated`, `tab_files` and the project sections between `markdown` and `shell` |
+| `Makefile` | what `test` and `docker` run, the targets after `docker` |
+| `.github/workflows/ci.yml` | the steps of the jobs, the jobs after `docker`, the timeouts, the OS matrix |
+| `.github/dependabot.yml` | the ecosystems of the project (e.g. `maven`); `docker` only when the base image can be updated without a manual change |
 
 ## Checks
 
@@ -72,20 +78,20 @@ These files have a shared part and a project part, the shared part is the same e
 | Target | What it runs | Needs |
 | --- | --- | --- |
 | `make lint` | `tests/lint.sh`: yamllint, actionlint, hadolint, pymarkdown, `bash -n`, shellcheck, shfmt, the text file checks below, the [license](#license) and the project checks | Python 3 (the tools are installed into `.venv`); on macOS `brew install hadolint` |
-| `make test` | every `tests/*_test.sh` that is not in `DOCKER_TESTS`, with stubs instead of the real tools | bash; no docker, no device |
-| `make docker` | the tests of `DOCKER_TESTS`: the image build, its contents and its startup | Docker |
+| `make test` | the tests without docker and devices, the tools are stubs (see [Project rules](#project-rules)) | bash, the tools of the project |
+| `make docker` | the tests of the image: its build, contents and startup | Docker |
 
 - The linters are pinned in `tests/requirements-lint.txt` as `name==version` and updated by Dependabot.
 - shellcheck runs with `--severity=info`: every finding is fixed, or disabled on the line above with the reason (see [Shell scripts](#shell-scripts)).
 - shfmt takes its style from `.editorconfig`, it has no flags of its own.
-- The text file checks of `tests/lint.sh` cover every text file but `.git`, `.venv`, `.idea` and the `generated` paths: no non-ASCII and control characters, no CR, no trailing whitespace, a final newline.
+- The text file checks of `tests/lint.sh` cover every text file but `.git`, `.venv`, `.idea` and the `generated` paths: no non-ASCII and control characters, no CR, no trailing whitespace, a final newline, tabs only in `tab_files`.
 - Every check prints `ok   - <description>` or `FAIL - <description>` with the details, and with `JUNIT_DIR` set it is also written as JUnit XML, which CI shows in the job summary and as annotations.
 
 ## All files
 
 - UTF-8 with ASCII characters only: `-`, `...`, `->` instead of the typographic dash, ellipsis or arrow.
 - LF line ends, a final newline, no trailing whitespace.
-- Indentation by spaces, 2 per level: shell, YAML, JSON, JavaScript. Tabs only in the `Makefile`.
+- Indentation by spaces, 2 per level: shell, YAML, JSON, JavaScript; 4 for Java. Tabs only in the `Makefile` (and `pom.xml`).
 - The continuation lines of a Dockerfile instruction are indented by 4 spaces (see [Dockerfile](#dockerfile)).
 - Generated files (e.g. the Appium patch of appium) are kept byte for byte: `.editorconfig` unsets the formatting for them and `tests/lint.sh` lists them in `generated`.
 - The line length is not limited for shell and Markdown, YAML allows 160 characters; keep the code lines readable, around 120 characters.
@@ -132,7 +138,8 @@ wait_for() {
 | What | Style | Example |
 | --- | --- | --- |
 | env vars of the image, exported vars, constants | `UPPER_SNAKE_CASE` | `DEVICE_UDID`, `MIN_ANDROID` |
-| variables and functions of the scripts of the image | `lowerCamelCase` | `isConfigValid`, `exitIfAdbServerStopped()` |
+| variables and functions of the scripts of an image | `lowerCamelCase` | `isConfigValid`, `exitIfAdbServerStopped()` |
+| variables and functions of the host scripts of mcloud-agent | `snake_case` | `create_containers()` |
 | variables and functions of `tests/`, `scripts/`, `build.sh` | `snake_case` | `check_contains()`, `diff_file` |
 | file names | `kebab-case.sh`; `<subject>_test.sh` for the tests | `build-patch.sh`, `entrypoint_test.sh` |
 
@@ -140,11 +147,11 @@ The env vars of tools keep the names of the tools (e.g. `npm_config_cache`).
 
 ### Logging
 
-- Every script of the image sources `util/logger.sh` itself (`. /opt/...` with a `# shellcheck source=` line) and logs with `logger <LEVEL> <message>`: `[dd/mm/YYYY HH:MM:SS] [LEVEL] message`, the levels are `DEBUG`, `INFO`, `WARN`, `ERROR` and `LOGGER_LEVEL` sets the minimum one.
+- Every shell script of an image (the exceptions: [Project rules](#project-rules)) sources `util/logger.sh` itself (`. /opt/...` with a `# shellcheck source=` line) and logs with `logger <LEVEL> <message>`: `[dd/mm/YYYY HH:MM:SS] [LEVEL] message`, the levels are `DEBUG`, `INFO`, `WARN`, `ERROR` and `LOGGER_LEVEL` sets the minimum one.
 - The messages are sentences: `logger "ERROR" "Device ${DEVICE_UDID} is not connected!"`.
 - A script whose stdout is data (e.g. a JSON generator) logs to stderr: `logger "ERROR" "..." >&2`.
 - `echo` is for data only: files, pipes, the output of a generator.
-- `DEBUG=true`, `DEBUG_TIMEOUT` and `VERBOSE=true` of `util/debug.sh` are supported by every entrypoint.
+- `DEBUG=true`, `DEBUG_TIMEOUT` and `VERBOSE=true` of `util/debug.sh` are supported by every shell entrypoint.
 
 ### Exit codes
 
@@ -233,10 +240,10 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
 - Every YAML file starts with `---`, 2 spaces, lines up to 160 characters, booleans only `true` and `false`, strings in double quotes when they need quotes (yamllint `--strict` with `.yamllint`).
 - A comment is `#` and a space, at least one space after the content.
 - The workflow is `.github/workflows/ci.yml`: `push` and `pull_request` on `develop`, `main`, `master` and `workflow_dispatch`; `concurrency` cancels the outdated runs of a pull request; `permissions: contents: read`.
-- The jobs are `lint`, `tests`, `docker` (plus the project ones), each with `timeout-minutes` (`lint` and `tests` 10) and a JUnit report step `mikepenz/action-junit-report` with `annotate_only: true`, `detailed_summary: true`, `require_tests: true`.
-- The `tests` job runs `make test`; the `docker` job uploads the JUnit XML as the `junit-docker` artifact.
+- The jobs are `lint`, `tests`, `docker` (those that apply, plus the project ones), each with `timeout-minutes` (10 unless the project needs more) and a JUnit report step `mikepenz/action-junit-report` with `annotate_only: true`, `detailed_summary: true`, `require_tests: true`.
+- The `tests` job runs the tests of `make test`; the jobs upload their JUnit XML as artifacts (`junit-docker` of the `docker` job).
 - The `actions/*` are referenced by their major version tag, the other actions by the full commit SHA with the version in a comment: `uses: mikepenz/action-junit-report@<sha> # v6.6.0`.
-- `.github/dependabot.yml` updates `github-actions`, `pip` (`directory: /tests`) and `docker` weekly, each with a comment of what it covers.
+- `.github/dependabot.yml` updates `github-actions`, `pip` (`directory: /tests`), `docker` and the ecosystem of the project weekly, each with a comment of what it covers.
 
 ## Markdown
 
@@ -262,8 +269,8 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
 
 - `make help` (the default goal) lists the targets with their `## <description>` comments.
 - The targets are `help`, `check`, `lint`, `test`, `docker`, then the project ones; all of them are `.PHONY`.
-- `check` runs `lint`, `test` and `docker`, every one of them, and fails when one failed.
-- `test` runs every `tests/*_test.sh` but the ones of `DOCKER_TESTS`, `docker` runs `DOCKER_TESTS`: a new test script is picked up without a change of the `Makefile`.
+- `check` runs `lint`, `test` and `docker` (plus the project targets), every one of them, and fails when one failed.
+- In the images of shell scripts `test` runs every `tests/*_test.sh` but the ones of `DOCKER_TESTS`, `docker` runs `DOCKER_TESTS`: a new test script is picked up without a change of the `Makefile`.
 - `lint` installs `tests/requirements-lint.txt` into `.venv` once (the stamp `.venv/.installed`).
 - The recipes are indented with a tab, `SHELL := /bin/bash`.
 
@@ -284,6 +291,30 @@ All the repositories are licensed under the [Apache License 2.0](https://www.apa
 - The commit messages are [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<optional scope>): <summary>`, the summary in lower case without a final period, the types `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore`.
 - A formatting-only commit is listed in `.git-blame-ignore-revs` (GitHub skips it in blame; locally: `git config blame.ignoreRevsFile .git-blame-ignore-revs`).
 - `make check` passes before a push.
+
+## Project rules
+
+The rules above are the same for every repository; these ones come from the kind of the project:
+
+| Repository | Kind | Its own rules |
+| --- | --- | --- |
+| appium, mcloud-android-connector, mcloud-ios-connector | a docker image of shell scripts | `make test` runs `tests/*_test.sh` but `DOCKER_TESTS`, `make docker` the image tests |
+| mcloud-grid | a docker image of a Java 11 application (Maven, Selenium 3 hub) | see [Java](#java) |
+| mcloud-agent | Ansible playbooks and the scripts of the farm hosts (Linux and macOS), no image | see [Ansible and host scripts](#ansible-and-host-scripts) |
+
+### Java
+
+- Java: 4 spaces, the rules of `config/checkstyle/checkstyle.xml` and SpotBugs (`config/spotbugs/exclude.xml`) in `make lint`; `pom.xml` keeps its tabs (`tab_files` of `tests/lint.sh`).
+- `make test` is `mvn verify`: the unit and integration tests with the JaCoCo coverage; Maven runs in docker (`tests/mvn.sh`) when the machine has no JDK.
+- The entrypoint logs JSON lines with the fields of the `JsonLogFormatter` of the hub, so the logs of the container stay one format: it does not use `util/logger.sh`.
+
+### Ansible and host scripts
+
+- The playbooks: `ansible-lint --strict` and `ansible-playbook --syntax-check`; `.yamllint` adds the rules ansible-lint needs and the `*.yml.original` files.
+- The templates of the scripts (`zebrunner-farm`, `zebrunner-device-listener`) are rendered with the example settings, then checked like the other scripts (`render`, `render_farm` of `tests/project_lib.sh`).
+- `zebrunner.sh` and the templates run on the farm hosts, also on macOS: bash 3.2 compatible, `snake_case` like the rest of their code, and their messages are for a person at the terminal (`echo`), not log lines of `util/logger.sh`.
+- Python (the test fakes): ruff (`ruff.toml`).
+- The tests run on Linux and macOS (the CI matrix); `make docker` runs the checks in the Linux image of `tests/Dockerfile`.
 
 ## New repository checklist
 

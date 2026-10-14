@@ -168,3 +168,9 @@ require_cmd() {
 finish() {
   exit "$FAILED"
 }
+
+# the helpers of the project, kept apart so that this file stays the same in all the repositories
+if [[ -f "${REPO}/tests/project_lib.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "${REPO}/tests/project_lib.sh"
+fi
