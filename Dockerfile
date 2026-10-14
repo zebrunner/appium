@@ -96,6 +96,7 @@ ENV \
     # Usbmuxd settings "host:port"
     USBMUXD_SOCKET_ADDRESS=connector:2222 \
     # Debug mode settings
+    LOGGER_LEVEL=INFO \
     DEBUG=false \
     DEBUG_TIMEOUT=3600 \
     VERBOSE=false
@@ -115,6 +116,7 @@ USER androidusr
 COPY --chown=androidusr:androidusr \
     files/module/start-capture-artifacts.sh \
     files/util/debug.sh \
+    files/util/logger.sh \
     files/module/android.sh \
     files/module/ios.sh \
     files/config/zbr-config-gen.sh \

@@ -171,6 +171,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | --- | --- | --- |
 | `DEBUG` | `false` | `true` keeps the container for `DEBUG_TIMEOUT` seconds (`3600`) after the entrypoint exits |
 | `VERBOSE` | `false` | `true` traces the entrypoint (`set -x`) |
+| `LOGGER_LEVEL` | `INFO` | the minimum level of the log lines of the scripts: `DEBUG`, `INFO`, `WARN` or `ERROR` (`[dd/mm/YYYY HH:MM:SS] [LEVEL] message`, `util/logger.sh`); the Appium log level is `LOG_LEVEL` |
 
 ### Device status
 
@@ -220,7 +221,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 | Target | What it checks | Needs |
 | --- | --- | --- |
 | `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, `node --check`, the patch files, the Dockerfile versions in this README and no other Appium version or patch diff mentioned, every env var of the Dockerfile documented, the text file checks of CONVENTIONS.md | Python 3; on macOS `brew install hadolint` |
-| `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh`, the debug mode of `files/util/debug.sh` | bash, Python 3, jq |
+| `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh` and `files/util/logger.sh` | bash, Python 3, jq |
 | `make docker` | the docker tests below: `make image`, `make patch`, `make e2e` and `make patch-sync` | Docker |
 | `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
 | `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
