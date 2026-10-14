@@ -1,0 +1,14 @@
+---
+version: 2
+# no docker: a new appium/appium base image needs the patch of files/patch ported to its Appium version
+updates:
+  # actions/* and the other actions of .github/workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # the linters of tests/requirements-lint.txt
+  - package-ecosystem: pip
+    directory: /tests
+    schedule:
+      interval: weekly

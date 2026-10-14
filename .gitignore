@@ -1,4 +1,7 @@
+# IDE
 .idea/
-target/
+*.iml
+# the lint tools of `make lint`
 .venv/
+# macOS
 .DS_Store
