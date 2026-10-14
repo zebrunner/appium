@@ -14,6 +14,7 @@ chmod 777 "$WORK/report"
 docker run --rm --platform "$PLATFORM" \
   --volume "$REPO/tests/patch:/tests/patch:ro" \
   --volume "$WORK/report:/report" \
+  --tmpfs /tmp/small-storage:size=1m,uid=1300,gid=1301 \
   --entrypoint node "$IMAGE" \
   --test --test-concurrency=1 --test-timeout=120000 \
   --test-reporter=spec --test-reporter-destination=/report/spec.log \

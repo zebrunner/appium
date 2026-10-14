@@ -192,6 +192,25 @@ describe('shared application storage', () => {
     }
   });
 
+  // tests/patch_test.sh mounts a 1 MB tmpfs there
+  const SMALL_STORAGE = '/tmp/small-storage';
+  test('a full storage fails the session with "no space left on device" (the device gets Unhealthy)', async (t) => {
+    if (!fs.existsSync(SMALL_STORAGE)) {
+      t.skip(`no ${SMALL_STORAGE} tmpfs`);
+      return;
+    }
+    app = Buffer.alloc(3 * 1024 * 1024, 4);
+    const storage = fs.mkdtempSync(path.join(SMALL_STORAGE, 'apps-'));
+    await withEnv(env({APPIUM_APPS_DIR: storage}), async () => {
+      await assert.rejects(configureApp(url, OPTS), (err) => {
+        assert.ok(err instanceof Error, 'an Error');
+        assert.match(err.message, /Cannot store the application in .*: .*no space left on device/i);
+        return true;
+      });
+    });
+    assert.deepEqual(fs.readdirSync(path.join(storage, 'builds', `${n}`)), [], 'no .lock or partial app left');
+  });
+
   test('a .lock that is not removed in APPIUM_APP_WAITING_TIMEOUT fails the session', async () => {
     fs.mkdirSync(path.dirname(localFile), {recursive: true});
     fs.writeFileSync(`${localFile}.lock`, 'device UUID: other');

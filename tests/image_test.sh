@@ -161,6 +161,28 @@ check "Android 7.1 is not supported by UiAutomator2" "uiautomator2|Phone|7.1.2|[
 check "Android 6 is not supported by UiAutomator2" "uiautomator2|Phone|6.0|[warn] Android 6.0 is not supported" \
   "$(android_module 6.0 phone generic)"
 
+# chrome_warnings <WebView "package version"> <Chrome version> [docker args...]: the old Chrome / WebView warnings
+# of files/module/android.sh with a fake adb
+chrome_warnings() {
+  docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
+    --env FAKE_RELEASE=14 --env FAKE_CHARACTERISTICS=phone --env FAKE_WEBVIEW="$1" --env FAKE_CHROME="$2" "${@:3}" \
+    --entrypoint bash "$IMAGE" -c '
+    export PATH=/tmp/fakebin:$PATH
+    . /opt/android.sh > /tmp/out 2>&1
+    grep -o "\[warn\] .* is older than [0-9]*" /tmp/out | tr "\n" ";"' 2>&1
+}
+check "Chrome and WebView 120: no warning" "" "$(chrome_warnings "com.google.android.webview 120.0.6099.193" 120.0.6099.193)"
+check "WebView 74: the Chrome and WebView sessions will fail" \
+  "[warn] WebView com.google.android.webview 74 is older than 87;" "$(chrome_warnings "com.google.android.webview 74.0.3729.136" "")"
+check "Chrome 74 with WebView 120: the Chrome sessions will fail" \
+  "[warn] Chrome com.android.chrome 74 is older than 87;" "$(chrome_warnings "com.google.android.webview 120.0.6099.193" 74.0.3729.136)"
+check "WebView 86 provided by Chrome 86 (Android 7-9): both warned" \
+  "[warn] WebView com.android.chrome 86 is older than 87;[warn] Chrome com.android.chrome 86 is older than 87;" \
+  "$(chrome_warnings "com.android.chrome 86.0.4240.198" 86.0.4240.198)"
+check "no WebView provider and no Chrome: no warning" "" "$(chrome_warnings "" "")"
+check "CHROME_OPTIONS without androidDevToolsPort: no warning" "" \
+  "$(chrome_warnings "com.google.android.webview 74.0.3729.136" 74.0.3729.136 --env CHROME_OPTIONS=)"
+
 section "ios module"
 # ios_module <os name> <os version> [docker args...]: <exit status>|PLATFORM_VERSION|DEVICETYPE|<WDA error> of
 # files/module/ios.sh with a fake WDA (tests/fixtures/fake-device.js) in the container
