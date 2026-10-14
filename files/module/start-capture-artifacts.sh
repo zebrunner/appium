@@ -1,12 +1,14 @@
 #!/bin/bash
 
+# shellcheck source=../util/logger.sh
+. /opt/logger.sh
 sessionId=$1
-if [ -z "$sessionId" ]; then
-  echo "[warn] [CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
+if [[ -z "$sessionId" ]]; then
+  logger "WARN" "[CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
   exit 0
 fi
 
-echo "[info] [CaptureArtifacts] sessionId: $sessionId"
+logger "INFO" "[CaptureArtifacts] sessionId: $sessionId"
 
 PLATFORM_NAME=$(echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]')
 
@@ -14,12 +16,12 @@ PLATFORM_NAME=$(echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]')
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   ffmpegInput="http://${WDA_HOST}:${MJPEG_PORT}"
 else
-  echo "[info] [CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
+  logger "INFO" "[CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
   echo -n "on" | nc "${BROADCAST_HOST}" "${BROADCAST_PORT}" -q 0 -v
   ffmpegInput="tcp://${BROADCAST_HOST}:${BROADCAST_PORT}"
 fi
 
-echo "[info] [CaptureArtifacts] generating video file ${sessionId}.mp4 from ${ffmpegInput}..."
+logger "INFO" "[CaptureArtifacts] generating video file ${sessionId}.mp4 from ${ffmpegInput}..."
 # you can add `-v trace` to enable verbose mode logs
 # -use_wallclock_as_timestamps 1 - use system time for timestamps in stream, improve VFR (Variable Frame Rate) accuracy.
 # FFMPEG_OPTS holds several options, it is split on purpose

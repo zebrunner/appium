@@ -4,8 +4,12 @@ root = true
 charset = utf-8
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
 
-[*.{yml,yaml}]
+[Makefile]
+indent_style = tab
+
+[*.{yml,yaml,json}]
 indent_style = space
 indent_size = 2
 
@@ -20,8 +24,16 @@ indent_size = 2
 shell_variant = bash
 space_redirects = true
 
+# shell scripts without the .sh extension
 [{files/healthcheck,tests/fixtures/fake-adb}]
 indent_style = space
 indent_size = 2
 shell_variant = bash
 space_redirects = true
+
+# generated: the patch diff and its build are kept byte for byte (tests/patch_sync_test.sh)
+[files/patch/**]
+indent_style = unset
+indent_size = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset

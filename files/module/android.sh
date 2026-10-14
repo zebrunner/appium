@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck source=../util/logger.sh
+. /opt/logger.sh
 # print all settings
 adb shell getprop ro.build.characteristics
 
@@ -36,7 +38,7 @@ export AUTOMATION_NAME='uiautomator2'
 # the minimum Android major version of the UiAutomator2 driver of the image (tests/image_test.sh checks it)
 MIN_ANDROID=8
 if [[ ${PLATFORM_VERSION%%.*} =~ ^[0-9]+$ ]] && [[ ${PLATFORM_VERSION%%.*} -lt ${MIN_ANDROID} ]]; then
-  echo "[warn] Android ${PLATFORM_VERSION} is not supported by the UiAutomator2 driver (needs ${MIN_ANDROID}+), sessions will fail"
+  logger "WARN" "Android ${PLATFORM_VERSION} is not supported by the UiAutomator2 driver (needs ${MIN_ANDROID}+), sessions will fail"
 fi
 
 # Chrome and the WebView contexts are reached through the fixed ANDROID_DEVTOOLS_PORT (androidDevToolsPort of
@@ -46,12 +48,12 @@ MIN_CHROME=87
 if [[ $CHROME_OPTIONS == *androidDevToolsPort* ]]; then
   # "  Current WebView package (name, version): (com.google.android.webview, 120.0.6099.193)"
   webview=$(adb shell dumpsys webviewupdate 2> /dev/null | sed -n -E 's/.*Current WebView package \(name, version\): \(([^,]+), ([0-9]+)[^)]*\).*/\1 \2/p' | head -1)
-  chrome_major=$(adb shell dumpsys package com.android.chrome 2> /dev/null | sed -n -E 's/.*versionName=([0-9]+)\..*/\1/p' | sort -n | tail -1)
-  for browser in "${webview:+WebView ${webview}}" "${chrome_major:+Chrome com.android.chrome ${chrome_major}}"; do
+  chromeMajor=$(adb shell dumpsys package com.android.chrome 2> /dev/null | sed -n -E 's/.*versionName=([0-9]+)\..*/\1/p' | sort -n | tail -1)
+  for browser in "${webview:+WebView ${webview}}" "${chromeMajor:+Chrome com.android.chrome ${chromeMajor}}"; do
     [[ -n $browser ]] || continue
     major=${browser##* }
     if [[ $major =~ ^[0-9]+$ ]] && [[ $major -lt ${MIN_CHROME} ]]; then
-      echo "[warn] ${browser% *} ${major} is older than ${MIN_CHROME}: its chromedriver does not support androidDevToolsPort, the Chrome and WebView sessions will fail; update it on the device"
+      logger "WARN" "${browser% *} ${major} is older than ${MIN_CHROME}: its chromedriver does not support androidDevToolsPort, the Chrome and WebView sessions will fail; update it on the device"
     fi
   done
 fi

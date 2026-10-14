@@ -18,7 +18,7 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -26,7 +26,7 @@ jobs:
           python-version: "3.13"
       - name: Install linters
         run: pip install -r tests/requirements-lint.txt
-      - name: Lint scripts, Dockerfile, workflows, docs and the patch
+      - name: Lint the project files (tests/lint.sh)
         run: tests/lint.sh
         env:
           JUNIT_DIR: ${{ runner.temp }}/junit
@@ -46,13 +46,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - name: Tests of build.sh and the config generators
-        run: |
-          status=0
-          for test in tests/build_test.sh tests/config_test.sh; do
-            "$test" || status=1
-          done
-          exit "$status"
+      - name: Tests without docker (make test)
+        run: make test
         env:
           JUNIT_DIR: ${{ runner.temp }}/junit
       - name: Tests report
@@ -61,25 +56,6 @@ jobs:
         with:
           report_paths: ${{ runner.temp }}/junit/*.xml
           check_name: tests report
-          annotate_only: true
-          detailed_summary: true
-          require_tests: true
-
-  patch-sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - name: The js files of the patch are the build of the patch diff
-        run: tests/patch_sync_test.sh
-        env:
-          JUNIT_DIR: ${{ runner.temp }}/junit
-      - name: Patch sync report
-        if: ${{ !cancelled() }}
-        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
-        with:
-          report_paths: ${{ runner.temp }}/junit/*.xml
-          check_name: patch sync report
           annotate_only: true
           detailed_summary: true
           require_tests: true
@@ -122,3 +98,22 @@ jobs:
         with:
           name: junit-docker
           path: ${{ runner.temp }}/junit/
+
+  patch-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: The js files of the patch are the build of the patch diff
+        run: tests/patch_sync_test.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Patch sync report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: patch sync report
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true

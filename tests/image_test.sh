@@ -54,7 +54,7 @@ actual="$(in_image "cd \$APPIUM_HOME && sha256sum ${files}")"
 check "the patched base-driver files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
-  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
+  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
 check "the healthcheck is configured, with a start period for the startup" '["CMD","healthcheck"] 1m0s' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}} {{.Config.Healthcheck.StartPeriod}}')"
 check "the image has the OCI labels" "https://github.com/zebrunner/appium dev" \
@@ -147,7 +147,7 @@ android_module() {
     --env FAKE_RELEASE="$1" --env FAKE_CHARACTERISTICS="$2" --env FAKE_HARDWARE="$3" --entrypoint bash "$IMAGE" -c '
     export PATH=/tmp/fakebin:$PATH
     . /opt/android.sh > /tmp/out 2>&1
-    warning="$(grep -o "\[warn\] Android .* is not supported" /tmp/out)"
+    warning="$(grep -o "\[WARN\] Android .* is not supported" /tmp/out)"
     echo "${AUTOMATION_NAME}|${DEVICETYPE}|${PLATFORM_VERSION}|${warning}"' 2>&1
 }
 check "Android 14 phone" "uiautomator2|Phone|14|" "$(android_module 14 phone generic)"
@@ -156,9 +156,9 @@ check "Android 12 tv" "uiautomator2|TV|12|" "$(android_module 12 tv generic)"
 check "Android 11 default (a TV box)" "uiautomator2|TV|11|" "$(android_module 11 default generic)"
 check "Android 11 redroid" "uiautomator2|Phone|11|" "$(android_module 11 default redroid)"
 check "Android 8.1 is supported" "uiautomator2|Phone|8.1.0|" "$(android_module 8.1.0 phone generic)"
-check "Android 7.1 is not supported by UiAutomator2" "uiautomator2|Phone|7.1.2|[warn] Android 7.1.2 is not supported" \
+check "Android 7.1 is not supported by UiAutomator2" "uiautomator2|Phone|7.1.2|[WARN] Android 7.1.2 is not supported" \
   "$(android_module 7.1.2 phone generic)"
-check "Android 6 is not supported by UiAutomator2" "uiautomator2|Phone|6.0|[warn] Android 6.0 is not supported" \
+check "Android 6 is not supported by UiAutomator2" "uiautomator2|Phone|6.0|[WARN] Android 6.0 is not supported" \
   "$(android_module 6.0 phone generic)"
 
 # chrome_warnings <WebView "package version"> <Chrome version> [docker args...]: the old Chrome / WebView warnings
@@ -169,15 +169,15 @@ chrome_warnings() {
     --entrypoint bash "$IMAGE" -c '
     export PATH=/tmp/fakebin:$PATH
     . /opt/android.sh > /tmp/out 2>&1
-    grep -o "\[warn\] .* is older than [0-9]*" /tmp/out | tr "\n" ";"' 2>&1
+    grep -o "\[WARN\] .* is older than [0-9]*" /tmp/out | tr "\n" ";"' 2>&1
 }
 check "Chrome and WebView 120: no warning" "" "$(chrome_warnings "com.google.android.webview 120.0.6099.193" 120.0.6099.193)"
 check "WebView 74: the Chrome and WebView sessions will fail" \
-  "[warn] WebView com.google.android.webview 74 is older than 87;" "$(chrome_warnings "com.google.android.webview 74.0.3729.136" "")"
+  "[WARN] WebView com.google.android.webview 74 is older than 87;" "$(chrome_warnings "com.google.android.webview 74.0.3729.136" "")"
 check "Chrome 74 with WebView 120: the Chrome sessions will fail" \
-  "[warn] Chrome com.android.chrome 74 is older than 87;" "$(chrome_warnings "com.google.android.webview 120.0.6099.193" 74.0.3729.136)"
+  "[WARN] Chrome com.android.chrome 74 is older than 87;" "$(chrome_warnings "com.google.android.webview 120.0.6099.193" 74.0.3729.136)"
 check "WebView 86 provided by Chrome 86 (Android 7-9): both warned" \
-  "[warn] WebView com.android.chrome 86 is older than 87;[warn] Chrome com.android.chrome 86 is older than 87;" \
+  "[WARN] WebView com.android.chrome 86 is older than 87;[WARN] Chrome com.android.chrome 86 is older than 87;" \
   "$(chrome_warnings "com.android.chrome 86.0.4240.198" 86.0.4240.198)"
 check "no WebView provider and no Chrome: no warning" "" "$(chrome_warnings "" "")"
 check "CHROME_OPTIONS without androidDevToolsPort: no warning" "" \
@@ -209,7 +209,7 @@ healthcheck_with() {
   docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
     --env APPIUM_UP="$1" --env FAKE_STATE="$2" --env FAKE_RECONNECT_STATE="$3" --entrypoint bash "$IMAGE" -c '
     export PATH=/tmp/fakebin:$PATH
-    if [ "$APPIUM_UP" = yes ]; then
+    if [[ "$APPIUM_UP" = yes ]]; then
       node -e "require(\"http\").createServer((req, res) => res.end(\"{}\")).listen(4723)" &
       for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:4723/ && break; sleep 0.5; done
     fi
@@ -349,7 +349,7 @@ docker run --detach --name "$container" --platform "$PLATFORM" --env CONNECT_TO_
 if wait_for 120 container_exited "$container"; then
   check "CONNECT_TO_GRID=true without the hub: the container exits with 1" "1" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
   check_contains "CONNECT_TO_GRID=true without the hub: the missing variables are logged" \
-    "[error] CONNECT_TO_GRID=true needs: SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST" "$(docker logs "$container" 2>&1)"
+    "[ERROR] CONNECT_TO_GRID=true needs: SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST" "$(docker logs "$container" 2>&1)"
 else
   fail "CONNECT_TO_GRID=true without the hub: the container exits" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
 fi

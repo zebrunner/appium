@@ -1,26 +1,28 @@
 #!/bin/bash
 
+# shellcheck source=util/logger.sh
+. /opt/logger.sh
 # Appium device container is considered healthy if stf appium up&running. For iOS also WDA status check is needed
 # 0 - healthy
 # 1 - unhealthy
 
 #Hit the Appium status URL to see if it is available
 if curl -Is "http://127.0.0.1:${APPIUM_PORT}/wd/hub/status" | head -1 | grep -q '200'; then
-  echo "Appium is up and running."
+  logger "INFO" "Appium is up and running."
 else
-  echo "Appium is unhealthy!"
+  logger "ERROR" "Appium is unhealthy!"
   exit 1
 fi
 
 #214 capture offline state and reconnect
 offline=$(adb devices | grep -c offline)
 if [[ $offline -eq 1 ]]; then
-  echo "Device is offline!"
+  logger "WARN" "Device is offline!"
   adb reconnect
 
   available=$(adb devices | grep -c -w device)
   if [[ $available -eq 0 ]]; then
-    echo "Device is not accessible after reconnect!"
+    logger "ERROR" "Device is not accessible after reconnect!"
     exit 1
   fi
 fi
