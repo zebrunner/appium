@@ -152,14 +152,14 @@ index 07258f3..a9e8d31 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..abb26cb 100644
+index b3bdf5a..5549f68 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
  import AsyncLock from 'async-lock';
  import axios from 'axios';
  import B from 'bluebird';
-+import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage } from './mcloud-utils';
++import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage, toError } from './mcloud-utils';
  
  // for compat with running tests transpiled and in-place
  export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
@@ -200,7 +200,7 @@ index b3bdf5a..abb26cb 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +168,226 @@ export async function configureApp(
+@@ -161,38 +168,231 @@ export async function configureApp(
              }
            }
          }
@@ -432,10 +432,15 @@ index b3bdf5a..abb26cb 100644
 +            if (localAppsFolder !== undefined) {
 +              logger.info(`[MCLOUD] New app path: ${newApp}`);
 +              // other sessions never see a partial app: the complete copy is renamed into place
-+              // @ts-ignore
-+              await fs.copyFile(newApp, localTmpFile);
-+              // @ts-ignore
-+              await fs.rename(localTmpFile, localFile);
++              try {
++                // @ts-ignore
++                await fs.copyFile(newApp, localTmpFile);
++                // @ts-ignore
++                await fs.rename(localTmpFile, localFile);
++              } catch (err) {
++                // e.g. "no space left on device": the error handling marks the device Unhealthy in STF
++                throw new Error(`[MCLOUD] Cannot store the application in ${localFile}: ${toError(err).message}`);
++              }
 +            }
 +          } finally {
 +            if (localTmpFile) {
@@ -453,7 +458,7 @@ index b3bdf5a..abb26cb 100644
            stream.destroy();
          }
        }
-@@ -218,7 +413,10 @@ export async function configureApp(
+@@ -218,7 +418,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
@@ -467,10 +472,10 @@ index b3bdf5a..abb26cb 100644
        const integrity = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..e15aca3
+index 0000000..1978dfe
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,168 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
@@ -499,6 +504,21 @@ index 0000000..e15aca3
 +  }
 +  const relative = path.relative(path.resolve(appsDir), path.resolve(fullPath));
 +  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
++}
++
++// the error as an Error with a string message: not every rejection is an Error, e.g. fs.copyFile of
++// @appium/support rejects with an array of errors (ncp), and the MCloud error handling reads err.message
++function toError(err: any): Error {
++  if (Array.isArray(err)) {
++    return new Error(err.map((e) => (e instanceof Error ? e.message : String(e))).join('; '));
++  }
++  if (err instanceof Error) {
++    if (typeof err.message !== 'string') {
++      err.message = String(err.message ?? '');
++    }
++    return err;
++  }
++  return new Error(typeof err === 'string' ? err : `${err}`);
 +}
 +
 +async function getSharedFolderForAppUrl(url) {
@@ -613,6 +633,7 @@ index 0000000..e15aca3
 +}
 +
 +export {
++  toError,
 +  isInSharedStorage,
 +  getLocalAppsFolder,
 +  getSharedFolderForAppUrl,
@@ -624,13 +645,25 @@ index 0000000..e15aca3
 +  getWDAStatus
 +};
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a2..eda0353 100644
+index 02822a2..fd1dcc3 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
-@@ -474,6 +474,118 @@ function buildHandler(
+@@ -16,6 +16,7 @@ import {MAX_LOG_BODY_LENGTH, PROTOCOLS, DEFAULT_BASE_PATH} from '../constants';
+ import {isW3cCaps} from '../helpers/capabilities';
+ import log from '../basedriver/logger';
+ import { generateDriverLogPrefix } from '../basedriver/helpers';
++import { toError } from '../basedriver/mcloud-utils';
+ import type { Core, AppiumLogger, PayloadParams, MethodMap, Driver, DriverMethodDef } from '@appium/types';
+ import type { BaseDriver } from '../basedriver/driver';
+ import type { Request, Response, Application } from 'express';
+@@ -473,7 +474,121 @@ function buildHandler(
+             length: MAX_LOG_BODY_LENGTH,
            })}`
        );
-     } catch (err) {
+-    } catch (err) {
++    } catch (caughtErr) {
++      // [MCLOUD] the handling below and the response need an Error with a message (e.g. an array of errors)
++      const err: any = toError(caughtErr);
 +      // token: string - auth token from stf
 +      // udid: string -  unique id of device
 +      // note: string - comment with error for device which would shows in stf

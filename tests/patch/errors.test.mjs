@@ -9,7 +9,8 @@ const {BaseDriver} = baseDriver;
 // a driver whose GET /status fails with the given error message
 class FailingDriver extends BaseDriver {
   async getStatus() {
-    throw new Error(this.errorMessage);
+    // errorValue: a thrown value that is not an Error (e.g. the array of errors of fs.copyFile)
+    throw this.errorValue ?? new Error(this.errorMessage);
   }
 }
 
@@ -44,6 +45,7 @@ describe('error handler', () => {
 
   // fails GET /status with the message, returns the error response
   async function failWith(message, extraEnv = {}) {
+    driver.errorValue = undefined;
     driver.errorMessage = message;
     return withEnv(env(extraEnv), () => request(`${server.url}/status`));
   }
@@ -121,6 +123,28 @@ describe('error handler', () => {
     const {status} = spawnSync(process.execPath, ['-e', code], {env: {...process.env, STF_API_URL: ''}, stdio: 'ignore', timeout: 60000});
     assert.equal(status, 1);
   });
+
+  test('a thrown array of errors (fs.copyFile of @appium/support) is answered and marks the device Unhealthy', async () => {
+    driver.errorValue = [new Error('ENOSPC: no space left on device, write')];
+    const res = await withEnv(env(), () => request(`${server.url}/status`));
+    assert.equal(res.status, 500);
+    assert.match(res.json.value.message, /^ENOSPC: no space left on device, write\[\[\[/);
+    assert.deepEqual(JSON.parse(stf.requests[0]?.body ?? '{}'), {
+      device: {status: 'Unhealthy', note: 'ENOSPC: no space left on device, write'},
+    });
+    // the server still answers: the handling did not crash Appium
+    driver.errorValue = undefined;
+    assert.equal((await failWith('boom')).status, 500);
+  });
+
+  for (const value of ['a string', 42, null, {code: 'E'}]) {
+    test(`a thrown ${value === null ? 'null' : typeof value} is answered with an error`, async () => {
+      driver.errorValue = value;
+      const res = await withEnv(env(), () => request(`${server.url}/status`));
+      assert.equal(res.status, 500);
+      assert.equal(typeof res.json.value.message, 'string');
+    });
+  }
 
   test('the error response is sent when STF fails', async () => {
     const res = await failWith('Device setup is not yet complete', {STF_API_URL: 'http://127.0.0.1:9/api/v1'});
