@@ -68,22 +68,76 @@ else
   check_contains "a linux/arm64 build stops with the reason" "the image is linux/amd64 only" "$(cat "$WORK/docker-build-arm64.log")"
 fi
 
-# the generated default caps pass the validation of the installed drivers without type warnings
-# validate_caps <platform> <automation> <driver package> <driver class>: "valid" or the warnings and errors
-validate_caps() {
-  docker run --rm --platform "$PLATFORM" --env PLATFORM_NAME="$1" --env AUTOMATION_NAME="$2" --env DEVICE_UDID=udid-1 \
-    --env PLATFORM_VERSION=17.4 --env DEVICE_NAME=device --entrypoint bash "$IMAGE" -c "
-    /opt/zbr-default-caps-gen.sh > /tmp/caps.json
-    cd /usr/lib/node_modules/appium/node_modules/$3 && node -e '
-      const caps = require(\"/tmp/caps.json\");
-      const plain = Object.fromEntries(Object.entries(caps).map(([k, v]) => [k.replace(/^appium:/, \"\"), v]));
-      new (require(\".\").$4)({}).validateDesiredCaps(plain);
-    '" 2>&1 | grep -E "as string|Error" || echo "valid"
+section "base image"
+# the assumptions on the base image, Appium and the drivers that a new release may break silently;
+# tests/image_checks.js runs the node based ones inside the image
+
+# report_checks <output of tests/image_checks.js>: every line is a check
+report_checks() {
+  local result description details
+  while IFS=$'\t' read -r result description details; do
+    if [[ "$result" == "ok" ]]; then
+      pass "$description"
+    elif [[ "$result" == "fail" ]]; then
+      fail "$description" "${details%%\\n*}" "$(printf '%b' "$details")"
+    fi
+  done <<< "$1"
 }
-check "the default caps of iOS are valid for XCUITest" "valid" \
-  "$(validate_caps ios XCUITest appium-xcuitest-driver XCUITestDriver)"
-check "the default caps of Android are valid for UiAutomator2" "valid" \
-  "$(validate_caps android uiautomator2 appium-uiautomator2-driver AndroidUiautomator2Driver)"
+
+base_image="$(dockerfile_value 'FROM ([^ ]+) AS appium')"
+# A1: APPIUM_HOME is the Appium the image runs: the drivers and the patch are installed there
+check "APPIUM_HOME is the Appium of the image" "$(in_image 'echo $APPIUM_HOME')" \
+  "$(in_image 'dirname "$(readlink -f "$(command -v appium)")"')"
+# A2: the entrypoint is PID 1 and gets SIGTERM, whatever the base image sets
+check "no ENTRYPOINT runs the entrypoint (it is PID 1)" "null" "$(docker image inspect "$IMAGE" --format '{{json .Config.Entrypoint}}')"
+check "the entrypoint is the command" '["/opt/entrypoint/entrypoint.sh"]' "$(docker image inspect "$IMAGE" --format '{{json .Config.Cmd}}')"
+check "docker stop sends SIGTERM" "SIGTERM" "$(docker image inspect "$IMAGE" --format '{{or .Config.StopSignal "SIGTERM"}}')"
+# A3: the volumes of the hosts (artifacts, app storage) are owned by this uid:gid
+check "androidusr is 1300:1301 (the owner of the volumes of the hosts)" "androidusr 1300:1301" \
+  "$(in_image 'echo "$(id -un) $(id -u):$(id -g)"')"
+# A4: the patch is built for the Node of the image (scripts/build-patch.sh)
+check "the patch is built with the Node major of the image" \
+  "$(sed -n -E 's/^NODE_IMAGE="\$\{NODE_IMAGE:-node:([0-9]+)\}"$/\1/p' scripts/build-patch.sh)" \
+  "$(in_image 'node -p "process.versions.node.split(\".\")[0]"')"
+
+# B1: the patch is built from the sources of appium@<version>; its base driver must be the installed one
+patched_version="$(curl -fsSL "https://raw.githubusercontent.com/appium/appium/appium@${appium_version}/packages/base-driver/package.json" |
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>&1)"
+check "the installed @appium/base-driver is the one of the patch sources (appium@${appium_version})" "$patched_version" \
+  "$(in_image 'node -p "require(process.env.APPIUM_HOME + \"/node_modules/@appium/base-driver/package.json\").version"')"
+# B2: the patch replaces existing files of the base image, only the files new in the diff are added
+diff_file="files/patch/appium-${appium_version//./_}.diff"
+new_files="$(awk '/^diff --git/{new=0} /^new file mode/{new=1} new && /^\+\+\+ b\/packages\/base-driver\/lib\//{sub(/^\+\+\+ b\/packages\/base-driver\/lib\//,""); sub(/\.(ts|js)$/,".js"); print}' "$diff_file")"
+replaced="$(cd files/patch/node_modules/@appium/base-driver/build/lib && find . -name '*.js' | sed 's|^\./||' | sort | grep -vxF "$new_files")"
+docker pull --quiet --platform "$PLATFORM" "$base_image" > /dev/null 2>&1
+missing="$(docker run --rm --platform "$PLATFORM" --entrypoint bash "$base_image" -c "
+  cd \"\$(dirname \"\$(readlink -f \"\$(command -v appium)\")\")/node_modules/@appium/base-driver/build/lib\" &&
+  for f in $(echo "$replaced" | tr '\n' ' '); do test -f \$f || echo \"\$f\"; done" 2>&1)"
+check "the patched files replace existing files of ${base_image}" "" "$missing"
+
+# in_checks_image <script> [image]: runs the script with tests/ as /checks and the installed drivers and plugins
+# in /tmp/drivers.json and /tmp/plugins.json
+in_checks_image() {
+  docker run --rm --platform "$PLATFORM" --volume "$REPO/tests:/checks:ro" --entrypoint bash "${2:-$IMAGE}" -c "
+    appium driver list --installed --json 2> /dev/null > /tmp/drivers.json
+    appium plugin list --installed --json 2> /dev/null > /tmp/plugins.json
+    $1" 2>&1
+}
+# B3, C1: the drivers (the plugin of the appium-image stage is checked with the stage below)
+report_checks "$(in_checks_image 'node /checks/image_checks.js extensions /tmp/drivers.json /tmp/plugins.json')"
+# C2: the generated default caps are known to the drivers and valid
+for platform in android:uiautomator2 ios:xcuitest; do
+  report_checks "$(in_checks_image "PLATFORM_NAME=${platform%%:*} DEVICE_UDID=udid-1 PLATFORM_VERSION=17.4 DEVICE_NAME=device \
+    AUTOMATION_NAME=${platform#*:} /opt/zbr-default-caps-gen.sh > /tmp/caps.json &&
+    node /checks/image_checks.js caps ${platform#*:} /tmp/caps.json < /tmp/drivers.json")"
+done
+# C3: the insecure features the entrypoint allows are used by a driver
+features="$(grep -oE '\*:[a-z_]+' files/entrypoint.sh | sed 's/^\*://' | sort -u | tr '\n' ' ')"
+report_checks "$(in_checks_image "node /checks/image_checks.js features ${features} < /tmp/drivers.json")"
+# C4: the Android warning of android.sh matches the minimum Android of the UiAutomator2 driver
+check "android.sh warns below the minimum Android of the UiAutomator2 driver" \
+  "$(in_checks_image 'node /checks/image_checks.js min-android < /tmp/drivers.json')" \
+  "$(sed -n -E 's/^MIN_ANDROID=([0-9]+)$/\1/p' files/module/android.sh)"
 
 section "android module"
 # android_module <release> <characteristics> <hardware>: AUTOMATION_NAME|DEVICETYPE|PLATFORM_VERSION|warning of
@@ -322,6 +376,8 @@ if [[ "${SKIP_PLUGIN_IMAGE:-false}" != "true" ]]; then
     check "the images plugin ${images_version} is installed" "$images_version" \
       "$(docker run --rm --platform "$PLATFORM" --entrypoint appium "${IMAGE}-images" plugin list --installed --json 2> /dev/null |
         python3 -c 'import json,sys; print(json.load(sys.stdin)["images"]["version"])' 2>&1)"
+    # C1: the plugin is installed in APPIUM_HOME and supports the Appium version
+    report_checks "$(in_checks_image 'echo "{}" > /tmp/drivers.json && node /checks/image_checks.js extensions /tmp/drivers.json /tmp/plugins.json' "${IMAGE}-images")"
     # APPIUM_PLUGINS=images of the stage reaches Appium
     container="${PREFIX}-images"
     docker run --detach --name "$container" --platform "$PLATFORM" "${IMAGE}-images" > /dev/null

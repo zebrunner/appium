@@ -94,6 +94,7 @@ The container is configured with environment variables; the defaults are the val
 | `APPIUM_PORT` | `4723` | the port of Appium, the base path is `/wd/hub` |
 | `APPIUM_CLI` | | extra Appium arguments, e.g. `--session-override` |
 | `APPIUM_PLUGINS` | | the plugins to use (`--use-plugins`), `images` in the `appium-image` stage |
+| `NODE_PATH` | `appium-image` stage: `/opt/appium-extra/node_modules:${APPIUM_HOME}/node_modules` | where Node finds sharp (installed apart from Appium) for the images plugin |
 | `LOG_LEVEL` | `info` | the Appium log level |
 | `RELAXED_SECURITY` | | `true` enables all insecure features (`--relaxed-security`) |
 | `CHROMEDRIVER_AUTODOWNLOAD` | `true` | allows `*:chromedriver_autodownload` (mobile web on Android) |
@@ -185,7 +186,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 ## Limitations
 
 * The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
-* Android 8.0+ only: the image has the UiAutomator2 6.x driver, older devices get a warning at startup and their sessions fail.
+* Android 8.0+ only (the minimum of the UiAutomator2 driver of the image, `MIN_ANDROID` of `files/module/android.sh`): older devices get a warning at startup and their sessions fail.
 * Appium runs as `androidusr`, not root.
 * The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
 
@@ -212,9 +213,9 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 
 | Command | What is checked | Needs |
 |---|---|---|
-| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, the patch files, the Dockerfile versions in this README | Python 3, hadolint on macOS: `brew install hadolint` |
+| `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, `node --check`, the patch files, the Dockerfile versions in this README and no other Appium version or patch diff mentioned, every env var of the Dockerfile documented |
 | `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh` | bash, Python 3, jq |
-| `make image` | the image build and contents, the Android and iOS modules and the healthcheck with a fake adb and WDA, the default capabilities with the installed drivers, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
+| `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
 | `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
 | `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions, `docker stop`, the exit code 101 of mcloud-grid | Docker |
 | `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
