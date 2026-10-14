@@ -8,7 +8,7 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 
 export const BASE_DRIVER_DIR =
-  process.env.BASE_DRIVER_DIR ?? '/usr/lib/node_modules/appium/node_modules/@appium/base-driver';
+  process.env.BASE_DRIVER_DIR ?? '/usr/local/lib/node_modules/appium/node_modules/@appium/base-driver';
 export const baseDriver = require(BASE_DRIVER_DIR);
 export const helpers = require(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/helpers.js'));
 

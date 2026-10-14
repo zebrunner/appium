@@ -1,6 +1,6 @@
 # check=skip=SecretsUsedInArgOrEnv
 # STF_AUTH_TOKEN is declared empty as documentation of the supported env vars; the real value is passed at runtime
-FROM appium/appium:v3.1.1-p0 AS appium
+FROM appium/appium:v3.3.0-p0 AS appium
 
 # The base image is linux/amd64 only (Android platform-tools, OpenJDK path): another platform would build
 # an image with amd64 binaries, so the build stops
@@ -24,7 +24,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     rm -rf /var/lib/apt/lists/*
 
 # The drivers are installed into APPIUM_HOME (the base image keeps its own drivers in ~/.appium)
-ENV APPIUM_HOME=/usr/lib/node_modules/appium
+ENV APPIUM_HOME=/usr/local/lib/node_modules/appium
 
 USER androidusr
 
@@ -48,7 +48,7 @@ ENV \
     ROUTER_UUID="" \
     # Appium settings
     APPIUM_PORT=4723 \
-    APPIUM_HOME=/usr/lib/node_modules/appium \
+    APPIUM_HOME=/usr/local/lib/node_modules/appium \
     APPIUM_APPS_DIR=/opt/appium-storage \
     APPIUM_CONFIG_DIR=/opt/config \
     APPIUM_APP_WAITING_TIMEOUT=600 \
@@ -135,7 +135,9 @@ LABEL org.opencontainers.image.title="Zebrunner MCloud Appium" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}"
 
-# Override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM
+# Override CMD to have PID=1 for the root process with ability to handle trap on SIGTERM; the base image
+# ENTRYPOINT (sh -c) is reset so the entrypoint is not run by a shell
+ENTRYPOINT []
 CMD ["/opt/entrypoint/entrypoint.sh"]
 
 # Appium starts in 10-30 s, an iOS container waits for WDA up to DEVICE_TIMEOUT

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds the patched @appium/base-driver from files/patch/appium-<version>.diff and copies the built js files of
 # the patched sources into files/patch/node_modules (the files of the image) or into --out <dir>.
-# The Appium version is the one of the base image in the Dockerfile (appium/appium:v3.1.1-p0 -> appium@3.1.1).
+# The Appium version is the one of the base image in the Dockerfile (appium/appium:v3.3.0-p0 -> appium@3.3.0).
 # Needs docker: the build runs in NODE_IMAGE (node:22), the npm cache is kept in the zbr-appium-npm-cache volume.
 #
 # Usage: scripts/build-patch.sh [--out <dir>]

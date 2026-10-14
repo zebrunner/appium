@@ -151,19 +151,19 @@ index 07258f3..a9e8d31 100644
      this.sessionId = null;
    }
  
-diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..abb26cb 100644
---- a/packages/base-driver/lib/basedriver/helpers.js
-+++ b/packages/base-driver/lib/basedriver/helpers.js
-@@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
+diff --git a/packages/base-driver/lib/basedriver/helpers.ts b/packages/base-driver/lib/basedriver/helpers.ts
+index a9c3835..9bc84a1 100644
+--- a/packages/base-driver/lib/basedriver/helpers.ts
++++ b/packages/base-driver/lib/basedriver/helpers.ts
+@@ -6,6 +6,7 @@ import {LRUCache} from 'lru-cache';
  import AsyncLock from 'async-lock';
  import axios from 'axios';
  import B from 'bluebird';
 +import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage } from './mcloud-utils';
- 
- // for compat with running tests transpiled and in-place
- export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
-@@ -27,7 +28,10 @@ const APPLICATIONS_CACHE = new LRUCache({
+ import type {
+   ConfigureAppOptions,
+   CachedAppInfo,
+@@ -35,7 +36,10 @@ const APPLICATIONS_CACHE = new LRUCache<string, CachedAppInfoEntry>({
        `The application '${app}' cached at '${fullPath}' has ` +
          `expired after ${CACHED_APPS_MAX_AGE_MS}ms`
      );
@@ -175,7 +175,7 @@ index b3bdf5a..abb26cb 100644
        fs.rimraf(fullPath);
      }
    },
-@@ -43,13 +47,15 @@ process.on('exit', () => {
+@@ -51,7 +55,8 @@ process.on('exit', () => {
      return;
    }
  
@@ -183,32 +183,33 @@ index b3bdf5a..abb26cb 100644
 +  // the files of the shared storage are kept for the other Appium of the host
 +  const appPaths = [...APPLICATIONS_CACHE.values()].map(({fullPath}) => fullPath).filter((fullPath) => !isInSharedStorage(fullPath));
    logger.debug(
-     `Performing cleanup of ${appPaths.length} cached ` +
-       util.pluralize('application', appPaths.length)
+     `Performing cleanup of ${util.pluralize('cached application', appPaths.length, true)}`
    );
-   for (const appPath of appPaths) {
+@@ -60,6 +65,7 @@ process.on('exit', () => {
+       continue;
+     }
      try {
 +      logger.info(`[MCLOUD] process.on('exit'). Deleting files by path: ${appPath}`);
-       // @ts-ignore it's defined
        fs.rimrafSync(appPath);
      } catch (e) {
-@@ -100,6 +106,7 @@ export async function configureApp(
+       logger.warn((e as Error).message);
+@@ -110,6 +116,7 @@ export async function configureApp(
    let newApp = app;
    const originalAppLink = app;
-   let packageHash = null;
+   let packageHash: string | null = null;
 +  let localAppsFolder;
-   /** @type {import('axios').AxiosResponse['headers']|undefined} */
-   let headers;
-   /** @type {RemoteAppProps} */
-@@ -161,38 +168,226 @@ export async function configureApp(
+   let headers: AxiosResponseHeaders | RawAxiosRequestHeaders | undefined;
+   const remoteAppProps: RemoteAppProps = {
+     lastModified: null,
+@@ -169,45 +176,233 @@ export async function configureApp(
              }
            }
          }
 -        if (cachedAppInfo && status === HTTP_STATUS_NOT_MODIFIED) {
--          if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
--            logger.info(`Reusing previously downloaded application at '${cachedAppInfo.fullPath}'`);
--            return verifyAppExtension(/** @type {string} */ (cachedAppInfo.fullPath), supportedAppExtensions);
-+
+-          const cachedPath = cachedAppInfo.fullPath ?? '';
+-          if (cachedPath && (await isAppIntegrityOk(cachedPath, cachedAppInfo.integrity))) {
+-            logger.info(`Reusing previously downloaded application at '${cachedPath}'`);
+-            return verifyAppExtension(cachedPath, supportedAppExtensions);
 +        // ***** Custom logic for verification of local static path for APPs *****
 +        let downloadIsNeeded = true;
 +        localAppsFolder = await getLocalAppsFolder();
@@ -259,6 +260,9 @@ index b3bdf5a..abb26cb 100644
 +              logger.info(`[MCLOUD] Attempt #${attemptsCount} for .lock file checking`);
 +              setTimeout(resolve, waitingTime);
 +            });
++          }
++          if (await lockCreatedTime()) {
++            throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
            }
 -          logger.info(
 -            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
@@ -268,13 +272,13 @@ index b3bdf5a..abb26cb 100644
 -
 -          if (!stream.closed) {
 -            stream.destroy();
-+          if (await lockCreatedTime()) {
-+            throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
-           }
--          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
 +          if (!await fs.exists(localFile)) {
 +            throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
-+          }
+           }
+-          result = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS});
+-          stream = result.stream;
+-          headers = result.headers;
+-          status = result.status;
 +          logger.info(`[MCLOUD] Local version of app was found after .lock file removal. Will use it for new session`);
 +        };
 +
@@ -334,11 +338,11 @@ index b3bdf5a..abb26cb 100644
 -        if (onDownload) {
 -          newApp = await onDownload({
 -            url: originalAppLink,
--            headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(headers)),
+-            headers: _.clone(headers) as HTTPHeaders,
 -            stream,
 -          });
 -        } else {
--          const fileName = determineFilename(headers, pathname, supportedAppExtensions);
+-          const fileName = determineFilename(headers, pathname ?? '', supportedAppExtensions);
 -          newApp = await fetchApp(stream, await tempDir.path({
 -            prefix: fileName,
 -            suffix: '',
@@ -362,7 +366,7 @@ index b3bdf5a..abb26cb 100644
 +            }
 +            logger.info(`[MCLOUD] Another session has just started the download of the app`);
 +            await waitForParallelDownload();
-+            newApp = /** @type {string} */ (localFile);
++            newApp = localFile;
 +            downloadIsNeeded = false;
 +          }
 +        }
@@ -372,9 +376,10 @@ index b3bdf5a..abb26cb 100644
 +          const localTmpFile = localFile ? `${localFile}.${process.pid}.tmp` : '';
 +          try {
 +            if (cachedAppInfo && status === HTTP_STATUS_NOT_MODIFIED) {
-+              if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
-+                logger.info(`[MCLOUD] Reusing previously downloaded application at '${cachedAppInfo.fullPath}'`);
-+                return verifyAppExtension(/** @type {string} */ (cachedAppInfo.fullPath), supportedAppExtensions);
++              const cachedPath = cachedAppInfo.fullPath ?? '';
++              if (cachedPath && (await isAppIntegrityOk(cachedPath, cachedAppInfo.integrity))) {
++                logger.info(`[MCLOUD] Reusing previously downloaded application at '${cachedPath}'`);
++                return verifyAppExtension(cachedPath, supportedAppExtensions);
 +              }
 +              logger.info(
 +                `[MCLOUD] The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
@@ -385,7 +390,10 @@ index b3bdf5a..abb26cb 100644
 +              if (stream && !stream.destroyed) {
 +                stream.destroy();
 +              }
-+              ({stream, headers, status} = await queryAppLink(newApp, reqHeaders));
++              result = await queryAppLink(newApp, reqHeaders);
++              stream = result.stream;
++              headers = result.headers;
++              status = result.status;
 +            }
 +            for (let attemptsLeft = appFetchRetries; attemptsLeft >= 0; attemptsLeft--) {
 +              let attemptStream;
@@ -397,7 +405,7 @@ index b3bdf5a..abb26cb 100644
 +                if (onDownload) {
 +                  newApp = await onDownload({
 +                    url: originalAppLink,
-+                    headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(attemptHeaders)),
++                    headers: _.clone(attemptHeaders) as HTTPHeaders,
 +                    stream: attemptStream,
 +                  });
 +                  // If onDownload returns a local path then validate it exists.
@@ -406,7 +414,7 @@ index b3bdf5a..abb26cb 100644
 +                  }
 +                } else {
 +                  if (!fileName) {
-+                    fileName = determineFilename(attemptHeaders, pathname, supportedAppExtensions);
++                    fileName = determineFilename(attemptHeaders, pathname ?? '', supportedAppExtensions);
 +                  }
 +                  newApp = await fetchApp(attemptStream, await tempDir.path({
 +                    prefix: fileName,
@@ -453,9 +461,13 @@ index b3bdf5a..abb26cb 100644
            stream.destroy();
          }
        }
-@@ -218,7 +413,10 @@ export async function configureApp(
-     /** @type {(appPathToCache: string) => Promise<string>} */
-     const storeAppInCache = async (appPathToCache) => {
++
+     } else if (await fs.exists(newApp)) {
+       // Use the local app
+       logger.info(`Using local app '${newApp}'`);
+@@ -229,7 +424,10 @@ export async function configureApp(
+ 
+     const storeAppInCache = async (appPathToCache: string): Promise<string> => {
        const cachedFullPath = cachedAppInfo?.fullPath;
 -      if (cachedFullPath && cachedFullPath !== appPathToCache) {
 +      // [MCLOUD] We control actuality of the file in custom logic.
@@ -464,17 +476,17 @@ index b3bdf5a..abb26cb 100644
 +        logger.info(`[MCLOUD] storeAppInCache(). Deleting files by path: ${cachedFullPath}`);
          await fs.rimraf(cachedFullPath);
        }
-       const integrity = {};
+       const integrity: {file?: string; folder?: number} = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..e15aca3
+index 0000000..def1798
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 @@ -0,0 +1,152 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
-+import logger from './logger';
++import {log as logger} from './logger';
 +import util from 'util';
 +import { exec } from 'child_process';
 +import {
@@ -624,10 +636,10 @@ index 0000000..e15aca3
 +  getWDAStatus
 +};
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a2..eda0353 100644
+index 943a565..c9263af 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
-@@ -474,6 +474,118 @@ function buildHandler(
+@@ -503,6 +503,118 @@ function buildHandler(
            })}`
        );
      } catch (err) {
@@ -661,11 +673,11 @@ index 02822a2..eda0353 100644
 +          }
 +
 +          const responseData = await response.json();
-+          getLogger(driver, req.params.sessionId || newSessionId).info('[MCLOUD] Successful response: ', responseData);
++          getLogger(driver, sessionId || newSessionId).info('[MCLOUD] Successful response: ', responseData);
 +
 +          return responseData;
 +        } catch (error) {
-+          getLogger(driver, req.params.sessionId || newSessionId).error('[MCLOUD] Request error: ', error.message);
++          getLogger(driver, sessionId || newSessionId).error('[MCLOUD] Request error: ', error.message);
 +          throw error;
 +        }
 +      }
@@ -675,67 +687,67 @@ index 02822a2..eda0353 100644
 +
 +      // handling error with Cannot find any free port in range
 +      if (err.message.toLowerCase().includes('cannot find any free port in range')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Cannot find any free port in range. Error message: ${err.message} Appium exit with code 1.`);
++        getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] Cannot find any free port in range. Error message: ${err.message} Appium exit with code 1.`);
 +        // Exiting with code 1 to indicate an error
 +        process.exit(1);
 +      }
 +
 +      // handling error with ENOSPC: no space left on device, mkdir '/tmp/ and exit with code 0
 +      if (err.message.toLowerCase().includes('no space left on device') || err.message.toLowerCase().includes('adb: failed to install')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] ENOSPC error, no space left on device, Error message:${err.message}. exit code 0. Device is Unhealthy.`);
++        getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] ENOSPC error, no space left on device, Error message:${err.message}. exit code 0. Device is Unhealthy.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
-+          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
++          getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
 +        } catch (error) {
-+          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++          getLogger(driver, sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
 +        }
 +      }
 +
 +      // Check if the error 'socket hang up' occurred and do exit 0
 +      if (err.message.toLowerCase().includes('socket hang up') && err.message.toLowerCase().includes('could not proxy command to the remote server')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Proxy command error. Error message:${err.message}. Device is Unhealthy.`);
++        getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Proxy command error. Error message:${err.message}. Device is Unhealthy.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message); // device status will not change
-+          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
++          getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
 +        } catch (error) {
-+          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++          getLogger(driver, sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
 +        }
 +      }
 +
 +      // Check if the error 'device setup is not yet complete' occurred and do exit 1
 +      if (err.message.toLowerCase().includes('device setup is not yet complete')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Device setup error. Error message:${err.message}. Device is Unhealthy.`);
++        getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Device setup error. Error message:${err.message}. Device is Unhealthy.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
-+          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`);
++          getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`);
 +        } catch (error) {
-+          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++          getLogger(driver, sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
 +        }
 +      }
 +
 +       // Check if the error is related to executing the 'am' shell command and do exit code 0
 +      if (err.message.toLowerCase().includes("cannot execute the 'am' shell command")) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Execute 'am' shell error. Error message:${err.message}. Device is Unhealthy.`);
++        getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Execute 'am' shell error. Error message:${err.message}. Device is Unhealthy.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
-+          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`);
++          getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy and error details have been added to the note.`);
 +        } catch (error) {
-+          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
++          getLogger(driver, sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
 +        }
 +      }
 +
 +      if (err.message.toLowerCase().includes('the session identified by') && err.message.toLowerCase().includes('is not known')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
++        getLogger(driver, sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message); // device status will not change
-+          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Comment with Error details added in STF for device with UDID ${udid}.`);
++          getLogger(driver, sessionId || newSessionId).info(`[MCLOUD] Comment with Error details added in STF for device with UDID ${udid}.`);
 +        } catch (error) {
-+          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred while adding comment for device with UDID in STF ${udid}. Error: ${error}.`);
++          getLogger(driver, sessionId || newSessionId).error(`[MCLOUD] Error occurred while adding comment for device with UDID in STF ${udid}. Error: ${error}.`);
 +        }
 +      }
 +
@@ -746,11 +758,11 @@ index 02822a2..eda0353 100644
        // if anything goes wrong, figure out what our response should be
        // based on the type of error that we encountered
        let actualErr;
-diff --git a/packages/base-driver/lib/protocol/routes.js b/packages/base-driver/lib/protocol/routes.js
-index 2cbe100..5a82d4b 100644
---- a/packages/base-driver/lib/protocol/routes.js
-+++ b/packages/base-driver/lib/protocol/routes.js
-@@ -34,6 +34,12 @@ export const METHOD_MAP = /** @type {const} */ ({
+diff --git a/packages/base-driver/lib/protocol/routes.ts b/packages/base-driver/lib/protocol/routes.ts
+index 399716a..5d17156 100644
+--- a/packages/base-driver/lib/protocol/routes.ts
++++ b/packages/base-driver/lib/protocol/routes.ts
+@@ -33,6 +33,12 @@ export const METHOD_MAP = {
    '/status': {
      GET: {command: 'getStatus'},
    },
@@ -763,7 +775,7 @@ index 2cbe100..5a82d4b 100644
    '/session/:sessionId/timeouts': {
      GET: {command: 'getTimeouts'},
      POST: {
-@@ -637,4 +643,4 @@ function toCommandNameCacheKey(endpoint, method) {
+@@ -626,4 +632,4 @@ function toCommandNameCacheKey(endpoint: string, method?: string): string {
  }
  
  // driver commands that do not require a session to already exist
