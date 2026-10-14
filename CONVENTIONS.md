@@ -20,9 +20,9 @@ This file is the same in all of them: a change of a convention is made in every 
 - [YAML and GitHub Actions](#yaml-and-github-actions)
 - [Markdown](#markdown)
 - [Makefile](#makefile)
+- [License](#license)
 - [Git](#git)
 - [New repository checklist](#new-repository-checklist)
-- [Known deviations](#known-deviations)
 
 ## Repository layout
 
@@ -42,16 +42,16 @@ This file is the same in all of them: a change of a convention is made in every 
 | `.hadolint.yaml`, `.shellcheckrc`, `.yamllint`, `.pymarkdown` | the configuration of the linters |
 | `README.md` | the user documentation of the image |
 | `CONVENTIONS.md` | this file |
+| `LICENSE` | the Apache License 2.0, see [License](#license) |
 
 ## Shared files
 
 These files are kept identical in all the repositories, a change goes to every one of them:
 
-- `CONVENTIONS.md`
+- `CONVENTIONS.md`, `LICENSE`
 - `.shellcheckrc`, `.yamllint`, `.pymarkdown`, `.gitignore`
 - `tests/lib.sh`, `tests/requirements-lint.txt`
-- the debug mode script `util/debug.sh` (`files/util/debug.sh` in appium) and its test `tests/debug_test.sh` (the path of the script is the only difference)
-- the logger `util/logger.sh` where the image has it
+- the debug mode `util/debug.sh` and the logger `util/logger.sh` (`files/util/` in appium) with their tests `tests/debug_test.sh` and `tests/logger_test.sh` (the path of the script is the only difference)
 
 These files have a shared part and a project part, the shared part is the same everywhere:
 
@@ -71,7 +71,7 @@ These files have a shared part and a project part, the shared part is the same e
 
 | Target | What it runs | Needs |
 | --- | --- | --- |
-| `make lint` | `tests/lint.sh`: yamllint, actionlint, hadolint, pymarkdown, `bash -n`, shellcheck, shfmt, the text file checks below and the project checks | Python 3 (the tools are installed into `.venv`); on macOS `brew install hadolint` |
+| `make lint` | `tests/lint.sh`: yamllint, actionlint, hadolint, pymarkdown, `bash -n`, shellcheck, shfmt, the text file checks below, the [license](#license) and the project checks | Python 3 (the tools are installed into `.venv`); on macOS `brew install hadolint` |
 | `make test` | every `tests/*_test.sh` that is not in `DOCKER_TESTS`, with stubs instead of the real tools | bash; no docker, no device |
 | `make docker` | the tests of `DOCKER_TESTS`: the image build, its contents and its startup | Docker |
 
@@ -140,8 +140,10 @@ The env vars of tools keep the names of the tools (e.g. `npm_config_cache`).
 
 ### Logging
 
-- The scripts of the image log with `logger <LEVEL> <message>` of `util/logger.sh`: `[dd/mm/YYYY HH:MM:SS] [LEVEL] message`, the levels are `DEBUG`, `INFO`, `WARN`, `ERROR` and `LOGGER_LEVEL` sets the minimum one.
+- Every script of the image sources `util/logger.sh` itself (`. /opt/...` with a `# shellcheck source=` line) and logs with `logger <LEVEL> <message>`: `[dd/mm/YYYY HH:MM:SS] [LEVEL] message`, the levels are `DEBUG`, `INFO`, `WARN`, `ERROR` and `LOGGER_LEVEL` sets the minimum one.
 - The messages are sentences: `logger "ERROR" "Device ${DEVICE_UDID} is not connected!"`.
+- A script whose stdout is data (e.g. a JSON generator) logs to stderr: `logger "ERROR" "..." >&2`.
+- `echo` is for data only: files, pipes, the output of a generator.
 - `DEBUG=true`, `DEBUG_TIMEOUT` and `VERBOSE=true` of `util/debug.sh` are supported by every entrypoint.
 
 ### Exit codes
@@ -174,7 +176,7 @@ The configuration is validated before anything starts: every invalid variable is
 - The tools of the image are replaced by stubs (`stub`, `record_stub`, `calls`) in `${WORK}/bin` at the front of `PATH`, so `make test` needs no docker and no device.
 - The temporary files go to `$WORK`, removed on exit; a script frees its other resources (containers, ...) in its own `cleanup()`, which replaces the empty one of `tests/lib.sh`: never a new `trap ... EXIT`.
 - The docker tests build the image once, `IMAGE` overrides its tag and `REBUILD=true` forces a new build.
-- `tests/lib.sh` and `tests/lint.sh` run on the macOS system bash 3.2 (no `mapfile`, no associative arrays, no `${var^^}`); a test of a script of the image may need bash 4+ like the image (`brew install bash`).
+- `tests/lib.sh`, `tests/lint.sh`, `util/debug.sh` and `util/logger.sh` run on the macOS system bash 3.2 (no `mapfile`, no associative arrays, no `${var^^}`); a test of a script of the image may need bash 4+ like the image (`brew install bash`).
 
 ## Dockerfile
 
@@ -222,7 +224,7 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
 - `ENV` lists every variable of the configuration with its default, grouped by `#` comments; each one is documented in the README.
 - `ENTRYPOINT`, `CMD` and `HEALTHCHECK` in the exec form; `sh -c` inside it when an env var is expanded.
 - The layers go from the rarely to the often changed ones, the downloads are removed in the `RUN` that made them.
-- The OCI labels with `ARG VERSION=dev`, the build passes the version: `--build-arg VERSION=<tag>`; `org.opencontainers.image.licenses` only when the repository declares its license.
+- The OCI labels with `ARG VERSION=dev`, the build passes the version: `--build-arg VERSION=<tag>`; `org.opencontainers.image.licenses="Apache-2.0"` (see [License](#license)).
 - A hadolint rule is ignored for one instruction with `# hadolint ignore=<rule>` above it, for the whole file in `.hadolint.yaml`; both with the reason in a comment.
 - `.dockerignore` keeps the build context to the files the image needs: `.git`, `.github`, `.idea`, `.venv`, `tests`, `*.md`, `.DS_Store` are excluded everywhere.
 
@@ -254,7 +256,7 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
   7. `## Exit codes and health`
   8. `## Development`: the `make` targets and what they check, a link to this file
   9. `## Support`
-  10. `## License`
+  10. `## License`: `[Apache License 2.0](LICENSE)`
 
 ## Makefile
 
@@ -264,6 +266,16 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
 - `test` runs every `tests/*_test.sh` but the ones of `DOCKER_TESTS`, `docker` runs `DOCKER_TESTS`: a new test script is picked up without a change of the `Makefile`.
 - `lint` installs `tests/requirements-lint.txt` into `.venv` once (the stamp `.venv/.installed`).
 - The recipes are indented with a tab, `SHELL := /bin/bash`.
+
+## License
+
+All the repositories are licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0):
+
+- `LICENSE`: the text of the license, the same file in all the repositories;
+- `README.md`: the last section is `## License` with `[Apache License 2.0](LICENSE)`;
+- `Dockerfile`: the label `org.opencontainers.image.licenses="Apache-2.0"`.
+
+`make lint` checks the three of them. The code taken from another project keeps its license and notices (e.g. the Appium patch of appium: Apache-2.0). The images also contain the programs of their base images and packages under their own licenses (e.g. GPL for bash and busybox), they are not changed by the license of the repository.
 
 ## Git
 
@@ -280,9 +292,3 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
 3. Write `tests/<subject>_test.sh` for the scripts of the image and `tests/image_test.sh` for the image.
 4. Write the README with the sections above.
 5. `make check`.
-
-## Known deviations
-
-The rules not applied yet, each one is a separate change:
-
-- appium logs with `echo "[info] ..."` instead of `util/logger.sh`.

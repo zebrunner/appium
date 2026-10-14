@@ -7,7 +7,7 @@ cd "$REPO" || exit 1
 
 # the shell scripts of the project
 scripts=(build.sh scripts/*.sh tests/fixtures/fake-adb files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh
-  files/util/debug.sh tests/*.sh)
+  files/util/*.sh tests/*.sh)
 # the generated files kept byte for byte: no text file checks
 generated=(files/patch)
 
@@ -60,6 +60,10 @@ check "README and the scripts mention only the patch diff of Appium ${appium_ver
 env_vars="$(sed -n -E 's/^(ENV)?[[:space:]]+([A-Z][A-Z0-9_]*)=.*/\2/p; s/^ENV ([A-Z][A-Z0-9_]*)=.*/\1/p' Dockerfile | sort -u)"
 check "README documents every env var of the Dockerfile" "" \
   "$(for var in $env_vars; do grep -qF "\`${var}\`" README.md || echo "${var} is missing in README.md"; done)"
+# the license of CONVENTIONS.md: LICENSE, the README section and the label of the image
+check_contains "LICENSE is the Apache License 2.0" "Apache License" "$(head -3 LICENSE 2> /dev/null)"
+check_contains "README links LICENSE" "[Apache License 2.0](LICENSE)" "$(cat README.md)"
+check_contains "the image is labeled Apache-2.0" 'org.opencontainers.image.licenses="Apache-2.0"' "$(cat Dockerfile)"
 
 section "javascript"
 for script in tests/image_checks.js tests/fixtures/fake-device.js tests/patch/*.mjs; do
