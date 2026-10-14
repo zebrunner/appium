@@ -39,6 +39,23 @@ if [[ ${PLATFORM_VERSION%%.*} =~ ^[0-9]+$ ]] && [[ ${PLATFORM_VERSION%%.*} -lt $
   echo "[warn] Android ${PLATFORM_VERSION} is not supported by the UiAutomator2 driver (needs ${MIN_ANDROID}+), sessions will fail"
 fi
 
+# Chrome and the WebView contexts are reached through the fixed ANDROID_DEVTOOLS_PORT (androidDevToolsPort of
+# CHROME_OPTIONS): the adb server is in the connector, so is the DevTools forward. chromedriver supports
+# androidDevToolsPort since 87, an older Chrome or WebView gets an old chromedriver that rejects it.
+MIN_CHROME=87
+if [[ $CHROME_OPTIONS == *androidDevToolsPort* ]]; then
+  # "  Current WebView package (name, version): (com.google.android.webview, 120.0.6099.193)"
+  webview=$(adb shell dumpsys webviewupdate 2> /dev/null | sed -n -E 's/.*Current WebView package \(name, version\): \(([^,]+), ([0-9]+)[^)]*\).*/\1 \2/p' | head -1)
+  chrome_major=$(adb shell dumpsys package com.android.chrome 2> /dev/null | sed -n -E 's/.*versionName=([0-9]+)\..*/\1/p' | sort -n | tail -1)
+  for browser in "${webview:+WebView ${webview}}" "${chrome_major:+Chrome com.android.chrome ${chrome_major}}"; do
+    [[ -n $browser ]] || continue
+    major=${browser##* }
+    if [[ $major =~ ^[0-9]+$ ]] && [[ $major -lt ${MIN_CHROME} ]]; then
+      echo "[warn] ${browser% *} ${major} is older than ${MIN_CHROME}: its chromedriver does not support androidDevToolsPort, the Chrome and WebView sessions will fail; update it on the device"
+    fi
+  done
+fi
+
 # Forward adb port
 # Used to connect appium builtin adb and mcloud-android-connector adb
 socat TCP-LISTEN:5037,fork TCP:connector:5037 &

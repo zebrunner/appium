@@ -5,6 +5,8 @@
 #   FAKE_HARDWARE         ro.hardware
 #   FAKE_STATE            the state of `adb devices` (device, offline), kept in FAKE_STATE_FILE
 #   FAKE_RECONNECT_STATE  the state after `adb reconnect`
+#   FAKE_WEBVIEW          the current WebView provider of `dumpsys webviewupdate`: "<package> <version>"
+#   FAKE_CHROME           the versionName of com.android.chrome (not installed when empty)
 # Other adb commands do nothing; `adb reconnect` is logged into FAKE_STATE_FILE.log.
 FAKE_STATE_FILE="${FAKE_STATE_FILE:-/tmp/fake-adb.state}"
 [[ -f "$FAKE_STATE_FILE" ]] || echo "${FAKE_STATE:-device}" > "$FAKE_STATE_FILE"
@@ -20,6 +22,15 @@ if [[ "$1" == "shell" && "$2" == "getprop" ]]; then
   ro.build.version.release) echo "$FAKE_RELEASE" ;;
   ro.hardware) echo "$FAKE_HARDWARE" ;;
   esac
+elif [[ "$1 $2 $3" == "shell dumpsys webviewupdate" ]]; then
+  echo "Current WebView Update Service state"
+  if [[ -n "$FAKE_WEBVIEW" ]]; then
+    printf '  Current WebView package (name, version): (%s, %s)\n' "${FAKE_WEBVIEW% *}" "${FAKE_WEBVIEW#* }"
+  else
+    echo "  Current WebView package is null"
+  fi
+elif [[ "$1 $2 $3 $4" == "shell dumpsys package com.android.chrome" ]]; then
+  [[ -n "$FAKE_CHROME" ]] && printf 'Packages:\n  Package [com.android.chrome] (1a2b3c):\n    versionCode=1 minSdk=26\n    versionName=%s\n' "$FAKE_CHROME"
 elif [[ "$1" == "devices" ]]; then
   echo "List of devices attached"
   printf 'udid-1\t%s\n\n' "$(cat "$FAKE_STATE_FILE")"
