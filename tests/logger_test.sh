@@ -1,7 +1,13 @@
 #!/bin/bash
-# Tests of files/util/logger.sh: level filtering, the default level, case-insensitive levels, multi-word messages.
+# Tests of the logger util/logger.sh: level filtering, the default level, case-insensitive levels, multi-word messages.
 source "$(dirname "$0")/lib.sh"
 cd "$REPO" || exit 1
+
+# the script under test: util/ of an image, files/util/ of appium, shared/util/ of mcloud-conventions
+for LOGGER_SH in util/logger.sh files/util/logger.sh shared/util/logger.sh; do
+  [[ -f "$LOGGER_SH" ]] && break
+done
+export LOGGER_SH
 
 # run_logger <LOGGER_LEVEL, empty for unset> <logger arguments...>: the output of one logger call
 run_logger() {
@@ -9,7 +15,7 @@ run_logger() {
   shift
   LEVEL="$level" bash -c '
     [[ -n "$LEVEL" ]] && export LOGGER_LEVEL="$LEVEL" || unset LOGGER_LEVEL
-    source files/util/logger.sh
+    source "$LOGGER_SH"
     logger "$@"
   ' _ "$@"
 }

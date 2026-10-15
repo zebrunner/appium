@@ -1,9 +1,14 @@
 #!/bin/bash
-# Tests of files/util/debug.sh: the DEBUG pause on exit and the VERBOSE tracing.
+# Tests of the debug mode util/debug.sh: the DEBUG pause on exit and the VERBOSE tracing.
 source "$(dirname "$0")/lib.sh"
 cd "$REPO" || exit 1
 
-# run_debug <env assignments...> -- <script body>: the output of a script sourcing files/util/debug.sh
+# the script under test: util/ of an image, files/util/ of appium, shared/util/ of mcloud-conventions
+for debug_sh in util/debug.sh files/util/debug.sh shared/util/debug.sh; do
+  [[ -f "$debug_sh" ]] && break
+done
+
+# run_debug <env assignments...> -- <script body>: the output of a script sourcing the debug mode
 run_debug() {
   local env=()
   while [[ "$1" != "--" ]]; do
@@ -11,7 +16,7 @@ run_debug() {
     shift
   done
   shift
-  env -u DEBUG -u VERBOSE -u DEBUG_TIMEOUT "${env[@]}" bash -c "source files/util/debug.sh; $1" 2>&1
+  env -u DEBUG -u VERBOSE -u DEBUG_TIMEOUT "${env[@]}" bash -c "source ${debug_sh}; $1" 2>&1
 }
 
 # the pause of the DEBUG mode is a stub printing its argument
