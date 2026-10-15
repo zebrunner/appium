@@ -7,8 +7,3 @@ updates:
     directory: /
     schedule:
       interval: weekly
-  # the linters of tests/requirements-lint.txt
-  - package-ecosystem: pip
-    directory: /tests
-    schedule:
-      interval: weekly
