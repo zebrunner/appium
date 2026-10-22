@@ -1,5 +1,5 @@
 #!/bin/bash
-# xcrun (and lipo, a link to this script) of the macOS host for a simulator (DEVICE_CONNECTION=simulator): XCUITest
+# xcrun (and lipo, a link to this script) of the macOS host for a simulator (DEVICE_CONNECTION=ios-sim): XCUITest
 # runs `xcrun simctl ...` and `lipo -info <app binary>` here, the command runs on the host over ssh through the connector (HOST_SSH_HOST:HOST_SSH_PORT, the connector relays them to
 # the host). An absolute path of the arguments that exists here (e.g. the app to install) is copied to the host first,
 # a missing one of the temporary folder (e.g. a screenshot to write) is copied back after the command. The path of an

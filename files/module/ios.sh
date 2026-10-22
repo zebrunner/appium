@@ -36,10 +36,10 @@ else
 fi
 
 #### Simulator of a macOS host
-# DEVICE_CONNECTION=simulator: XCUITest runs xcrun of the host (/usr/local/bin/xcrun, ssh through the connector) and
+# DEVICE_CONNECTION=ios-sim: XCUITest runs xcrun of the host (/usr/local/bin/xcrun, ssh through the connector) and
 # reads the Xcode version from Info.plist of DEVELOPER_DIR, a copy of the one of the host. The simulator has no usbmuxd
 # (WIRELESS=true), the connector relays its WebDriverAgent.
-if [[ "$(echo "${DEVICE_CONNECTION}" | tr '[:upper:]' '[:lower:]')" == "simulator" ]]; then
+if [[ "$(echo "${DEVICE_CONNECTION}" | tr '[:upper:]' '[:lower:]')" == "ios-sim" ]]; then
   mkdir -p /tmp/zebrunner
   # ssh refuses a private key readable by others, the mounted one is copied
   if cp "${HOST_SSH_KEY:-/opt/zebrunner/ssh/id_ed25519}" /tmp/zebrunner/ssh_key 2> /dev/null; then

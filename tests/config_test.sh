@@ -67,7 +67,7 @@ check "simpleIsVisibleCheck is the JSON boolean true" 'true' "$(json_get "$caps"
 check "wdaLocalPort is a number" '8100' "$(json_get "$caps" 'j["appium:wdaLocalPort"]')"
 check "no preventWDAAttachments (unused by XCUITest)" 'false' "$(json_get "$caps" '"appium:preventWDAAttachments" in j')"
 check "a real device is not headless" 'false' "$(json_get "$caps" '"appium:isHeadless" in j')"
-caps="$(env "${common_env[@]}" PLATFORM_NAME=iOS AUTOMATION_NAME=XCUITest DEVICE_UDID=B1B07E76 DEVICE_CONNECTION=Simulator \
+caps="$(env "${common_env[@]}" PLATFORM_NAME=iOS AUTOMATION_NAME=XCUITest DEVICE_UDID=B1B07E76 DEVICE_CONNECTION=iOS-Sim \
   files/config/zbr-default-caps-gen.sh)"
 check "a simulator is headless" 'true' "$(json_get "$caps" 'j["appium:isHeadless"]')"
 check "a simulator uses the relayed WebDriverAgent" '"http://connector:8100"' "$(json_get "$caps" 'j["appium:webDriverAgentUrl"]')"

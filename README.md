@@ -62,7 +62,7 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
 
 # iOS: the same with
 #   -e PLATFORM_NAME=ios -e WDA_HOST=connector -e APPIUM_CLI=--session-override
-# a simulator of the macOS host: -e WIRELESS=true -e DEVICE_CONNECTION=simulator -e HOST_SSH_USER=<user of the host>
+# a simulator of the macOS host: -e WIRELESS=true -e DEVICE_CONNECTION=ios-sim -e HOST_SSH_USER=<user of the host>
 #   -v <private ssh key>:/opt/zebrunner/ssh/id_ed25519:ro
 ```
 
@@ -165,7 +165,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `DEVICE_TIMEOUT` | `300` | s, how long the startup waits for WDA |
 | `USBMUXD_SOCKET_ADDRESS` | `connector:2222` | usbmuxd of the connector; the iOS tools use it directly, `/var/run/usbmuxd` is forwarded to it |
 | `WIRELESS` | `false` | `true` for a device without usbmuxd (a simulator, or WDA started by another tool and relayed by the connector): no usbmuxd forwarding, WDA is reached at `WDA_HOST:WDA_PORT` |
-| `DEVICE_CONNECTION` | empty | `simulator` for a simulator of the macOS host, see [Simulators](#simulators) |
+| `DEVICE_CONNECTION` | empty | `ios-sim` for an iOS or tvOS simulator of the macOS host, see [Simulators](#simulators) |
 | `HOST_SSH_USER` | empty | the user of the macOS host of the simulator |
 | `HOST_SSH_HOST`, `HOST_SSH_PORT` | `connector`, `22` | ssh of the macOS host, relayed by the connector |
 | `HOST_SSH_KEY` | `/opt/zebrunner/ssh/id_ed25519` | the mounted private ssh key of the user of the host |

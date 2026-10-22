@@ -57,7 +57,7 @@ if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   wdaPort="$(number WDA_PORT "$WDA_PORT")" || exit 1
   # a simulator of the macOS host runs headless for XCUITest of the container: there is no `open` of the Simulator UI
   simulator=false
-  if [[ "$(printf '%s' "$DEVICE_CONNECTION" | tr '[:upper:]' '[:lower:]')" == "simulator" ]]; then
+  if [[ "$(printf '%s' "$DEVICE_CONNECTION" | tr '[:upper:]' '[:lower:]')" == "ios-sim" ]]; then
     simulator=true
   fi
   jq -n \
