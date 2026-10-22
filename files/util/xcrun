@@ -1,0 +1,91 @@
+#!/bin/bash
+# xcrun (and lipo, a link to this script) of the macOS host for a simulator (DEVICE_CONNECTION=simulator): XCUITest
+# runs `xcrun simctl ...` and `lipo -info <app binary>` here, the command runs on the host over ssh through the connector (HOST_SSH_HOST:HOST_SSH_PORT, the connector relays them to
+# the host). An absolute path of the arguments that exists here (e.g. the app to install) is copied to the host first,
+# a missing one of the temporary folder (e.g. a screenshot to write) is copied back after the command. The path of an
+# app returned by get_app_container and the Applications of the runtime root (getenv) are mirrored by empty folders here,
+# XCUITest checks that they exist.
+# Without HOST_SSH_USER there is no host: xcrun fails as a missing tool, XCUITest takes the device for a real one.
+
+# the tool of the host: the name of the link
+tool="$(basename "$0")"
+if [[ -z "$HOST_SSH_USER" ]]; then
+  echo "${tool} is not available: the device is not a simulator of a macOS host (HOST_SSH_USER is not set)" >&2
+  exit 127
+fi
+
+key="${SIMULATOR_SSH_KEY:-/tmp/zebrunner/ssh_key}"
+# the copies of the files of this command on the host
+remoteDir="/tmp/zebrunner-appium-${DEVICE_UDID:-simulator}/$$"
+tmpDir="${TMPDIR:-/tmp}"
+tmpDir="${tmpDir%/}"
+sshCommand=(ssh -i "$key" -p "${HOST_SSH_PORT:-22}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new
+  -o UserKnownHostsFile=/tmp/zebrunner/known_hosts -o LogLevel=ERROR -o ServerAliveInterval=15
+  "${HOST_SSH_USER}@${HOST_SSH_HOST:-connector}")
+
+# quote <words>: the words quoted for the shell of the host
+quote() {
+  printf '%q ' "$@"
+}
+
+args=()
+copyBack=()
+copied=0
+for arg in "$@"; do
+  if [[ "$arg" == /* && -e "$arg" ]]; then
+    remote="${remoteDir}${arg}"
+    if ! tar -C "$(dirname "$arg")" -cf - "$(basename "$arg")" |
+      "${sshCommand[@]}" "mkdir -p $(quote "$(dirname "$remote")") && tar -xf - -C $(quote "$(dirname "$remote")")"; then
+      echo "${tool}: can't copy '${arg}' to the macOS host" >&2
+      exit 1
+    fi
+    args+=("$remote")
+    copied=1
+  elif [[ ("$arg" == /tmp/* || "$arg" == "${tmpDir}"/*) && -d "$(dirname "$arg")" ]]; then
+    args+=("${remoteDir}${arg}")
+    copyBack+=("$arg")
+    copied=1
+  else
+    args+=("$arg")
+  fi
+done
+
+# simctl passes the SIMCTL_CHILD_* variables to the process it spawns
+envs=()
+while IFS= read -r name; do
+  envs+=("${name}=${!name}")
+done < <(compgen -e | grep '^SIMCTL_CHILD_')
+
+command="$(quote "${envs[@]}" "$tool" "${args[@]}")"
+if [[ ${#copyBack[@]} -gt 0 ]]; then
+  for local in "${copyBack[@]}"; do
+    command="mkdir -p $(quote "$(dirname "${remoteDir}${local}")") && ${command}"
+  done
+fi
+if [[ " $* " == *" get_app_container "* || " $* " == *" getenv "* ]]; then
+  # XCUITest checks the returned path of the host locally: an empty folder mirrors the app (fs.exists) and the
+  # Applications of the runtime root (IPHONE_SIMULATOR_ROOT, the system apps are found by get_app_container)
+  output="$("${sshCommand[@]}" "$command")"
+  status=$?
+  printf '%s\n' "$output"
+  if [[ $status -eq 0 && "$output" == /* && "$output" != *$'\n'* ]]; then
+    if [[ " $* " == *" getenv "* ]]; then
+      mkdir -p "${output}/Applications" 2> /dev/null
+    else
+      mkdir -p "$output" 2> /dev/null
+    fi
+  fi
+else
+  "${sshCommand[@]}" "$command"
+  status=$?
+fi
+
+for local in "${copyBack[@]}"; do
+  if "${sshCommand[@]}" "test -f $(quote "${remoteDir}${local}")"; then
+    "${sshCommand[@]}" "cat $(quote "${remoteDir}${local}")" > "$local"
+  fi
+done
+if [[ "$copied" -eq 1 ]]; then
+  "${sshCommand[@]}" "rm -rf $(quote "$remoteDir")"
+fi
+exit "$status"

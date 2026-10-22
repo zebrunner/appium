@@ -55,7 +55,13 @@ fi
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   mjpegServerPort="$(number MJPEG_PORT "$MJPEG_PORT")" || exit 1
   wdaPort="$(number WDA_PORT "$WDA_PORT")" || exit 1
+  # a simulator of the macOS host runs headless for XCUITest of the container: there is no `open` of the Simulator UI
+  simulator=false
+  if [[ "$(printf '%s' "$DEVICE_CONNECTION" | tr '[:upper:]' '[:lower:]')" == "simulator" ]]; then
+    simulator=true
+  fi
   jq -n \
+    --argjson simulator "$simulator" \
     --arg platformName "$PLATFORM_NAME" \
     --arg platformVersion "$PLATFORM_VERSION" \
     --arg deviceName "$DEVICE_NAME" \
@@ -75,5 +81,5 @@ if [[ "${PLATFORM_NAME}" == "ios" ]]; then
       "appium:webDriverAgentUrl": $webDriverAgentUrl,
       "appium:simpleIsVisibleCheck": true,
       "appium:wdaLocalPort": $wdaLocalPort
-    }'
+    } + (if $simulator then {"appium:isHeadless": true} else {} end)'
 fi

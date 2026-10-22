@@ -3,7 +3,7 @@
 Enhanced Appium docker image for testing on Android and iOS devices: phones, tablets, Android TV, Apple TV (tvOS) and Android emulators including ReDroid.
 
 - It is built on top of [Appium](https://github.com/appium/appium/) and supports:
-  - iOS devices connected to a Linux host (usbmuxd of the connector container) and wireless tvOS devices
+  - iOS devices of Linux and macOS hosts (usbmuxd of the connector container), wireless iOS and tvOS devices and the iOS / tvOS simulators of a macOS host
   - Integration with [STF](https://github.com/zebrunner/stf) for remote manual testing
   - Cached local storage to minimize download calls to external resources (S3, AppCenter, Azure, etc.)
   - Video recording of every session, including Apple TV and Android TV
@@ -62,7 +62,8 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
 
 # iOS: the same with
 #   -e PLATFORM_NAME=ios -e WDA_HOST=connector -e APPIUM_CLI=--session-override
-# a wireless tvOS device has no connector: -e WIRELESS=true -e WDA_HOST=<host of its WebDriverAgent>
+# a simulator of the macOS host: -e WIRELESS=true -e DEVICE_CONNECTION=simulator -e HOST_SSH_USER=<user of the host>
+#   -v <private ssh key>:/opt/zebrunner/ssh/id_ed25519:ro
 ```
 
 ## Configuration
@@ -163,7 +164,15 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `MJPEG_PORT` | `8101` | the WDA MJPEG server, the video source |
 | `DEVICE_TIMEOUT` | `300` | s, how long the startup waits for WDA |
 | `USBMUXD_SOCKET_ADDRESS` | `connector:2222` | usbmuxd of the connector; the iOS tools use it directly, `/var/run/usbmuxd` is forwarded to it |
-| `WIRELESS` | `false` | `true` for a device without usb (e.g. Apple TV 4K over a network tunnel): no usbmuxd forwarding, WDA is reached at `WDA_HOST:WDA_PORT` |
+| `WIRELESS` | `false` | `true` for a device without usbmuxd (a simulator, or WDA started by another tool and relayed by the connector): no usbmuxd forwarding, WDA is reached at `WDA_HOST:WDA_PORT` |
+| `DEVICE_CONNECTION` | empty | `simulator` for a simulator of the macOS host, see [Simulators](#simulators) |
+| `HOST_SSH_USER` | empty | the user of the macOS host of the simulator |
+| `HOST_SSH_HOST`, `HOST_SSH_PORT` | `connector`, `22` | ssh of the macOS host, relayed by the connector |
+| `HOST_SSH_KEY` | `/opt/zebrunner/ssh/id_ed25519` | the mounted private ssh key of the user of the host |
+
+### Simulators
+
+A simulator runs on the macOS host, its connector boots it and starts WebDriverAgent, Appium of the container drives it as a simulator. XCUITest needs Xcode for a simulator: `/usr/local/bin/xcrun` of the image runs `xcrun` of the host over ssh (through the connector, `HOST_SSH_HOST:HOST_SSH_PORT`), the local files of its arguments (the app to install, ...) are copied to the host first and the files it writes into the temporary folder are copied back. `DEVELOPER_DIR` points at a copy of `Info.plist` of the Xcode of the host (the Xcode version). The default capabilities have `appium:isHeadless`: the container can't open the Simulator UI, a simulator booted with its UI is used as is. Without `HOST_SSH_USER` the `xcrun` of the image fails like a missing tool, as before. The features of XCUITest that write the files of the simulator directly (the Safari, keyboard and localization preferences, the app data reset) are not available: their errors are logged and the session goes on.
 
 ### Debug
 
