@@ -29,10 +29,21 @@ ENV APPIUM_HOME=/usr/local/lib/node_modules/appium
 USER androidusr
 
 # Check and install drivers
+# appium-ios-device (inside xcuitest) asks for bplist-parser ^0.x, which resolves to 0.5.0: an ESM-first
+# release without the default export, so the xcuitest driver fails to load (reading 'UID'). The versions
+# used by the uiautomator2 driver are pinned inside the xcuitest driver, and the build fails if it does not load
 RUN appium driver list && \
     appium plugin list && \
     appium driver install uiautomator2@6.7.15 && \
-    appium driver install xcuitest@10.18.2
+    appium driver install xcuitest@10.18.2 && \
+    mkdir -p /tmp/bplist-pin && \
+    npm install --prefix /tmp/bplist-pin --no-save --no-package-lock \
+        bplist-parser@0.3.2 bplist-creator@0.1.1 && \
+    D="${APPIUM_HOME}/node_modules/appium-xcuitest-driver/node_modules" && \
+    rm -rf "$D/bplist-parser" "$D/bplist-creator" && \
+    cp -r /tmp/bplist-pin/node_modules/bplist-parser /tmp/bplist-pin/node_modules/bplist-creator "$D/" && \
+    rm -rf /tmp/bplist-pin && \
+    node -e "require('${APPIUM_HOME}/node_modules/appium-xcuitest-driver'); console.log('xcuitest loads OK')"
 
 # Set environment variables
 ENV ANDROID_DEVTOOLS_PORT=9222
