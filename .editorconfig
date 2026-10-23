@@ -27,7 +27,7 @@ space_redirects = true
 # <<< mcloud-conventions
 
 # shell scripts without the .sh extension
-[{files/healthcheck,tests/fixtures/fake-adb}]
+[{files/healthcheck,files/util/xcrun,tests/fixtures/fake-adb}]
 indent_style = space
 indent_size = 2
 shell_variant = bash

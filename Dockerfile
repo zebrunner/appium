@@ -20,7 +20,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
     apt-get -y install --no-install-recommends \
         iputils-ping nano jq telnet netcat-traditional curl ffmpeg \
-        libimobiledevice-utils libimobiledevice6 socat inotify-tools && \
+        libimobiledevice-utils libimobiledevice6 socat inotify-tools openssh-client && \
     rm -rf /var/lib/apt/lists/*
 
 # The Appium of the base image: the drivers are installed and the patch is copied into APPIUM_HOME (the base
@@ -95,6 +95,12 @@ ENV \
     UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
     # Usbmuxd settings "host:port"
     USBMUXD_SOCKET_ADDRESS=connector:2222 \
+    # Simulators: xcrun of the macOS host over ssh through the connector
+    DEVICE_CONNECTION="" \
+    HOST_SSH_USER="" \
+    HOST_SSH_HOST=connector \
+    HOST_SSH_PORT=22 \
+    HOST_SSH_KEY=/opt/zebrunner/ssh/id_ed25519 \
     # Debug mode settings
     LOGGER_LEVEL=INFO \
     DEBUG=false \
@@ -104,11 +110,13 @@ ENV \
 USER root
 
 # The dirs of the apps, the configs, the logs and the entrypoint; the usbmuxd socket forwarded by ios.sh is in
-# a dir of androidusr, /var/run is root only
+# a dir of androidusr, /var/run is root only; xcrun of the simulators mirrors the app paths of the macOS host in /Users
+# and /Library/Developer/CoreSimulator
 ARG ENTRYPOINT_DIR=/opt/entrypoint
-RUN mkdir -p ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
-    chown -R androidusr:androidusr ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} && \
-    ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd
+RUN mkdir -p ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} /Users /Library/Developer/CoreSimulator && \
+    chown -R androidusr:androidusr ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} /Users /Library/Developer/CoreSimulator && \
+    ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd && \
+    ln -s /usr/local/bin/xcrun /usr/local/bin/lipo
 
 USER androidusr
 
@@ -122,10 +130,11 @@ COPY --chown=androidusr:androidusr \
     files/config/zbr-config-gen.sh \
     files/config/zbr-default-caps-gen.sh /opt/
 
-# Healthcheck & Usbreset
+# Healthcheck, Usbreset & xcrun of the macOS host for the simulators
 COPY --chown=androidusr:androidusr \
     files/healthcheck \
-    files/util/usbreset /usr/local/bin/
+    files/util/usbreset \
+    files/util/xcrun /usr/local/bin/
 
 COPY --chown=androidusr:androidusr \
     files/entrypoint.sh ${ENTRYPOINT_DIR}/

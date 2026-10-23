@@ -3,7 +3,7 @@
 # The settings and the checks of the project for tests/lint.sh (CONVENTIONS.md): appium.
 
 scripts=(build.sh scripts/*.sh tests/fixtures/fake-adb files/entrypoint.sh files/healthcheck files/config/*.sh files/module/*.sh
-  files/util/*.sh tests/*.sh)
+  files/util/*.sh files/util/xcrun tests/*.sh)
 generated=(files/patch)
 
 # project_checks: the versions of the image in the README, the JavaScript of the tests and the Appium patch

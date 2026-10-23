@@ -59,6 +59,11 @@ check "the healthcheck is configured, with a start period for the startup" '["CM
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}} {{.Config.Healthcheck.StartPeriod}}')"
 check "the image has the OCI labels" "https://github.com/zebrunner/appium dev" \
   "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}} {{index .Config.Labels "org.opencontainers.image.version"}}')"
+check "xcrun of the simulators is installed" "/usr/local/bin/xcrun" "$(in_image 'command -v xcrun')"
+check "ssh of the simulators is installed" "/usr/bin/ssh" "$(in_image 'command -v ssh')"
+check "lipo of the simulators is the xcrun of the host" "/usr/local/bin/xcrun" "$(in_image 'readlink /usr/local/bin/lipo')"
+check_contains "xcrun fails like a missing tool without a simulator" "127|xcrun is not available" \
+  "$(in_image 'xcrun simctl list 2> /tmp/err; echo "$?|$(cat /tmp/err)"')"
 check "/var/run/usbmuxd links to a dir of androidusr" "/tmp/usbmuxd/usbmuxd androidusr" \
   "$(in_image 'echo "$(readlink /var/run/usbmuxd) $(stat -c %U /tmp/usbmuxd)"')"
 check "the image is linux/amd64" "linux/amd64" "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')"
