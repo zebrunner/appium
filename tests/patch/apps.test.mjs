@@ -9,7 +9,7 @@ import {createRequire} from 'node:module';
 import {BASE_DRIVER_DIR, helpers, listen, tmpDir, withEnv} from './common.mjs';
 
 const {configureApp} = helpers;
-const {getLocalFileForAppUrl} = createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
+const {getLocalFileForAppUrl, evictSharedApps} = createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
 const OPTS = {supportedExtensions: ['.apk']};
 
 // session(url, env): configureApp in another node process, like a session of another device container of the host;
@@ -311,6 +311,93 @@ describe('shared application storage', () => {
     });
     assert.equal(fs.existsSync(localFile), false);
     assert.equal(fs.existsSync(`${localFile}.lock`), false);
+  });
+
+  // stored(name, ageMs, size): a file of the storage used ageMs ago; a size makes it sparse (no blocks of the disk)
+  const stored = (name, ageMs, size = 0) => {
+    const file = path.join(appsDir, 'host', name);
+    fs.mkdirSync(path.dirname(file), {recursive: true});
+    fs.writeFileSync(file, size ? '' : 'app');
+    if (size) {
+      fs.truncateSync(file, size);
+    }
+    const time = new Date(Date.now() - ageMs);
+    fs.utimesSync(file, time, time);
+    return file;
+  };
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+
+  test('the stored app taken by a session is marked as used', async () => {
+    await withEnv(env(), async () => {
+      await configureApp(url, OPTS);
+      const old = new Date(Date.now() - 10 * DAY);
+      fs.utimesSync(localFile, old, old);
+      assert.equal(await configureApp(url, OPTS), localFile);
+      assert.ok(Date.now() - fs.statSync(localFile).mtimeMs < HOUR, 'used now');
+    });
+  });
+
+  test('a download removes the apps not used for APPIUM_APPS_MAX_AGE days and the interrupted downloads', async () => {
+    const old = stored('old.apk', 8 * DAY);
+    const recent = stored('recent.apk', 2 * DAY);
+    const downloading = stored('downloading.apk', 8 * DAY);
+    fs.writeFileSync(`${downloading}.lock`, 'device');
+    const interrupted = stored('interrupted.apk.1234.tmp', 2 * HOUR);
+    const running = stored('running.apk.5678.tmp', 60 * 1000);
+    await withEnv(env({APPIUM_APPS_MIN_FREE: '0'}), async () => {
+      await configureApp(url, OPTS);
+    });
+    assert.deepEqual(fs.readFileSync(localFile), app, 'the new app is stored');
+    assert.equal(fs.existsSync(old), false, 'not used for 8 days');
+    assert.equal(fs.existsSync(interrupted), false, 'an interrupted download');
+    for (const kept of [recent, downloading, `${downloading}.lock`, running]) {
+      assert.ok(fs.existsSync(kept), kept);
+    }
+  });
+
+  test('APPIUM_APPS_MAX_AGE=0 keeps the old apps', async () => {
+    const old = stored('old.apk', 300 * DAY);
+    await withEnv(env({APPIUM_APPS_MAX_AGE: '0', APPIUM_APPS_MIN_FREE: '0'}), async () => {
+      await configureApp(url, OPTS);
+    });
+    assert.ok(fs.existsSync(old));
+  });
+
+  test('the least recently used apps are removed while the free space is below APPIUM_APPS_MIN_FREE', async () => {
+    const GB = 1024 * 1024 * 1024;
+    const oldest = stored('oldest.apk', 3 * HOUR, GB);
+    const older = stored('older.apk', 2 * HOUR, GB);
+    const old = stored('old.apk', 90 * 60 * 1000, GB);
+    const recent = stored('recent.apk', 10 * 60 * 1000, GB);
+    // the free space is 1.5 GB less than the limit: the two least recently used apps (1 GB each, as the eviction
+    // counts them) make it
+    const {bavail, blocks, bsize} = fs.statfsSync(appsDir);
+    const minFree = (bavail * bsize + 1.5 * GB) / (blocks * bsize) * 100;
+    await withEnv(env({APPIUM_APPS_MAX_AGE: '0', APPIUM_APPS_MIN_FREE: String(minFree)}), async () => {
+      await evictSharedApps(appsDir);
+    });
+    assert.equal(fs.existsSync(oldest), false);
+    assert.equal(fs.existsSync(older), false);
+    assert.ok(fs.existsSync(old), 'enough space');
+    assert.ok(fs.existsSync(recent));
+  });
+
+  test('the apps used in the last hour are kept even without free space', async () => {
+    const recent = stored('recent.apk', 30 * 60 * 1000);
+    const unused = stored('unused.apk', 2 * HOUR);
+    await withEnv(env({APPIUM_APPS_MAX_AGE: '0', APPIUM_APPS_MIN_FREE: '100'}), async () => {
+      await evictSharedApps(appsDir);
+    });
+    assert.ok(fs.existsSync(recent));
+    assert.equal(fs.existsSync(unused), false);
+  });
+
+  test('a failed eviction does not fail the session', async () => {
+    await withEnv(env({APPIUM_APPS_MIN_FREE: 'not a number', APPIUM_APPS_MAX_AGE: '-1'}), async () => {
+      await evictSharedApps(path.join(appsDir, 'missing'));
+      assert.deepEqual(fs.readFileSync(await configureApp(url, OPTS)), app);
+    });
   });
 
   test('without APPIUM_APPS_DIR nothing is stored', async () => {

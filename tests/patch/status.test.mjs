@@ -68,6 +68,42 @@ describe('WDA status', () => {
     });
   });
 
+  test('getStatusWDA waits for a WDA that answers in more than 500 ms', async () => {
+    const slow = await listen((req, res) => {
+      setTimeout(() => {
+        res.writeHead(200, {'content-type': 'application/json'});
+        res.end(JSON.stringify({value: {state: 'success'}}));
+      }, 1500);
+    });
+    try {
+      await withEnv({WDA_HOST: '127.0.0.1', WDA_PORT: new URL(slow.url).port}, async () => {
+        assert.equal((await new BaseDriver({}).getStatusWDA()).status, 'success');
+      });
+    } finally {
+      slow.close();
+    }
+  });
+
+  test('getStatusWDA asks a WDA that failed once again', async () => {
+    let requests = 0;
+    const flaky = await listen((req, res) => {
+      if (++requests === 1) {
+        res.destroy();
+        return;
+      }
+      res.writeHead(200, {'content-type': 'application/json'});
+      res.end(JSON.stringify({value: {state: 'success'}}));
+    });
+    try {
+      await withEnv({WDA_HOST: '127.0.0.1', WDA_PORT: new URL(flaky.url).port}, async () => {
+        assert.equal((await new BaseDriver({}).getStatusWDA()).status, 'success');
+      });
+      assert.equal(requests, 2);
+    } finally {
+      flaky.close();
+    }
+  });
+
   test('getStatusWDA(exitCode) exits Appium with the code when WDA is down', () => {
     assert.equal(exitStatusOf('getStatusWDA', 7, {WDA_HOST: '127.0.0.1', WDA_PORT: '9'}), 7);
   });
