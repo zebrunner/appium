@@ -241,6 +241,7 @@ variants=(
   "adb-shell|ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=false ADB_SHELL=true"
   "features|CHROMEDRIVER_AUTODOWNLOAD=true and ADB_SHELL=true|CHROMEDRIVER_AUTODOWNLOAD=true ADB_SHELL=true"
   "relaxed|RELAXED_SECURITY=true|CHROMEDRIVER_AUTODOWNLOAD=false RELAXED_SECURITY=true"
+  "token|NODE_REGISTRATION_TOKEN|NODE_REGISTRATION_TOKEN=image-node-token"
   "mcloud|the mcloud-agent settings (android)|${MCLOUD_AGENT_ENV}"
   "caps|DEFAULT_CAPABILITIES=true without the grid (android)|DEFAULT_CAPABILITIES=true PLATFORM_NAME=android DEVICE_UDID=udid-1"
   "caps-no-platform|DEFAULT_CAPABILITIES=true without PLATFORM_NAME|DEFAULT_CAPABILITIES=true"
@@ -290,6 +291,27 @@ fi
 if use_variant relaxed; then
   check_contains "RELAXED_SECURITY=true enables the relaxed security" "Enabling relaxed security" \
     "$(docker exec "$VARIANT" cat /tmp/log/appium.log)"
+fi
+# node_status <container> [header]: the status code of the Appium status of the container for another container
+node_status() {
+  local ip
+  local header=()
+  ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$1")"
+  if [[ -n "${2:-}" ]]; then
+    header=(-H "$2")
+  fi
+  docker run --rm --platform "$PLATFORM" --entrypoint curl "$IMAGE" -s -o /dev/null -w '%{http_code}' \
+    ${header[@]+"${header[@]}"} "http://${ip}:4723/wd/hub/status"
+}
+if use_variant token; then
+  check "NODE_REGISTRATION_TOKEN: Appium refuses another host without the token" "401" "$(node_status "$VARIANT")"
+  check "NODE_REGISTRATION_TOKEN: Appium answers the token of mcloud-grid" "200" \
+    "$(node_status "$VARIANT" "X-MCloud-Node-Token: image-node-token")"
+  check_contains "NODE_REGISTRATION_TOKEN: the refused host is logged" "Refused the requests of" \
+    "$(docker exec "$VARIANT" cat /tmp/log/appium.log)"
+fi
+if use_variant defaults; then
+  check "without NODE_REGISTRATION_TOKEN Appium answers any host" "200" "$(node_status "$VARIANT")"
 fi
 if use_variant caps; then
   check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps are passed" "--default-capabilities /opt/config/defaultcapabilities.json" \
