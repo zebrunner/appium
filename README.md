@@ -114,7 +114,7 @@ Remote applications are kept in a shared storage, so the devices of a host downl
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `APPIUM_APPS_DIR` | `/opt/appium-storage` | the storage, an application is stored by its url path; empty disables the storage |
+| `APPIUM_APPS_DIR` | `/opt/appium-storage` | the storage, an application is stored as `<host>/<path>` of its url without the query (an http(s) url only; its dot segments are resolved, the file stays in the storage); empty disables the storage |
 | `APPIUM_APP_SIZE_DISABLE` | `false` | `true` uses a stored application without comparing its size with the remote one |
 | `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file) |
 | `APPIUM_MAX_LOCK_FILE_LIFETIME` | `1800` | s, an older `.lock` file is removed as left by a crashed download |
@@ -191,7 +191,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 - The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
 - Android 8.0+ only (the minimum of the UiAutomator2 driver of the image, `MIN_ANDROID` of `files/module/android.sh`): older devices get a warning at startup and their sessions fail.
 - Chrome and the WebView contexts need Chrome and Android System WebView 87+ on the device: they are reached through the fixed DevTools port (`androidDevToolsPort`), which older chromedrivers reject with `unrecognized chrome option: androidDevToolsPort`. An older Chrome or WebView gets a warning at startup; update it on the device.
-- Appium runs as `androidusr`, not root.
+- Appium runs as `androidusr`, not root, and gets no root: the image removes `sudo` and the sudo group of `androidusr` (a passwordless sudoer in the base image).
 - The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
 
 ## Troubleshooting

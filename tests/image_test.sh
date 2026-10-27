@@ -31,6 +31,8 @@ else
 fi
 pass "image builds"
 check "Appium runs as androidusr" "androidusr" "$(in_image 'id -un')"
+check "androidusr gets no root: no sudo, no sudo group" "none:no" \
+  "$(in_image 'command -v sudo || echo none'):$(in_image 'id -Gn | grep -qw sudo && echo yes || echo no')"
 # the versions of the Dockerfile are installed
 appium_version="$(dockerfile_value 'FROM appium\/appium:v([0-9.]+)-[^ ]* AS appium')"
 check "Appium ${appium_version} of the base image" "$appium_version" "$(in_image 'appium --version 2> /dev/null')"
