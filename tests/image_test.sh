@@ -243,7 +243,7 @@ variants=(
   "caps|DEFAULT_CAPABILITIES=true without the grid (android)|DEFAULT_CAPABILITIES=true PLATFORM_NAME=android DEVICE_UDID=udid-1"
   "caps-no-platform|DEFAULT_CAPABILITIES=true without PLATFORM_NAME|DEFAULT_CAPABILITIES=true"
   "no-record|RECORD_ARTIFACTS=false|RECORD_ARTIFACTS=false"
-  "grid|CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG|CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=false PLATFORM_NAME=android DEVICE_UDID=udid-1 SELENIUM_HOST=hub SELENIUM_PORT=4444 STF_PROVIDER_HOST=10.0.0.5"
+  "grid|CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG|CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=false PLATFORM_NAME=android DEVICE_UDID=udid-1 SELENIUM_HOST=hub SELENIUM_PORT=4444 STF_PROVIDER_HOST=10.0.0.5 NODE_REGISTRATION_TOKEN=image-test-token"
 )
 for variant in "${variants[@]}"; do
   id="${variant%%|*}"
@@ -304,6 +304,12 @@ if use_variant grid; then
     '"proxy": "com.zebrunner.mcloud.grid.MobileRemoteProxy"' "$(docker exec "$VARIANT" cat /opt/config/nodeconfig.json)"
   check_contains "CONNECT_TO_GRID=true without CUSTOM_NODE_CONFIG: the ignored flag is logged" \
     "CUSTOM_NODE_CONFIG is ignored" "$(docker logs "$VARIANT" 2>&1)"
+  check_contains "NODE_REGISTRATION_TOKEN: the node registers with it" '"registrationToken": "image-test-token"' \
+    "$(docker exec "$VARIANT" cat /opt/config/nodeconfig.json)"
+  check_contains "NODE_REGISTRATION_TOKEN: the logged node config masks it" '"registrationToken": "*****"' "$(docker logs "$VARIANT" 2>&1)"
+  check_not_contains "NODE_REGISTRATION_TOKEN: it is not in the docker log" "image-test-token" "$(docker logs "$VARIANT" 2>&1)"
+  check_not_contains "NODE_REGISTRATION_TOKEN: it is not in the Appium log" "image-test-token" \
+    "$(docker exec "$VARIANT" cat /tmp/log/appium.log)"
 fi
 
 # shellcheck disable=SC2329

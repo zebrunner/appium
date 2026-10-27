@@ -103,6 +103,7 @@ The container is configured with environment variables; the defaults are the val
 | `CONNECT_TO_GRID` | | `true` registers Appium in [mcloud-grid](https://github.com/zebrunner/mcloud-grid) with a generated node config (`MobileRemoteProxy`) |
 | `SELENIUM_HOST`, `SELENIUM_PORT` | | the hub, required with `CONNECT_TO_GRID=true` |
 | `STF_PROVIDER_HOST` | | the host of the node url, required with `CONNECT_TO_GRID=true` |
+| `NODE_REGISTRATION_TOKEN` | | the secret the node registers with, `NODE_REGISTRATION_TOKEN` of [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration): a hub with a token registers no node without it; it is in `custom` of `nodeconfig.json` and masked in the node config the container logs |
 | `ADB_PORT`, `PROXY_PORT`, `SERVER_PROXY_PORT` | `5037`, `8080`, `0` | the ports of the device in the node capabilities |
 | `UNREGISTER_IF_STILL_DOWN_AFTER` | `3000` | ms, the node config value; after Appium exits with 101 (hub down) the container waits this long plus 15 s before the restart |
 

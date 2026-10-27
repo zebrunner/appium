@@ -208,7 +208,8 @@ if [[ "$CONNECT_TO_GRID" = true ]]; then
     logger "ERROR" "cannot generate $NODE_CONFIG_JSON"
     exit 1
   fi
-  cat "$NODE_CONFIG_JSON"
+  # the registration token of the hub is not logged
+  jq 'if .configuration.custom.registrationToken then .configuration.custom.registrationToken = "*****" else . end' "$NODE_CONFIG_JSON"
   CMD+=(--nodeconfig "$NODE_CONFIG_JSON")
 fi
 
