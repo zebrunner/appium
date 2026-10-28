@@ -1,16 +1,19 @@
 diff --git a/packages/base-driver/lib/basedriver/core.ts b/packages/base-driver/lib/basedriver/core.ts
-index 53170a3..e14522e 100644
+index 53170a3..f7bb7d8 100644
 --- a/packages/base-driver/lib/basedriver/core.ts
 +++ b/packages/base-driver/lib/basedriver/core.ts
-@@ -22,6 +22,7 @@ import {errors} from '../protocol';
+@@ -22,6 +22,10 @@ import {errors} from '../protocol';
  import {DeviceSettings} from './device-settings';
  import * as helpers from './helpers';
  import {ExtensionCore} from './extension-core';
 +import { executeShellWPromise, parseWDAUrl, getWDAStatus } from './mcloud-utils';
++
++// [MCLOUD] a hung adb server must not hang the status check of mcloud-grid (it waits 10 s)
++const ADB_STATUS_TIMEOUT_MS = 5000;
  
  const NEW_COMMAND_TIMEOUT_MS = 60 * 1000;
  
-@@ -209,6 +210,58 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
+@@ -209,6 +213,58 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
      return {};
    }
  
@@ -36,7 +39,7 @@ index 53170a3..e14522e 100644
 +    if (deviceUDID) {
 +      const adbDevicesCmd = 'adb devices | grep $DEVICE_UDID | grep "device"';
 +      try {
-+        await executeShellWPromise(adbDevicesCmd);
++        await executeShellWPromise(adbDevicesCmd, ADB_STATUS_TIMEOUT_MS);
 +        return {'status': 'success', 'details': `Connected device with UDID ${deviceUDID} is ready for execution`};
 +      } catch {
 +        if (exitCode != null) {
@@ -53,7 +56,7 @@ index 53170a3..e14522e 100644
 +      }
 +      const adbDevicesCmd = 'adb devices | grep $ANDROID_DEVICES | grep "device"';
 +      try {
-+        await executeShellWPromise(adbDevicesCmd);
++        await executeShellWPromise(adbDevicesCmd, ADB_STATUS_TIMEOUT_MS);
 +        return {'status': 'success', 'details': `Connected device with name ${deviceName} is ready for execution`};
 +      } catch {
 +        if (exitCode != null) {
@@ -152,14 +155,14 @@ index 07258f3..a9e8d31 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..f87a628 100644
+index b3bdf5a..f02a1ba 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
  import AsyncLock from 'async-lock';
  import axios from 'axios';
  import B from 'bluebird';
-+import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage, toError } from './mcloud-utils';
++import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage, toError, touchSharedApp, evictSharedApps } from './mcloud-utils';
  
  // for compat with running tests transpiled and in-place
  export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
@@ -200,7 +203,7 @@ index b3bdf5a..f87a628 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +168,237 @@ export async function configureApp(
+@@ -161,38 +168,243 @@ export async function configureApp(
              }
            }
          }
@@ -280,6 +283,8 @@ index b3bdf5a..f87a628 100644
 +          localFile = /** @type {string} */ (sharedFile);
 +          lockFile = localFile + '.lock';
 +          if (await fs.exists(localFile)) {
++            // used now: the eviction of another Appium of the host keeps it
++            await touchSharedApp(localFile);
 +            if (appSizeCheckDisabled === false) {
 +              // Checking of local application actuality
 +              logger.info(`[MCLOUD] Local version of app was found. Will check actuality of the file`);
@@ -318,6 +323,7 @@ index b3bdf5a..f87a628 100644
 +            }
 +          } else if (await lockCreatedTime()) {
 +            await waitForParallelDownload();
++            await touchSharedApp(localFile);
 +            newApp = localFile;
 +            downloadIsNeeded = false;
 +          } else {
@@ -349,12 +355,15 @@ index b3bdf5a..f87a628 100644
 +            await fs.writeFile(lockFile, msg, {flag: 'wx'});
 +            lockOwned = true;
 +            logger.info(`[MCLOUD] lock file was written successfully`);
++            // room for the new app: the old and the least recently used apps of the storage are removed
++            await evictSharedApps(localAppsFolder);
 +          } catch (err) {
 +            if (err.code !== 'EEXIST') {
 +              throw err;
 +            }
 +            logger.info(`[MCLOUD] Another session has just started the download of the app`);
 +            await waitForParallelDownload();
++            await touchSharedApp(/** @type {string} */ (localFile));
 +            newApp = /** @type {string} */ (localFile);
 +            downloadIsNeeded = false;
            }
@@ -464,7 +473,7 @@ index b3bdf5a..f87a628 100644
            stream.destroy();
          }
        }
-@@ -218,7 +424,10 @@ export async function configureApp(
+@@ -218,7 +430,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
@@ -478,16 +487,17 @@ index b3bdf5a..f87a628 100644
        const integrity = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..10ac49d
+index 0000000..87b5337
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,322 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
 +import logger from './logger';
 +import util from 'util';
 +import { exec } from 'child_process';
++import { promises as nodeFs } from 'fs';
 +import {
 +  type ResponseType
 +  } from 'axios';
@@ -509,6 +519,135 @@ index 0000000..10ac49d
 +  }
 +  const relative = path.relative(path.resolve(appsDir), path.resolve(fullPath));
 +  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
++}
++
++// [MCLOUD] the shared storage keeps the apps of all the devices of the host and nothing removed them: every build
++// of an app is a new url, so the storage grew until the disk of the host was full. Before a download the apps not
++// used for APPIUM_APPS_MAX_AGE days are removed, then the least recently used ones while the free space of the
++// storage is below APPIUM_APPS_MIN_FREE percent; the apps used in the last hour and the ones being downloaded (.lock)
++// are kept. An app is used when a session takes it from the storage (its mtime, touchSharedApp).
++const DAY_MS = 24 * 60 * 60 * 1000;
++const RECENTLY_USED_MS = 60 * 60 * 1000;
++const TEMPORARY_COPY = /\.\d+\.tmp$/;
++
++interface StoredFile {
++  file: string;
++  size: number;
++  mtimeMs: number;
++}
++
++// a non-negative number of the env var, the default otherwise
++function nonNegativeEnv(name: string, defaultValue: number): number {
++  const raw = process.env[name];
++  const value = raw === undefined || raw.trim() === '' ? NaN : Number(raw);
++  if (Number.isFinite(value) && value >= 0) {
++    return value;
++  }
++  if (raw !== undefined && raw.trim() !== '') {
++    logger.warn(`[MCLOUD] ${name}='${raw}' is not a non-negative number, ${defaultValue} is used`);
++  }
++  return defaultValue;
++}
++
++// marks the app of the shared storage as used now, so that the eviction keeps it
++async function touchSharedApp(file: string) {
++  const now = new Date();
++  try {
++    await nodeFs.utimes(file, now, now);
++  } catch (err) {
++    logger.warn(`[MCLOUD] Cannot mark the application ${file} as used: ${toError(err).message}`);
++  }
++}
++
++// the apps of the shared storage (not the .lock files) whose download is not running, and the temporary copies
++async function listStoredFiles(dir: string): Promise<{apps: StoredFile[], temporary: StoredFile[]}> {
++  const apps: StoredFile[] = [];
++  const temporary: StoredFile[] = [];
++  let entries;
++  try {
++    entries = await nodeFs.readdir(dir, {withFileTypes: true});
++  } catch (err) {
++    if (err.code === 'ENOENT') {
++      return {apps, temporary};
++    }
++    throw err;
++  }
++  const names = new Set(entries.map((entry) => entry.name));
++  for (const entry of entries) {
++    const file = path.join(dir, entry.name);
++    if (entry.isDirectory()) {
++      const nested = await listStoredFiles(file);
++      apps.push(...nested.apps);
++      temporary.push(...nested.temporary);
++      continue;
++    }
++    if (!entry.isFile() || entry.name.endsWith('.lock') || names.has(`${entry.name}.lock`)) {
++      continue;
++    }
++    let stats;
++    try {
++      stats = await nodeFs.stat(file);
++    } catch {
++      // removed by another Appium meanwhile
++      continue;
++    }
++    (TEMPORARY_COPY.test(entry.name) ? temporary : apps).push({file, size: stats.size, mtimeMs: stats.mtimeMs});
++  }
++  return {apps, temporary};
++}
++
++async function removeStoredFile(stored: StoredFile, reason: string): Promise<boolean> {
++  try {
++    await nodeFs.rm(stored.file, {force: true});
++    logger.info(`[MCLOUD] Removed ${stored.file} (${stored.size} bytes) from the shared storage: ${reason}`);
++    return true;
++  } catch (err) {
++    logger.warn(`[MCLOUD] Cannot remove ${stored.file} from the shared storage: ${toError(err).message}`);
++    return false;
++  }
++}
++
++// the eviction of the shared storage, see above; it never fails the session
++async function evictSharedApps(appsDir: string, now = Date.now()) {
++  try {
++    const maxAgeDays = nonNegativeEnv('APPIUM_APPS_MAX_AGE', 7);
++    const minFreePercent = nonNegativeEnv('APPIUM_APPS_MIN_FREE', 10);
++    const {apps, temporary} = await listStoredFiles(appsDir);
++    // the copies of the downloads interrupted by the end of their Appium
++    for (const stored of temporary) {
++      if (now - stored.mtimeMs > RECENTLY_USED_MS) {
++        await removeStoredFile(stored, 'an interrupted download');
++      }
++    }
++    let unused = apps.filter((stored) => now - stored.mtimeMs > RECENTLY_USED_MS);
++    if (maxAgeDays > 0) {
++      const expired = unused.filter((stored) => now - stored.mtimeMs > maxAgeDays * DAY_MS);
++      for (const stored of expired) {
++        await removeStoredFile(stored, `not used for ${maxAgeDays} days (APPIUM_APPS_MAX_AGE)`);
++      }
++      unused = unused.filter((stored) => !expired.includes(stored));
++    }
++    if (minFreePercent > 0) {
++      const {bavail, blocks, bsize} = await nodeFs.statfs(appsDir);
++      const needed = blocks * bsize * minFreePercent / 100;
++      let free = bavail * bsize;
++      // the least recently used first
++      for (const stored of unused.sort((a, b) => a.mtimeMs - b.mtimeMs)) {
++        if (free >= needed) {
++          break;
++        }
++        if (await removeStoredFile(stored, `the free space of the storage is below ${minFreePercent}% (APPIUM_APPS_MIN_FREE)`)) {
++          free += stored.size;
++        }
++      }
++      if (free < needed) {
++        logger.warn(`[MCLOUD] The free space of the shared storage ${appsDir} stays below ${minFreePercent}% (APPIUM_APPS_MIN_FREE): `
++          + `the other apps were used in the last hour or are being downloaded`);
++      }
++    }
++  } catch (err) {
++    logger.warn(`[MCLOUD] The eviction of the shared storage ${appsDir} failed: ${toError(err).message}`);
++  }
 +}
 +
 +// the error as an Error with a string message: not every rejection is an Error, e.g. fs.copyFile of
@@ -624,9 +763,10 @@ index 0000000..10ac49d
 +  }
 +}
 +
-+async function executeShellWPromise(shellCommand) {
++// timeoutMs: the command is killed and the promise rejected after it (0: no limit)
++async function executeShellWPromise(shellCommand, timeoutMs = 0) {
 +  const execPromisify = util.promisify(exec);
-+  return await execPromisify(shellCommand);
++  return await execPromisify(shellCommand, {timeout: timeoutMs});
 +}
 +
 +async function parseWDAUrl() {
@@ -635,22 +775,35 @@ index 0000000..10ac49d
 +  return `http://${wdaHost}:${wdaPort}/status`;
 +}
 +
-+async function getWDAStatus(wdaURL) {
-+  try {
-+    return (await axios({
-+      url: wdaURL,
-+      method: 'GET',
-+      timeout: 500,
-+    })).data;
++// [MCLOUD] WebDriverAgent busy with the end of the last session answers its status in more than 500 ms: a status
++// check of mcloud-grid then made Appium exit (and its container restart). A slow WDA gets 3 s and a second attempt;
++// mcloud-grid waits 10 s for the status check.
++const WDA_STATUS_TIMEOUT_MS = 3000;
++const WDA_STATUS_RETRY_DELAY_MS = 500;
++
++async function getWDAStatus(wdaURL, attempts = 2) {
++  for (let attempt = 1; attempt <= attempts; attempt++) {
++    try {
++      return (await axios({
++        url: wdaURL,
++        method: 'GET',
++        timeout: WDA_STATUS_TIMEOUT_MS,
++      })).data;
 +    } catch (e) {
-+    logger.info(`[MCLOUD] Cannot send GET request to '${wdaURL}'. Original error: ${e.message}`);
-+    return undefined;
++      logger.info(`[MCLOUD] Cannot send GET request to '${wdaURL}' (attempt ${attempt} of ${attempts}). Original error: ${e.message}`);
++      if (attempt < attempts) {
++        await new Promise((resolve) => setTimeout(resolve, WDA_STATUS_RETRY_DELAY_MS));
++      }
 +    }
++  }
++  return undefined;
 +}
 +
 +export {
 +  toError,
 +  isInSharedStorage,
++  touchSharedApp,
++  evictSharedApps,
 +  getLocalAppsFolder,
 +  getSharedFolderForAppUrl,
 +  getLocalFileForAppUrl,
@@ -794,7 +947,7 @@ index ddb5d55..773ce55 100644
    // set up static assets
    app.use(favicon(path.resolve(STATIC_DIR, 'favicon.ico')));
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a2..fd1dcc3 100644
+index 02822a2..20fd718 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
 @@ -16,6 +16,7 @@ import {MAX_LOG_BODY_LENGTH, PROTOCOLS, DEFAULT_BASE_PATH} from '../constants';
@@ -805,7 +958,7 @@ index 02822a2..fd1dcc3 100644
  import type { Core, AppiumLogger, PayloadParams, MethodMap, Driver, DriverMethodDef } from '@appium/types';
  import type { BaseDriver } from '../basedriver/driver';
  import type { Request, Response, Application } from 'express';
-@@ -473,7 +474,121 @@ function buildHandler(
+@@ -473,7 +474,131 @@ function buildHandler(
              length: MAX_LOG_BODY_LENGTH,
            })}`
        );
@@ -862,25 +1015,35 @@ index 02822a2..fd1dcc3 100644
 +        process.exit(1);
 +      }
 +
-+      // handling error with ENOSPC: no space left on device, mkdir '/tmp/ and exit with code 0
-+      if (err.message.toLowerCase().includes('no space left on device') || err.message.toLowerCase().includes('adb: failed to install')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] ENOSPC error, no space left on device, Error message:${err.message}. exit code 0. Device is Unhealthy.`);
-+        // process.exit(0);
++      // [MCLOUD] the host or the device has no space left: the next sessions on the device fail too, it is Unhealthy.
++      // Any other failed install is a problem of the app (e.g. INSTALL_FAILED_VERSION_DOWNGRADE, UPDATE_INCOMPATIBLE,
++      // NO_MATCHING_ABIS, no signature): a broken build marked every device it got Unhealthy, it only gets a note.
++      const lowerMessage = err.message.toLowerCase();
++      if (lowerMessage.includes('no space left on device') || lowerMessage.includes('install_failed_insufficient_storage')) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] No space left on the host or the device. Error message:${err.message}. Device is Unhealthy.`);
 +        try {
 +          await updateDevice(token, udid, err.message, 'Unhealthy'); // device status will change to Unhealthy
 +          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
 +        } catch (error) {
 +          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
 +        }
++      } else if (lowerMessage.includes('adb: failed to install')) {
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] The application was not installed, the device stays as it is. Error message:${err.message}.`);
++        try {
++          await updateDevice(token, udid, err.message); // device status will not change
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Comment with Error details added in STF for device with UDID ${udid}.`);
++        } catch (error) {
++          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred while adding comment for device with UDID in STF ${udid}. Error: ${error}.`);
++        }
 +      }
 +
 +      // Check if the error 'socket hang up' occurred and do exit 0
 +      if (err.message.toLowerCase().includes('socket hang up') && err.message.toLowerCase().includes('could not proxy command to the remote server')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Proxy command error. Error message:${err.message}. Device is Unhealthy.`);
++        getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] [BaseDriver] Proxy command error. Error message:${err.message}.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message); // device status will not change
-+          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Devices status for device with UDID ${udid} changed to Unhealthy!`);
++          getLogger(driver, req.params.sessionId || newSessionId).info(`[MCLOUD] Comment with Error details added in STF for device with UDID ${udid}.`);
 +        } catch (error) {
 +          getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] Error occurred during making device with UDID ${udid} Unhealthy. Error: ${error}.`);
 +        }

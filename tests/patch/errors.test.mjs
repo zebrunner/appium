@@ -70,7 +70,7 @@ describe('error handler', () => {
   const unhealthy = [
     'Device setup is not yet complete',
     'ENOSPC: no space left on device, mkdir \'/tmp/x\'',
-    'adb: failed to install /tmp/app.apk',
+    'adb: failed to install /tmp/app.apk: Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]',
     "Cannot execute the 'am' shell command",
   ];
   for (const message of unhealthy) {
@@ -84,9 +84,14 @@ describe('error handler', () => {
     });
   }
 
+  // a failed install of an app is a problem of the app, not of the device
   const noteOnly = [
     'Could not proxy command to the remote server. Original error: socket hang up',
     'The session identified by 1234 is not known',
+    'adb: failed to install /tmp/app.apk',
+    'adb: failed to install /tmp/app.apk: Failure [INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected]',
+    'adb: failed to install /tmp/app.apk: Failure [INSTALL_FAILED_NO_MATCHING_ABIS: Failed to extract native libraries]',
+    'adb: failed to install /tmp/app.apk: Failure [INSTALL_PARSE_FAILED_NO_CERTIFICATES]',
   ];
   for (const message of noteOnly) {
     test(`"${message}" adds a note in STF without a status change`, async () => {

@@ -122,6 +122,10 @@ Remote applications are kept in a shared storage, so the devices of a host downl
 | `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file) |
 | `APPIUM_MAX_LOCK_FILE_LIFETIME` | `1800` | s, an older `.lock` file is removed as left by a crashed download |
 | `APPIUM_APP_FETCH_RETRIES` | `3` | the retries of a broken download, `0` disables them |
+| `APPIUM_APPS_MAX_AGE` | `7` | days, a download removes the applications not used for this time; `0` keeps them |
+| `APPIUM_APPS_MIN_FREE` | `10` | %, a download removes the least recently used applications while the free space of the storage is below it; `0` disables it |
+
+Every build of an application is usually a new url, so the storage is cleaned before a download: the applications not used for `APPIUM_APPS_MAX_AGE` days, then the least recently used ones while the free space is below `APPIUM_APPS_MIN_FREE`, and the temporary copies of the interrupted downloads. An application is used when a session takes it from the storage; the ones used in the last hour and the ones being downloaded (`.lock`) are kept. A failed cleanup is logged and does not fail the session.
 
 ### Video recording and artifacts
 
@@ -147,7 +151,7 @@ A session with the `appium:mcloudExternalRecording: true` capability creates no 
 | `STF_API_URL` | | the STF API, e.g. `https://stf.example.com/api/v1` |
 | `STF_AUTH_TOKEN` | | the STF access token |
 
-With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device errors of Appium are reported to STF: the device is marked `Unhealthy` (no space left, failed install, unfinished device setup, failed `am` command) or gets a note (lost proxy connection, unknown session).
+With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device errors of Appium are reported to STF: the device is marked `Unhealthy` (no space left on the host or on the device, `INSTALL_FAILED_INSUFFICIENT_STORAGE`, unfinished device setup, failed `am` command) or gets a note (another failed install - a problem of the application, e.g. `INSTALL_FAILED_VERSION_DOWNGRADE` -, lost proxy connection, unknown session).
 
 ### Android
 
@@ -187,7 +191,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 ### Device status
 
-`GET /wd/hub/status-adb` and `GET /wd/hub/status-wda` report whether the device or WDA is ready. With a JSON body `{"exitCode": <code>}` (as mcloud-grid sends) Appium exits with the code when the check fails, so the container restarts.
+`GET /wd/hub/status-adb` and `GET /wd/hub/status-wda` report whether the device or WDA is ready. With a JSON body `{"exitCode": <code>}` (as mcloud-grid sends) Appium exits with the code when the check fails, so the container restarts. WDA gets 3 s to answer and a second attempt after 500 ms (a WDA busy with the end of the last session is not down), `adb devices` gets 5 s; mcloud-grid waits 10 s for the check.
 
 ## Limitations
 
