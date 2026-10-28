@@ -5,9 +5,11 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {createRequire} from 'node:module';
 import {BASE_DRIVER_DIR, helpers, listen, tmpDir, withEnv} from './common.mjs';
 
 const {configureApp} = helpers;
+const {getLocalFileForAppUrl} = createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
 const OPTS = {supportedExtensions: ['.apk']};
 
 // session(url, env): configureApp in another node process, like a session of another device container of the host;
@@ -70,7 +72,7 @@ describe('shared application storage', () => {
     // a new path every test: configureApp also keeps an in-memory cache by url
     n++;
     url = `${remote.url}/builds/${n}/app.apk?token=secret`;
-    localFile = path.join(appsDir, 'builds', `${n}`, 'app.apk');
+    localFile = path.join(appsDir, new URL(remote.url).host, 'builds', `${n}`, 'app.apk');
   });
   const env = (extra = {}) => ({
     APPIUM_APPS_DIR: appsDir,
@@ -79,6 +81,33 @@ describe('shared application storage', () => {
     APPIUM_APP_FETCH_RETRIES: undefined,
     APPIUM_APP_SIZE_DISABLE: undefined,
     ...extra,
+  });
+
+  test('the file of an app url: <host>/<path>, inside the storage only', async () => {
+    await withEnv(env(), async () => {
+      assert.equal(await getLocalFileForAppUrl('https://Builds.example.com:8443/a/b.apk?sig=1'),
+        path.join(appsDir, 'builds.example.com:8443', 'a', 'b.apk'));
+      // the dot segments of a url are resolved by URL, also the encoded ones: the file stays in the storage
+      assert.equal(await getLocalFileForAppUrl('http://evil/../../usr/lib/node_modules/appium/x.js'),
+        path.join(appsDir, 'evil', 'usr', 'lib', 'node_modules', 'appium', 'x.js'));
+      assert.equal(await getLocalFileForAppUrl('http://evil/%2e%2e/%2E%2E/x.apk'), path.join(appsDir, 'evil', 'x.apk'));
+      assert.equal(await getLocalFileForAppUrl('http://evil/a%2F..%2F..%2Fx.apk'),
+        path.join(appsDir, 'evil', 'a%2F..%2F..%2Fx.apk'));
+      // the same path of two servers is two files
+      assert.notEqual(await getLocalFileForAppUrl('http://a.example/x.apk'), await getLocalFileForAppUrl('http://b.example/x.apk'));
+      for (const url of ['file:///etc/passwd', 'ftp://host/a.apk', 'http://host', 'http://host/', 'not a url']) {
+        assert.equal(await getLocalFileForAppUrl(url), null, url);
+      }
+    });
+  });
+
+  test('an app url that tries to leave the storage is stored in it', async () => {
+    await withEnv(env(), async () => {
+      const escape = `escape-${n}.apk`;
+      await configureApp(`${remote.url}/../../../../tmp/${escape}`, OPTS);
+      assert.deepEqual(fs.readFileSync(path.join(appsDir, new URL(remote.url).host, 'tmp', escape)), app);
+      assert.equal(fs.existsSync(path.join('/tmp', escape)), false, 'nothing outside the storage');
+    });
   });
 
   test('a downloaded app is stored by its url path without the query', async () => {
@@ -177,7 +206,7 @@ describe('shared application storage', () => {
         }
       });
       const dir = tmpDir('apps');
-      const stored = path.join(dir, 'race', 'app.apk');
+      const stored = path.join(dir, new URL(server.url).host, 'race', 'app.apk');
       try {
         const results = await Promise.all([1, 2].map(() => session(`${server.url}/race/app.apk`, {...appsEnv, APPIUM_APPS_DIR: dir})));
         const outcome = `run ${run}: ${JSON.stringify(results)}`;
@@ -208,7 +237,7 @@ describe('shared application storage', () => {
         return true;
       });
     });
-    assert.deepEqual(fs.readdirSync(path.join(storage, 'builds', `${n}`)), [], 'no .lock or partial app left');
+    assert.deepEqual(fs.readdirSync(path.join(storage, new URL(url).host, 'builds', `${n}`)), [], 'no .lock or partial app left');
   });
 
   test('a .lock that is not removed in APPIUM_APP_WAITING_TIMEOUT fails the session', async () => {

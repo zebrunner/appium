@@ -21,6 +21,9 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get -y install --no-install-recommends \
         iputils-ping nano jq telnet netcat-traditional curl ffmpeg \
         libimobiledevice-utils libimobiledevice6 socat inotify-tools openssh-client && \
+    # androidusr of the base image is a sudoer without a password: the user of Appium gets no root
+    export SUDO_FORCE_REMOVE=yes && apt-get -y purge sudo && \
+    gpasswd -d androidusr sudo && \
     rm -rf /var/lib/apt/lists/*
 
 # The Appium of the base image: the drivers are installed and the patch is copied into APPIUM_HOME (the base

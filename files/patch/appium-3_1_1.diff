@@ -152,7 +152,7 @@ index 07258f3..a9e8d31 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..5549f68 100644
+index b3bdf5a..f87a628 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
@@ -200,7 +200,7 @@ index b3bdf5a..5549f68 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +168,231 @@ export async function configureApp(
+@@ -161,38 +168,237 @@ export async function configureApp(
              }
            }
          }
@@ -212,6 +212,12 @@ index b3bdf5a..5549f68 100644
 +        // ***** Custom logic for verification of local static path for APPs *****
 +        let downloadIsNeeded = true;
 +        localAppsFolder = await getLocalAppsFolder();
++        // the shared storage keeps only the apps whose url has a file in it (getLocalFileForAppUrl)
++        const sharedFile = localAppsFolder !== undefined ? await getLocalFileForAppUrl(newApp) : null;
++        if (localAppsFolder !== undefined && !sharedFile) {
++          logger.warn(`[MCLOUD] The application url has no file in the shared storage, it is downloaded for this session only`);
++          localAppsFolder = undefined;
++        }
 +        let localFile;
 +        let fileName;
 +        let lockFile = '';
@@ -259,19 +265,10 @@ index b3bdf5a..5549f68 100644
 +              logger.info(`[MCLOUD] Attempt #${attemptsCount} for .lock file checking`);
 +              setTimeout(resolve, waitingTime);
 +            });
-           }
--          logger.info(
--            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
--              `or its integrity has been damaged. Deleting it from the internal cache`
--          );
--          APPLICATIONS_CACHE.delete(appCacheKey);
--
--          if (!stream.closed) {
--            stream.destroy();
++          }
 +          if (await lockCreatedTime()) {
 +            throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
-           }
--          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
++          }
 +          if (!await fs.exists(localFile)) {
 +            throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
 +          }
@@ -280,7 +277,7 @@ index b3bdf5a..5549f68 100644
 +
 +
 +        if (localAppsFolder !== undefined) {
-+          localFile = await getLocalFileForAppUrl(newApp);
++          localFile = /** @type {string} */ (sharedFile);
 +          lockFile = localFile + '.lock';
 +          if (await fs.exists(localFile)) {
 +            if (appSizeCheckDisabled === false) {
@@ -326,23 +323,19 @@ index b3bdf5a..5549f68 100644
 +          } else {
 +            logger.info(`[MCLOUD] Neither local version of app nor .lock file was found. Will download app from remote URL.`);
 +            downloadIsNeeded = true;
-+          }
+           }
+-          logger.info(
+-            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
+-              `or its integrity has been damaged. Deleting it from the internal cache`
+-          );
+-          APPLICATIONS_CACHE.delete(appCacheKey);
+-
+-          if (!stream.closed) {
+-            stream.destroy();
 +        } else {
 +          logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic. Use variable APPIUM_APPS_DIR for path setting`);
-         }
- 
--        if (onDownload) {
--          newApp = await onDownload({
--            url: originalAppLink,
--            headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(headers)),
--            stream,
--          });
--        } else {
--          const fileName = determineFilename(headers, pathname, supportedAppExtensions);
--          newApp = await fetchApp(stream, await tempDir.path({
--            prefix: fileName,
--            suffix: '',
--          }));
++        }
++
 +        if (downloadIsNeeded && localAppsFolder !== undefined) {
 +          logger.info(`[MCLOUD] Local version of app was not found. Hence using default Appium logic for downloading`);
 +          const sharedFolderPath = await getSharedFolderForAppUrl(app);
@@ -364,9 +357,22 @@ index b3bdf5a..5549f68 100644
 +            await waitForParallelDownload();
 +            newApp = /** @type {string} */ (localFile);
 +            downloadIsNeeded = false;
-+          }
-+        }
-+
+           }
+-          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
+         }
+ 
+-        if (onDownload) {
+-          newApp = await onDownload({
+-            url: originalAppLink,
+-            headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(headers)),
+-            stream,
+-          });
+-        } else {
+-          const fileName = determineFilename(headers, pathname, supportedAppExtensions);
+-          newApp = await fetchApp(stream, await tempDir.path({
+-            prefix: fileName,
+-            suffix: '',
+-          }));
 +        if (downloadIsNeeded) {
 +          // the temporary copy of the downloaded app in the shared storage, renamed when complete
 +          const localTmpFile = localFile ? `${localFile}.${process.pid}.tmp` : '';
@@ -458,7 +464,7 @@ index b3bdf5a..5549f68 100644
            stream.destroy();
          }
        }
-@@ -218,7 +418,10 @@ export async function configureApp(
+@@ -218,7 +424,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
@@ -472,10 +478,10 @@ index b3bdf5a..5549f68 100644
        const integrity = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..1978dfe
+index 0000000..10ac49d
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,168 @@
+@@ -0,0 +1,178 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
@@ -485,7 +491,6 @@ index 0000000..1978dfe
 +import {
 +  type ResponseType
 +  } from 'axios';
-+import { PathLike } from 'fs';
 +
 +async function getLocalAppsFolder() {
 +  if (process.env.APPIUM_APPS_DIR === undefined || process.env.APPIUM_APPS_DIR === '') {
@@ -521,16 +526,13 @@ index 0000000..1978dfe
 +  return new Error(typeof err === 'string' ? err : `${err}`);
 +}
 +
++// the folder of the shared storage for the app of a url (getLocalFileForAppUrl), created when missing
 +async function getSharedFolderForAppUrl(url) {
-+  const sub = await getLocalFileForAppUrl(url);
-+
-+  const lastSlashInd = sub.lastIndexOf(path.sep);
-+  let targetPath: PathLike;
-+  if (lastSlashInd !== -1) {
-+    targetPath = sub.substring(0, lastSlashInd);
-+  } else {
-+    targetPath = '';
++  const localFile = await getLocalFileForAppUrl(url);
++  if (!localFile) {
++    throw new Error(`[MCLOUD] The application url has no file in the shared storage: ${url}`);
 +  }
++  const targetPath = path.dirname(localFile);
 +
 +  logger.info(`[MCLOUD] Target path [getSharedFolderForAppUrl]: ${targetPath}`);
 +  const folderExists = await fs.exists(targetPath);
@@ -542,15 +544,29 @@ index 0000000..1978dfe
 +
 +exports.getSharedFolderForAppUrl = getSharedFolderForAppUrl;
 +
-+async function getLocalFileForAppUrl(url) {
-+  let sub = url.substring(url.indexOf('//') + 2);
-+  sub = sub.substring(sub.indexOf('/'));
-+  if (sub.includes('?')) {
-+    sub = sub.substring(0, sub.indexOf('?'));
++// the file of the shared storage (APPIUM_APPS_DIR) for the app of a url: <host>/<path> of the url without its query
++// (the signed urls of S3 and App Center change on every request). The host keeps apart the apps of different servers,
++// the storage is shared by every device of the host; null for a url that is not http(s), has no path or leaves the
++// storage: such an app is downloaded for the session only, as Appium does
++async function getLocalFileForAppUrl(url): Promise<string | null> {
++  let parsed: URL;
++  try {
++    parsed = new URL(url);
++  } catch {
++    return null;
 +  }
-+  sub = sub.replace(/\//g, path.sep);
-+
-+  const targetPath = path.join(await getLocalAppsFolder() as string, sub);
++  // the path segments as the url has them: the dot segments are resolved by URL, a %2F stays in its file name
++  const segments = parsed.pathname.split('/').filter((segment) => segment !== '');
++  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host || !segments.length
++    || segments.some((segment) => segment === '.' || segment === '..')) {
++    return null;
++  }
++  const appsDir = path.resolve(await getLocalAppsFolder() as string);
++  const targetPath = path.resolve(appsDir, parsed.host, ...segments);
++  const relative = path.relative(appsDir, targetPath);
++  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
++    return null;
++  }
 +  logger.info(`[MCLOUD] Target path [getLocalFileForAppUrl]: ${targetPath}`);
 +  return targetPath;
 +}
