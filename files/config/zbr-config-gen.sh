@@ -1,6 +1,7 @@
 #!/bin/bash
 # Prints the Selenium Grid 3 node config of the device for mcloud-grid (Appium --nodeconfig).
 # jq builds the JSON: the strings are escaped, a wrong number fails the script.
+# NODE_REGISTRATION_TOKEN (of mcloud-grid) goes to "custom", jq reads it from the environment, not from its command line.
 #IMPORTANT!!! Don't print anything else to stdout otherwise you corrupt the generated json
 
 # the logger of the image, files/util/logger.sh when the script runs from the repository (tests/config_test.sh)
@@ -79,6 +80,6 @@ jq -n \
       "debug": false,
       "servlets": [],
       "withoutServlets": [],
-      "custom": {}
+      "custom": (($ENV.NODE_REGISTRATION_TOKEN // "") as $token | if $token == "" then {} else {"registrationToken": $token} end)
     }
   }'

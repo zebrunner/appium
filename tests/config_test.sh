@@ -40,6 +40,10 @@ check "the mcloud proxy" '"com.zebrunner.mcloud.grid.MobileRemoteProxy"' "$(json
 check "node url" '"http://10.0.0.5:4723/wd/hub"' "$(json_get "$config" 'j["configuration"]["url"]')"
 check "hub host and port" '["hub", 4444]' "$(json_get "$config" '[j["configuration"]["hubHost"], j["configuration"]["hubPort"]]')"
 check "unregisterIfStillDownAfter" '3000' "$(json_get "$config" 'j["configuration"]["unregisterIfStillDownAfter"]')"
+check "no registration token without NODE_REGISTRATION_TOKEN" '{}' "$(json_get "$config" 'j["configuration"]["custom"]')"
+config="$(env "${common_env[@]}" PLATFORM_NAME=android NODE_REGISTRATION_TOKEN='to"ken' files/config/zbr-config-gen.sh)"
+check "NODE_REGISTRATION_TOKEN is the registration token of the node" '{"registrationToken": "to\"ken"}' \
+  "$(json_get "$config" 'j["configuration"]["custom"]')"
 
 section "default capabilities: android (zbr-default-caps-gen.sh)"
 caps="$(env "${common_env[@]}" PLATFORM_NAME=ANDROID files/config/zbr-default-caps-gen.sh)"
