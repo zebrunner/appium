@@ -660,6 +660,139 @@ index 0000000..10ac49d
 +  parseWDAUrl,
 +  getWDAStatus
 +};
+diff --git a/packages/base-driver/lib/express/mcloud-auth.js b/packages/base-driver/lib/express/mcloud-auth.js
+new file mode 100644
+index 0000000..99c08a3
+--- /dev/null
++++ b/packages/base-driver/lib/express/mcloud-auth.js
+@@ -0,0 +1,81 @@
++// Fork (Zebrunner): Appium of a device answers mcloud-grid only. The hub sends NODE_REGISTRATION_TOKEN (the token the
++// node registers with) in X-MCloud-Node-Token with every request; the container itself (the healthcheck) needs none.
++import crypto from 'node:crypto';
++import log from './logger';
++
++export const NODE_TOKEN_HEADER = 'x-mcloud-node-token';
++
++const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
++// a refused client retries: it is logged once in a while, the map of the addresses is limited
++const WARNING_PERIOD_MS = 10 * 60 * 1000;
++const MAX_WARNED_ADDRESSES = 1000;
++const warnedAddresses = new Map();
++
++/**
++ * @param {string} value
++ * @returns {Buffer}
++ */
++function sha256(value) {
++  return crypto.createHash('sha256').update(value, 'utf8').digest();
++}
++
++/**
++ * @param {import('http').IncomingMessage} req
++ * @returns {boolean} true without NODE_REGISTRATION_TOKEN, for the container itself or with the token in the header
++ */
++export function isNodeRequestAuthorized(req) {
++  const token = (process.env.NODE_REGISTRATION_TOKEN ?? '').trim();
++  if (!token || LOOPBACK_ADDRESSES.has(req.socket?.remoteAddress ?? '')) {
++    return true;
++  }
++  const sent = req.headers?.[NODE_TOKEN_HEADER];
++  // the digests have the same length: the comparison takes the same time for any token
++  return typeof sent === 'string' && crypto.timingSafeEqual(sha256(sent.trim()), sha256(token));
++}
++
++/**
++ * @param {import('http').IncomingMessage} req
++ */
++function warnRefused(req) {
++  const address = req.socket?.remoteAddress ?? 'unknown';
++  const now = Date.now();
++  const lastWarning = warnedAddresses.get(address);
++  if (lastWarning !== undefined && now - lastWarning < WARNING_PERIOD_MS) {
++    return;
++  }
++  if (warnedAddresses.size >= MAX_WARNED_ADDRESSES) {
++    warnedAddresses.clear();
++  }
++  warnedAddresses.set(address, now);
++  log.warn(`[MCLOUD] Refused the requests of ${address}: no node token of mcloud-grid (NODE_REGISTRATION_TOKEN)`);
++}
++
++/**
++ * The express middleware of every route.
++ * @type {import('express').RequestHandler}
++ */
++export function requireNodeToken(req, res, next) {
++  if (isNodeRequestAuthorized(req)) {
++    return next();
++  }
++  warnRefused(req);
++  res.status(401).json({
++    value: {
++      error: 'unknown error',
++      message: 'Appium of the MCloud device answers the requests of mcloud-grid only (NODE_REGISTRATION_TOKEN)',
++      stacktrace: '',
++    },
++  });
++}
++
++/**
++ * @param {import('http').IncomingMessage} req a WebSocket upgrade request
++ * @returns {boolean}
++ */
++export function isNodeUpgradeAuthorized(req) {
++  if (isNodeRequestAuthorized(req)) {
++    return true;
++  }
++  warnRefused(req);
++  return false;
++}
+diff --git a/packages/base-driver/lib/express/middleware.js b/packages/base-driver/lib/express/middleware.js
+index e9db64d..de48879 100644
+--- a/packages/base-driver/lib/express/middleware.js
++++ b/packages/base-driver/lib/express/middleware.js
+@@ -6,6 +6,8 @@ import {match} from 'path-to-regexp';
+ import {util} from '@appium/support';
+ import {calcSignature} from '../helpers/session';
+ import {getResponseForW3CError} from '../protocol/errors';
++// Fork (Zebrunner)
++import {isNodeUpgradeAuthorized} from './mcloud-auth';
+ 
+ const SESSION_ID_PATTERN = /\/session\/([^/]+)/;
+ 
+@@ -100,6 +102,10 @@ export function tryHandleWebSocketUpgrade(req, socket, head, webSocketsMapping)
+   if (_.toLower(req.headers?.upgrade) !== 'websocket') {
+     return false;
+   }
++  // Fork (Zebrunner): the WebSockets of mcloud-grid only, see mcloud-auth.js
++  if (!isNodeUpgradeAuthorized(req)) {
++    return false;
++  }
+ 
+   let currentPathname;
+   try {
+diff --git a/packages/base-driver/lib/express/server.js b/packages/base-driver/lib/express/server.js
+index ddb5d55..773ce55 100644
+--- a/packages/base-driver/lib/express/server.js
++++ b/packages/base-driver/lib/express/server.js
+@@ -19,6 +19,8 @@ import {
+   handleLogContext,
+ } from './middleware';
+ import {guineaPig, guineaPigScrollable, guineaPigAppBanner, welcome, STATIC_DIR} from './static';
++// Fork (Zebrunner)
++import {requireNodeToken} from './mcloud-auth';
+ import {produceError, produceCrash} from './crash';
+ import {
+   addWebSocketHandler,
+@@ -119,6 +121,8 @@ export function configureServer({
+ 
+   app.use(endLogFormatter);
+   app.use(handleLogContext);
++  // Fork (Zebrunner): the requests of mcloud-grid only, see mcloud-auth.js
++  app.use(requireNodeToken);
+ 
+   // set up static assets
+   app.use(favicon(path.resolve(STATIC_DIR, 'favicon.ico')));
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
 index 02822a2..fd1dcc3 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts

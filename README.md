@@ -90,7 +90,7 @@ The container is configured with environment variables; the defaults are the val
 | `APPIUM_PLUGINS` | | the plugins to use (`--use-plugins`), `images` in the `appium-image` stage |
 | `NODE_PATH` | `appium-image` stage: `/opt/appium-extra/node_modules:${APPIUM_HOME}/node_modules` | where Node finds sharp (installed apart from Appium) for the images plugin |
 | `LOG_LEVEL` | `info` | the Appium log level |
-| `RELAXED_SECURITY` | | `true` enables all insecure features (`--relaxed-security`) |
+| `RELAXED_SECURITY` | | `true` enables all insecure features (`--relaxed-security`) for every session: `mobile: shell` (`adb_shell`), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver; prefer `ADB_SHELL` and `CHROMEDRIVER_AUTODOWNLOAD` for the features the tests need |
 | `CHROMEDRIVER_AUTODOWNLOAD` | `true` | allows `*:chromedriver_autodownload` (mobile web on Android) |
 | `ADB_SHELL` | | `true` allows `*:adb_shell` (`mobile: shell`) |
 | `DEFAULT_CAPABILITIES` | | `true` passes the capabilities of the device (udid, connector hosts and ports) to every session; nothing is passed for other platforms than `android` and `ios` |
@@ -108,6 +108,8 @@ The container is configured with environment variables; the defaults are the val
 | `UNREGISTER_IF_STILL_DOWN_AFTER` | `3000` | ms, the node config value; after Appium exits with 101 (hub down) the container waits this long plus 15 s before the restart |
 
 A missing required variable or a wrong number ends the container with the reason in its log. `CUSTOM_NODE_CONFIG` is ignored: the Zebrunner node config is always generated.
+
+With `NODE_REGISTRATION_TOKEN` (the token of [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration)) Appium answers only the requests with it in the header `X-MCloud-Node-Token`, which the hub sends, and the ones of the container itself (the healthcheck): the others get `401`, their WebSockets (e.g. the logcat broadcast) are closed, the refused address is logged once in 10 minutes. So the device is used through the hub only, which reserves it in STF; Appium Inspector and the other clients connect to the hub too.
 
 ### Applications
 
