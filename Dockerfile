@@ -133,7 +133,6 @@ COPY --chown=androidusr:androidusr \
 # Healthcheck, Usbreset & xcrun of the macOS host for the simulators
 COPY --chown=androidusr:androidusr \
     files/healthcheck \
-    files/util/usbreset \
     files/util/xcrun /usr/local/bin/
 
 COPY --chown=androidusr:androidusr \
