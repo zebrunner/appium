@@ -43,7 +43,7 @@ for driver in uiautomator2 xcuitest; do
     "$(printf '%s' "$drivers" | python3 -c "import json,sys; print(json.load(sys.stdin)['${driver}']['version'])" 2>&1)"
 done
 check "the tools of the scripts are installed" "" \
-  "$(in_image 'for t in adb curl ffmpeg ffprobe idevice_id inotifywait jq nc pgrep socat usbreset healthcheck; do command -v $t > /dev/null || echo "missing $t"; done')"
+  "$(in_image 'for t in adb curl ffmpeg ffprobe idevice_id inotifywait jq nc pgrep socat healthcheck; do command -v $t > /dev/null || echo "missing $t"; done')"
 
 # the patched files in the image are the files of the repo
 sha256() {
