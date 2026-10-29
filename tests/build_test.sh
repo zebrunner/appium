@@ -56,6 +56,34 @@ ARGS_PLATFORM="$(
 )"
 check_contains "BUILD_PLATFORM=linux/amd64 is accepted" "--platform linux/amd64" "$ARGS_PLATFORM"
 
+rm -f "$FAKE_DOCKER_ARGS"
+OUT="$(echo | IMAGE_REPO=registry.example.com/appium PATH="$WORK/bin:$PATH" ./build.sh 1.2.3 2>&1)"
+check_contains "IMAGE_REPO: another repository of the image" "--tag registry.example.com/appium:1.2.3" "$(cat "$FAKE_DOCKER_ARGS")"
+
+section "make build and push"
+# make_args <make args...>: the arguments of the last docker call of the make target, the docker of the stub
+make_args() {
+  rm -f "$FAKE_DOCKER_ARGS"
+  PATH="$WORK/bin:$PATH" make --no-print-directory "$@" > "$WORK/make.out" 2>&1
+  cat "$FAKE_DOCKER_ARGS" 2> /dev/null
+}
+ARGS="$(make_args build VERSION=1.2.3)"
+check_contains "make build: build.sh builds the appium stage" "--target appium --tag public.ecr.aws/zebrunner/appium:1.2.3" "$ARGS"
+ARGS="$(make_args build VERSION=1.2.3-img TARGET=appium-image)"
+check_contains "make build TARGET=appium-image: the last stage" "--tag public.ecr.aws/zebrunner/appium:1.2.3-img" "$ARGS"
+check_not_contains "make build TARGET=appium-image: no target" "--target" "$ARGS"
+ARGS="$(make_args build VERSION=1.2.3 IMAGE_REPO=registry.example.com/appium)"
+check_contains "make build IMAGE_REPO: another repository" "--tag registry.example.com/appium:1.2.3" "$ARGS"
+ARGS="$(make_args push)"
+check "make push without VERSION: no docker call" "" "$ARGS"
+check_contains "make push without VERSION: the tag is asked" "make push VERSION=<tag>" "$(cat "$WORK/make.out")"
+ARGS="$(make_args push VERSION=1.2.3)"
+check "make push: buildx builds linux/amd64 and pushes" \
+  "buildx build --builder mcloud --progress=plain --provenance=false --platform linux/amd64 --target appium --build-arg VERSION=1.2.3 --tag public.ecr.aws/zebrunner/appium:1.2.3 --push ." \
+  "$ARGS"
+ARGS="$(make_args build VERSION=1.2.3 TARGET=other)"
+check "make build of an unknown TARGET: no docker call" "" "$ARGS"
+
 section "result"
 run_build 0 1.2.3
 check "successful build: exit status 0" "0" "$STATUS"

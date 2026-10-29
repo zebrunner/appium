@@ -31,11 +31,17 @@ The Appium base driver is patched for MCloud (`files/patch`): recording markers,
 ## Build
 
 ```bash
-./build.sh 3.1.1        # public.ecr.aws/zebrunner/appium:3.1.1, the `appium` stage
-./build.sh -i 3.1.1-img # the `appium-image` stage: plus the Appium images plugin and sharp
+make build VERSION=3.1.1                          # public.ecr.aws/zebrunner/appium:3.1.1, the `appium` stage
+make build VERSION=3.1.1-img TARGET=appium-image  # plus the Appium images plugin and sharp
+make push VERSION=3.1.1                           # built by docker buildx and pushed: docker login public.ecr.aws first
 ```
 
-The script shows the `docker build` command and waits for a confirmation; it exits with the status of the build. The image is `linux/amd64` only: another `BUILD_PLATFORM` or `docker build --platform` is rejected.
+`make build` runs `build.sh`, which can be run directly too (`./build.sh 3.1.1`, `./build.sh -i 3.1.1-img`): it shows the
+`docker build` command, waits for a confirmation and exits with the status of the build. The image is `linux/amd64`
+only: another `BUILD_PLATFORM` or `docker build --platform` is rejected, on Apple Silicon it is built emulated.
+`IMAGE_REPO` sets another repository, `VERSION` is the tag and the `org.opencontainers.image.version` label (`dev` by
+default, required by `push`). `make push` uses the buildx builder `mcloud` (docker-container driver), which it creates
+once.
 
 ## Run
 

@@ -5,8 +5,15 @@ export PATH := $(CURDIR)/$(VENV)/bin:$(PATH)
 # the tests of `make docker`, every other tests/*_test.sh is a test of `make test`
 DOCKER_TESTS := tests/image_test.sh tests/patch_test.sh tests/e2e_test.sh tests/patch_sync_test.sh
 
+# The image (CONVENTIONS.md#makefile): `make build VERSION=<tag>` (build.sh), `make push VERSION=<tag>` (docker login
+# first); TARGET=appium-image adds the images plugin (tag it <version>-img), IMAGE_REPO overrides the repository
+IMAGE_REPO ?= public.ecr.aws/zebrunner/appium
+VERSION ?= dev
+TARGET ?= appium
+PLATFORMS ?= linux/amd64
+
 .DEFAULT_GOAL := help
-.PHONY: help check lint test docker image patch e2e patch-sync patch-build
+.PHONY: help check lint test docker image patch e2e patch-sync patch-build build push
 
 help: ## this list
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/'
@@ -38,6 +45,17 @@ patch-sync: ## the js files of the patch are the build of the patch diff (tests/
 patch-build: ## rebuilds the js files of the patch from the patch diff (scripts/build-patch.sh)
 	scripts/build-patch.sh
 
+
+build: ## the image IMAGE_REPO:VERSION (linux/amd64) by build.sh: make build VERSION=<tag> [TARGET=appium-image]
+	@[[ "$(TARGET)" =~ ^(appium|appium-image)$$ ]] || { echo "TARGET is appium or appium-image"; exit 1; }
+	echo | IMAGE_REPO=$(IMAGE_REPO) ./build.sh $(if $(filter appium-image,$(TARGET)),-i) $(VERSION)
+
+push: ## the image IMAGE_REPO:VERSION for PLATFORMS, built by docker buildx and pushed: make push VERSION=<tag>
+	@[[ "$(VERSION)" != dev ]] || { echo "make push VERSION=<tag>: the tag of the image is required"; exit 1; }
+	@[[ "$(TARGET)" =~ ^(appium|appium-image)$$ ]] || { echo "TARGET is appium or appium-image"; exit 1; }
+	@docker buildx inspect mcloud > /dev/null 2>&1 || docker buildx create --name mcloud --driver docker-container --driver-opt network=host > /dev/null
+	docker buildx build --builder mcloud --progress=plain --provenance=false --platform $(PLATFORMS) --target $(TARGET) \
+	  --build-arg VERSION=$(VERSION) --tag $(IMAGE_REPO):$(VERSION) --push .
 
 # The tools of tests/requirements-lint.txt in .venv; the hadolint-py wheel for macOS is broken, brew provides it there
 $(VENV)/.installed: tests/requirements-lint.txt
