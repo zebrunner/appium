@@ -8,7 +8,8 @@ fi
 
 cmd=(docker build . --progress plain --platform "$platform" --provenance=false)
 
-tag_path="public.ecr.aws/zebrunner/appium"
+# IMAGE_REPO: another repository of the image (make build passes it)
+tag_path="${IMAGE_REPO:-public.ecr.aws/zebrunner/appium}"
 
 if [[ "$1" == "-i" ]]; then
   shift
