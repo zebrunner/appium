@@ -195,7 +195,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 ## Limitations
 
-- The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. On Apple silicon it runs emulated.
+- The image is `linux/amd64` only: the base image `appium/appium` is amd64 only (Android platform-tools), a build for another platform stops with an error. An own `linux/arm64` image would lose functions: Google publishes no chromedriver (Chrome for Testing) for linux/arm64, so the Chrome and WebView sessions of Android would not work, and no Android build-tools (`aapt2`, `zipalign`) either, so they would be older builds of the distribution. On Apple silicon it runs emulated: install Rosetta 2 and let Docker Desktop use it (*Use Rosetta for x86_64/amd64 emulation on Apple Silicon*), otherwise it runs under the much slower QEMU emulation; `./zebrunner.sh status` of mcloud-agent shows it.
 - Android 8.0+ only (the minimum of the UiAutomator2 driver of the image, `MIN_ANDROID` of `files/module/android.sh`): older devices get a warning at startup and their sessions fail.
 - Chrome and the WebView contexts need Chrome and Android System WebView 87+ on the device: they are reached through the fixed DevTools port (`androidDevToolsPort`), which older chromedrivers reject with `unrecognized chrome option: androidDevToolsPort`. An older Chrome or WebView gets a warning at startup; update it on the device.
 - Appium runs as `androidusr`, not root, and gets no root: the image removes `sudo` and the sudo group of `androidusr` (a passwordless sudoer in the base image).
