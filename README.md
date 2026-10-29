@@ -36,9 +36,7 @@ make build VERSION=3.1.1-img TARGET=appium-image  # plus the Appium images plugi
 make push VERSION=3.1.1                           # built by docker buildx and pushed: docker login public.ecr.aws first
 ```
 
-`make build` runs `build.sh`, which can be run directly too (`./build.sh 3.1.1`, `./build.sh -i 3.1.1-img`): it shows the
-`docker build` command, waits for a confirmation and exits with the status of the build. The image is `linux/amd64`
-only: another `BUILD_PLATFORM` or `docker build --platform` is rejected, on Apple Silicon it is built emulated.
+The image is `linux/amd64` only: the build of another platform is rejected, on Apple Silicon it is built emulated.
 `IMAGE_REPO` sets another repository, `VERSION` is the tag and the `org.opencontainers.image.version` label (`dev` by
 default, required by `push`). `make push` uses the buildx builder `mcloud` (docker-container driver), which it creates
 once.
@@ -243,7 +241,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 | Target | What it checks | Needs |
 | --- | --- | --- |
 | `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, `node --check`, the patch files, the Dockerfile versions in this README and no other Appium version or patch diff mentioned, every env var of the Dockerfile documented, the text file checks of CONVENTIONS.md | Python 3; on macOS `brew install hadolint` |
-| `make test` | `build.sh` with a fake docker, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh` and `files/util/logger.sh` | bash, Python 3, jq |
+| `make test` | `make build` and `make push` with a docker stub, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh` and `files/util/logger.sh` | bash, Python 3, jq |
 | `make docker` | the docker tests below: `make image`, `make patch`, `make e2e` and `make patch-sync` | Docker |
 | `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
 | `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |

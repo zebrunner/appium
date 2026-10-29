@@ -5,7 +5,7 @@ export PATH := $(CURDIR)/$(VENV)/bin:$(PATH)
 # the tests of `make docker`, every other tests/*_test.sh is a test of `make test`
 DOCKER_TESTS := tests/image_test.sh tests/patch_test.sh tests/e2e_test.sh tests/patch_sync_test.sh
 
-# The image (CONVENTIONS.md#makefile): `make build VERSION=<tag>` (build.sh), `make push VERSION=<tag>` (docker login
+# The image (CONVENTIONS.md#makefile): `make build VERSION=<tag>`, `make push VERSION=<tag>` (docker login
 # first); TARGET=appium-image adds the images plugin (tag it <version>-img), IMAGE_REPO overrides the repository
 IMAGE_REPO ?= public.ecr.aws/zebrunner/appium
 VERSION ?= dev
@@ -46,9 +46,10 @@ patch-build: ## rebuilds the js files of the patch from the patch diff (scripts/
 	scripts/build-patch.sh
 
 
-build: ## the image IMAGE_REPO:VERSION (linux/amd64) by build.sh: make build VERSION=<tag> [TARGET=appium-image]
+build: ## the image IMAGE_REPO:VERSION for linux/amd64: make build VERSION=<tag> [TARGET=appium-image]
 	@[[ "$(TARGET)" =~ ^(appium|appium-image)$$ ]] || { echo "TARGET is appium or appium-image"; exit 1; }
-	echo | IMAGE_REPO=$(IMAGE_REPO) ./build.sh $(if $(filter appium-image,$(TARGET)),-i) $(VERSION)
+	docker build --progress=plain --provenance=false --platform linux/amd64 --target $(TARGET) \
+	  --build-arg VERSION=$(VERSION) --tag $(IMAGE_REPO):$(VERSION) .
 
 push: ## the image IMAGE_REPO:VERSION for PLATFORMS, built by docker buildx and pushed: make push VERSION=<tag>
 	@[[ "$(VERSION)" != dev ]] || { echo "make push VERSION=<tag>: the tag of the image is required"; exit 1; }
