@@ -37,11 +37,12 @@ RUN appium_dir="$(dirname "$(readlink -f "$(command -v appium)")")" && \
 
 USER androidusr
 
-# Check and install drivers
+# Check and install drivers; the npm cache of the install is not kept in the layer (~60 MB)
 RUN appium driver list && \
     appium plugin list && \
     appium driver install uiautomator2@6.7.15 && \
-    appium driver install xcuitest@10.18.2
+    appium driver install xcuitest@10.18.2 && \
+    npm cache clean --force
 
 # Set environment variables
 ENV ANDROID_DEVTOOLS_PORT=9222
@@ -171,8 +172,9 @@ ARG EXTRA_MODULE_DIR=/opt/appium-extra
 ENV APPIUM_PLUGINS=images \
     NODE_PATH=${EXTRA_MODULE_DIR}/node_modules:${APPIUM_HOME}/node_modules
 
-# Install plugin
-RUN appium plugin install images@4.1.0
+# Install plugin, without its npm cache
+RUN appium plugin install images@4.1.0 && \
+    npm cache clean --force
 
 USER root
 
@@ -188,7 +190,8 @@ RUN mkdir -p ${EXTRA_MODULE_DIR} && \
         --no-save \
         --package-lock=false \
         --include=optional \
-        sharp@0.34.5
+        sharp@0.34.5 && \
+    npm cache clean --force
 
 USER androidusr
 
