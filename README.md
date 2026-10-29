@@ -1,6 +1,6 @@
 # Zebrunner MCloud Appium
 
-Enhanced Appium docker image for testing on Android and iOS devices: phones, tablets, Android TV, Apple TV (tvOS) and Android emulators including ReDroid.
+Enhanced Appium docker image for testing on Android and iOS devices: phones, tablets, Android TV, Apple TV (tvOS), Android emulators and iOS simulators.
 
 - It is built on top of [Appium](https://github.com/appium/appium/) and supports:
   - iOS devices of Linux and macOS hosts (usbmuxd of the connector container), wireless iOS and tvOS devices and the iOS / tvOS simulators of a macOS host
@@ -139,7 +139,7 @@ Every session is recorded: the patched Appium creates `${LOG_DIR}/.recording-art
 | `LOG_FILE` | `session.log` | the name of the shared session log |
 | `BROADCAST_HOST`, `BROADCAST_PORT` | `device`, `2223` | Android: the STF screen broadcast, switched `on` and `off` around the recording |
 | `FFMPEG_OPTS` | | extra ffmpeg output options |
-| `ROUTER_UUID` | | the marker name instead of the session id (ReDroid integration) |
+| `ROUTER_UUID` | | the marker name instead of the session id, the id of an external orchestrator of the device (e.g. on-demand emulators) |
 | `WDA_LOG_FILE`, `SHARE_WDA_LOG` | `/tmp/log/wda.log`, `false` | iOS: share the WDA log with the session artifacts |
 
 A session with the `appium:mcloudExternalRecording: true` capability creates no marker: the recording is managed by the client.
@@ -172,7 +172,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `DEVICE_TIMEOUT` | `300` | s, how long the startup waits for WDA |
 | `USBMUXD_SOCKET_ADDRESS` | `connector:2222` | usbmuxd of the connector; the iOS tools use it directly, `/var/run/usbmuxd` is forwarded to it |
 | `WIRELESS` | `false` | `true` for a device without usbmuxd (a simulator, or WDA started by another tool and relayed by the connector): no usbmuxd forwarding, WDA is reached at `WDA_HOST:WDA_PORT` |
-| `DEVICE_CONNECTION` | empty | `ios-sim` for an iOS or tvOS simulator of the macOS host, see [Simulators](#simulators) |
+| `DEVICE_CONNECTION` | empty | `ios-sim` for an iOS or tvOS simulator of the macOS host, see [Simulators](#simulators); `android-sim` for an Android emulator: a device of the `default` characteristics is a `Phone`, not a `TV` |
 | `HOST_SSH_USER` | empty | the user of the macOS host of the simulator |
 | `HOST_SSH_HOST`, `HOST_SSH_PORT` | `connector`, `22` | ssh of the macOS host, relayed by the connector |
 | `HOST_SSH_KEY` | `/opt/zebrunner/ssh/id_ed25519` | the mounted private ssh key of the user of the host |
@@ -203,8 +203,8 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 ## Troubleshooting
 
-- `session not created: please close '<package>' and try again` on a switch to a `WEBVIEW_<package>` context: the WebView belongs to another app than the `appPackage` of the session (e.g. `org.chromium.webview_shell` on ReDroid). Appium passes the `appPackage` to chromedriver as the package it expects in the DevTools, and chromedriver finds `<package>` there. Set `appium:chromeAndroidPackage` to the package of the WebView, e.g. `"appium:chromeAndroidPackage": "org.chromium.webview_shell"`.
-- ReDroid has no Chrome: a mobile web session (`browserName: Chrome`) fails with `Either provide 'app' option to install 'com.android.chrome'...`. Use a WebView app (e.g. `org.chromium.webview_shell`, preinstalled on ReDroid) or install Chrome.
+- `session not created: please close '<package>' and try again` on a switch to a `WEBVIEW_<package>` context: the WebView belongs to another app than the `appPackage` of the session (e.g. `org.chromium.webview_shell` on an AOSP emulator). Appium passes the `appPackage` to chromedriver as the package it expects in the DevTools, and chromedriver finds `<package>` there. Set `appium:chromeAndroidPackage` to the package of the WebView, e.g. `"appium:chromeAndroidPackage": "org.chromium.webview_shell"`.
+- An AOSP emulator has no Chrome: a mobile web session (`browserName: Chrome`) fails with `Either provide 'app' option to install 'com.android.chrome'...`. Use a WebView app (e.g. `org.chromium.webview_shell`, preinstalled on AOSP) or install Chrome.
 
 ## Patch local appium
 

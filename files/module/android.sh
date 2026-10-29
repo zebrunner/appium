@@ -21,7 +21,8 @@ if [[ $isTablet ]]; then
 elif [[ $isTv ]]; then
   export DEVICETYPE='TV'
 elif [[ $isDefault ]]; then
-  if [[ $(adb shell getprop ro.hardware) = "redroid" ]]; then
+  # an emulator (DEVICE_CONNECTION=android-sim of mcloud-agent) is a phone, another device is a TV box (#157)
+  if [[ "$(echo "${DEVICE_CONNECTION}" | tr '[:upper:]' '[:lower:]')" == "android-sim" ]]; then
     export DEVICETYPE='Phone'
   else
     export DEVICETYPE='TV'

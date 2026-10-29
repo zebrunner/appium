@@ -53,7 +53,7 @@ ENV \
     # Credentials for changing status of device
     STF_API_URL="" \
     STF_AUTH_TOKEN="" \
-    # Integration UUID for ReDroid integration
+    # the id of an external orchestrator of the device (e.g. on-demand emulators): the name of the recording artifacts
     ROUTER_UUID="" \
     # Appium settings
     APPIUM_PORT=4723 \

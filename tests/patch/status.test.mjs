@@ -155,7 +155,7 @@ describe('ADB status', () => {
   });
 
   test('getStatusADB falls back to ANDROID_DEVICES without DEVICE_UDID', async () => {
-    await withEnv(adbEnv('redroid-1', {DEVICE_UDID: undefined, ANDROID_DEVICES: 'redroid-1'}), async () => {
+    await withEnv(adbEnv('emulator-1', {DEVICE_UDID: undefined, ANDROID_DEVICES: 'emulator-1'}), async () => {
       const status = await new BaseDriver({}).getStatusADB();
       assert.equal(status.status, 'success');
     });

@@ -147,11 +147,12 @@ check "android.sh warns below the minimum Android of the UiAutomator2 driver" \
   "$(sed -n -E 's/^MIN_ANDROID=([0-9]+)$/\1/p' files/module/android.sh)"
 
 section "android module"
-# android_module <release> <characteristics> <hardware>: AUTOMATION_NAME|DEVICETYPE|PLATFORM_VERSION|warning of
+# android_module <release> <characteristics> <hardware> [connection]: AUTOMATION_NAME|DEVICETYPE|PLATFORM_VERSION|warning of
 # files/module/android.sh with a fake adb (tests/fixtures/fake-adb); its background forwarding ends with the container
 android_module() {
   docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
-    --env FAKE_RELEASE="$1" --env FAKE_CHARACTERISTICS="$2" --env FAKE_HARDWARE="$3" --entrypoint bash "$IMAGE" -c '
+    --env FAKE_RELEASE="$1" --env FAKE_CHARACTERISTICS="$2" --env FAKE_HARDWARE="$3" --env DEVICE_CONNECTION="$4" \
+    --entrypoint bash "$IMAGE" -c '
     export PATH=/tmp/fakebin:$PATH
     . /opt/android.sh > /tmp/out 2>&1
     warning="$(grep -o "\[WARN\] Android .* is not supported" /tmp/out)"
@@ -161,7 +162,8 @@ check "Android 14 phone" "uiautomator2|Phone|14|" "$(android_module 14 phone gen
 check "Android 13 tablet" "uiautomator2|Tablet|13|" "$(android_module 13 tablet generic)"
 check "Android 12 tv" "uiautomator2|TV|12|" "$(android_module 12 tv generic)"
 check "Android 11 default (a TV box)" "uiautomator2|TV|11|" "$(android_module 11 default generic)"
-check "Android 11 redroid" "uiautomator2|Phone|11|" "$(android_module 11 default redroid)"
+check "Android 11 default emulator (android-sim)" "uiautomator2|Phone|11|" "$(android_module 11 default generic android-sim)"
+check "Android 11 tv emulator (android-sim)" "uiautomator2|TV|11|" "$(android_module 11 tv generic android-sim)"
 check "Android 8.1 is supported" "uiautomator2|Phone|8.1.0|" "$(android_module 8.1.0 phone generic)"
 check "Android 7.1 is not supported by UiAutomator2" "uiautomator2|Phone|7.1.2|[WARN] Android 7.1.2 is not supported" \
   "$(android_module 7.1.2 phone generic)"
