@@ -10,7 +10,7 @@ generated=(files/patch)
 project_checks() {
   section "image contents"
   # the versions of the Dockerfile are listed in the README (Image contents)
-  for pattern in 'FROM (appium\/appium:v[^ ]+) AS appium' 'appium driver install uiautomator2@([0-9.]+)' \
+  for pattern in 'FROM (appium\/appium:v[^ ]+) AS base' 'appium driver install uiautomator2@([0-9.]+)' \
     'appium driver install xcuitest@([0-9.]+)' 'appium plugin install images@([0-9.]+)' 'sharp@([0-9.]+)'; do
     version="$(sed -n -E "s/^.*${pattern}.*$/\1/p" Dockerfile | head -1)"
     if [[ -n "$version" ]] && grep -qF "$version" README.md; then
@@ -20,8 +20,8 @@ project_checks() {
     fi
   done
   # the Appium version of the base image is the only one mentioned
-  base_image="$(sed -n -E 's/^FROM ([^ ]+) AS appium$/\1/p' Dockerfile)"
-  appium_version="$(sed -n -E 's/^FROM appium\/appium:v([0-9.]+)-[^ ]* AS appium$/\1/p' Dockerfile)"
+  base_image="$(sed -n -E 's/^FROM ([^ ]+) AS base$/\1/p' Dockerfile)"
+  appium_version="$(sed -n -E 's/^FROM appium\/appium:v([0-9.]+)-[^ ]* AS base$/\1/p' Dockerfile)"
   docs=(README.md scripts/*.sh tests/*.sh tests/patch/*.mjs Makefile)
   check "README and the scripts mention only the base image ${base_image}" "" \
     "$(grep -noE 'appium/appium:v[0-9][^ `)]*' "${docs[@]}" | grep -vF ":${base_image}")"

@@ -34,7 +34,7 @@ check "Appium runs as androidusr" "androidusr" "$(in_image 'id -un')"
 check "androidusr gets no root: no sudo, no sudo group" "none:no" \
   "$(in_image 'command -v sudo || echo none'):$(in_image 'id -Gn | grep -qw sudo && echo yes || echo no')"
 # the versions of the Dockerfile are installed
-appium_version="$(dockerfile_value 'FROM appium\/appium:v([0-9.]+)-[^ ]* AS appium')"
+appium_version="$(dockerfile_value 'FROM appium\/appium:v([0-9.]+)-[^ ]* AS base')"
 check "Appium ${appium_version} of the base image" "$appium_version" "$(in_image 'appium --version 2> /dev/null')"
 drivers="$(in_image 'appium driver list --installed --json 2> /dev/null')"
 for driver in uiautomator2 xcuitest; do
@@ -91,7 +91,7 @@ report_checks() {
   done <<< "$1"
 }
 
-base_image="$(dockerfile_value 'FROM ([^ ]+) AS appium')"
+base_image="$(dockerfile_value 'FROM ([^ ]+) AS base')"
 # A1: APPIUM_HOME is the Appium the image runs: the drivers and the patch are installed there
 check "APPIUM_HOME is the Appium of the image" "$(in_image 'echo $APPIUM_HOME')" \
   "$(in_image 'dirname "$(readlink -f "$(command -v appium)")"')"

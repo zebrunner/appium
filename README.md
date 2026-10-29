@@ -90,6 +90,7 @@ The container is configured with environment variables; the defaults are the val
 | Variable | Default | Description |
 | --- | --- | --- |
 | `APPIUM_PORT` | `4723` | the port of Appium, the base path is `/wd/hub` |
+| `PATH`, `JAVA_HOME`, `ANDROID_HOME`, `TZ` | the ones of the base image | the platform-tools and build-tools of the Android SDK in `/opt/android`, Java 17 of `apksigner`, UTC; the other variables of the base image (versions, the paths of its build) are not kept |
 | `APPIUM_CLI` | | extra Appium arguments, e.g. `--session-override` |
 | `APPIUM_PLUGINS` | | the plugins to use (`--use-plugins`), `images` in the `appium-image` stage |
 | `NODE_PATH` | `appium-image` stage: `/opt/appium-extra/node_modules:${APPIUM_HOME}/node_modules` | where Node finds sharp (installed apart from Appium) for the images plugin |
@@ -203,7 +204,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 - Android 8.0+ only (the minimum of the UiAutomator2 driver of the image, `MIN_ANDROID` of `files/module/android.sh`): older devices get a warning at startup and their sessions fail.
 - Chrome and the WebView contexts need Chrome and Android System WebView 87+ on the device: they are reached through the fixed DevTools port (`androidDevToolsPort`), which older chromedrivers reject with `unrecognized chrome option: androidDevToolsPort`. An older Chrome or WebView gets a warning at startup; update it on the device.
 - Appium runs as `androidusr`, not root, and gets no root: the image removes `sudo` and the sudo group of `androidusr` (a passwordless sudoer in the base image).
-- The base image keeps its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium`. They are unused, Appium loads the drivers of `APPIUM_HOME`, but removing them in this Dockerfile would not make the image smaller: the files stay in the layer of the base image.
+- The base image is squashed into one layer without the files the image does not use: its own drivers (espresso, flutter, gecko, uiautomator2 6.1.1, about 410 MB) in `~/.appium` (Appium loads the drivers of `APPIUM_HOME`), the Android `cmdline-tools` (`sdkmanager`, `avdmanager`, `apkanalyzer`: the drivers use adb and the build-tools), the caches of npm and node-gyp, and the files its layers deleted or replaced: 2.41 GB -> 1.68 GB, a download of ~680 MB instead of ~1 GB. The squashed layer is built again by every release, so a device host downloads the whole image on an update.
 
 ## Troubleshooting
 
