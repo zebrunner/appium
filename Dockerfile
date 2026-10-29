@@ -1,6 +1,6 @@
 # check=skip=SecretsUsedInArgOrEnv
 # STF_AUTH_TOKEN is declared empty as documentation of the supported env vars; the real value is passed at runtime
-FROM appium/appium:v3.1.1-p0 AS appium
+FROM appium/appium:v3.1.1-p0 AS base
 
 # The base image is linux/amd64 only (Android platform-tools, OpenJDK path): another platform would build
 # an image with amd64 binaries, so the build stops
@@ -9,6 +9,27 @@ RUN if [ -n "${TARGETARCH}" ] && [ "${TARGETARCH}" != "amd64" ]; then \
       echo "[error] the image is linux/amd64 only: the base image appium/appium is amd64 only, got ${TARGETARCH}" >&2; \
       exit 1; \
     fi
+
+# The files of the base image the image does not use: its own drivers (~/.appium, Appium of APPIUM_HOME is used), the
+# Android cmdline-tools (sdkmanager, avdmanager, apkanalyzer: the drivers use adb and the build-tools), the caches of
+# npm and node-gyp and its start script; the stage is only copied, the image sets its own users
+# hadolint ignore=DL3002
+USER root
+RUN rm -rf /home/androidusr/.appium /home/androidusr/.npm /home/androidusr/.cache/node-gyp \
+      /home/androidusr/appium-docker-android /opt/android/cmdline-tools
+
+# The base image squashed into one layer without the files above and the ones its layers deleted or replaced
+# (~0.8 GB less), with the configuration of the base image the image uses
+FROM scratch AS appium
+# the squash itself: the whole file system of the base stage
+# hadolint ignore=DL3067
+COPY --from=base / /
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/android/platform-tools:/opt/android/build-tools \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    ANDROID_HOME=/opt/android \
+    TZ=UTC
+WORKDIR /home/androidusr
+EXPOSE 4723
 
 # The layers go from the rarely to the often changed ones: the packages and the drivers are kept in the build
 # cache when the env vars, the scripts or the patch change
@@ -42,7 +63,8 @@ RUN appium driver list && \
     appium plugin list && \
     appium driver install uiautomator2@6.7.15 && \
     appium driver install xcuitest@10.18.2 && \
-    npm cache clean --force
+    npm cache clean --force && \
+    rm -rf /home/androidusr/.cache/node-gyp
 
 # Set environment variables
 ENV ANDROID_DEVTOOLS_PORT=9222

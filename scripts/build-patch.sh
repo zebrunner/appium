@@ -19,9 +19,9 @@ elif [[ $# -gt 0 ]]; then
   exit 2
 fi
 
-version="$(sed -n -E 's|^FROM appium/appium:v([0-9]+\.[0-9]+\.[0-9]+)(-[^ ]*)? AS appium$|\1|p' "$REPO/Dockerfile")"
+version="$(sed -n -E 's|^FROM appium/appium:v([0-9]+\.[0-9]+\.[0-9]+)(-[^ ]*)? AS base$|\1|p' "$REPO/Dockerfile")"
 if [[ -z "$version" ]]; then
-  echo "[error] no 'FROM appium/appium:v<version> AS appium' in the Dockerfile" >&2
+  echo "[error] no 'FROM appium/appium:v<version> AS base' in the Dockerfile" >&2
   exit 1
 fi
 diff_file="files/patch/appium-${version//./_}.diff"
