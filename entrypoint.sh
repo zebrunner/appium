@@ -25,37 +25,49 @@ stop_ffmpeg() {
   fi
 
   ls -lah /tmp/${artifactId}.mp4
-  ffmpeg_pid=$(pgrep --full ffmpeg.*${artifactId}.mp4)
-  echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pid"
-  kill -2 $ffmpeg_pid
-  echo "[info] [Stop Video] kill output: $?"
+  local ffmpeg_pids
+  ffmpeg_pids=$(pgrep --full "ffmpeg.*/tmp/${artifactId}.mp4" | xargs)
+  echo "[info] [Stop Video] ffmpeg_pid=$ffmpeg_pids"
+  if [ -n "$ffmpeg_pids" ]; then
+    kill -2 $ffmpeg_pids
+    echo "[info] [Stop Video] kill output: $?"
 
-  # wait until ffmpeg finished normally
-  idleTimeout=30
-  startTime=$(date +%s)
-  while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
-    echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
-    echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
+    # wait until ffmpeg finished normally
+    local idleTimeout=30
+    local startTime
+    startTime=$(date +%s)
+    while [ $((startTime + idleTimeout)) -gt "$(date +%s)" ]; do
+      echo "[info] [Stop Video] videoFileSize: $(wc -c /tmp/${artifactId}.mp4 | awk '{print $1}') bytes."
+      echo -e "[info] [Stop Video] \n Running ffmpeg processes:\n $(pgrep --list-full --full ffmpeg) \n-------------------------"
 
-    if ps -p $ffmpeg_pid > /dev/null 2>&1; then
-      echo "[info] [Stop Video] ffmpeg not finished yet"
-      sleep 0.3
-    else
-      echo "[info] [Stop Video] ffmpeg finished correctly"
-      break
+      if ps -p ${ffmpeg_pids// /,} > /dev/null 2>&1; then
+        echo "[info] [Stop Video] ffmpeg not finished yet"
+        sleep 0.3
+      else
+        echo "[info] [Stop Video] ffmpeg finished correctly"
+        break
+      fi
+    done
+
+    # TODO: try to heal video file using https://video.stackexchange.com/a/18226
+    if ps -p ${ffmpeg_pids// /,} > /dev/null 2>&1; then
+      echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
+      kill -9 $ffmpeg_pids
     fi
-  done
-
-  # TODO: try to heal video file using https://video.stackexchange.com/a/18226
-  if ps -p $ffmpeg_pid > /dev/null 2>&1; then
-    echo "[error] [Stop Video] ffmpeg not finished correctly, trying to kill it forcibly"
-    kill -9 $ffmpeg_pid
+  else
+    echo "[warn] [Stop Video] no ffmpeg process for ${artifactId}"
   fi
 
   # It is important to stop streaming only after ffmpeg recording has completed,
   # since ffmpeg recording requires an image stream to complete normally.
   # Otherwise (if ffmpeg doesn't have any new frames) it will wait for a new
   # frame to properly finalize the video.
+
+  # the next session may already record from the same stream: 'off' would freeze its video
+  if pgrep --full "ffmpeg.*${BROADCAST_HOST}:${BROADCAST_PORT}" > /dev/null 2>&1; then
+    echo "[info] [Stop Video] another recording is in progress, streaming stays 'on'"
+    return 0
+  fi
 
   # send signal to stop streaming of the screens from device (applicable only for android so far)
   echo "[info] [Stop Video] trying to send 'off': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
@@ -133,23 +145,73 @@ share() {
 finish() {
   echo "on finish begin"
 
-  if [[ "${PLATFORM_NAME}" == "ios" ]]; then
-    #detect sessionId by existing ffmpeg process
-    sessionId=`ps -ef | grep ffmpeg | grep -v grep | cut -d "/" -f 3 | cut -d "." -f 1` > /dev/null 2>&1
-  elif [[ "${PLATFORM_NAME}" == "android" ]]; then
-    # detect sessionId by start-capture-artifacts.sh
-    # /bin/bash /opt/start-capture-artifacts.sh 31d625c4-2810-426d-a40f-9fe14cf3260a
-    sessionId=`ps -ef | grep start-capture-artifacts.sh | grep -v grep | cut -d "/" -f 5 | cut -d " " -f 2` > /dev/null 2>&1
-  fi
-
-  if [ ! -z ${sessionId} ]; then
-    echo "detected existing video recording: $sessionId"
-    share ${sessionId}
-  else
-    echo "[warn] sessionId is empty on finish!"
+  # every existing marker is an active session (created on session start, deleted on its end)
+  local marker
+  local found=false
+  for marker in "${LOG_DIR}"/.recording-artifact-*; do
+    [ -e "$marker" ] || continue
+    found=true
+    echo "detected active recording: ${marker##*/.recording-artifact-}"
+    share "${marker##*/.recording-artifact-}"
+  done
+  if [ "$found" = false ]; then
+    echo "[info] no active recordings on finish"
   fi
 
   echo "on finish end"
+}
+
+# Safety net for leaked recordings: a marker of a session unknown to Appium is removed
+# (the regular DELETE handler then shares it) and an ffmpeg without marker and share in
+# progress is stopped after several checks, so a finishing video is never cut.
+recording_watchdog() {
+  local interval=${RECORDING_WATCHDOG_SEC:-60}
+  local staleSec=${RECORDING_STALE_SEC:-600}
+  local orphanChecks=${RECORDING_ORPHAN_CHECKS:-5}
+  declare -A orphanSeen
+
+  while sleep "$interval"; do
+    local sessions
+    sessions=$(curl -s --max-time 10 "http://localhost:${APPIUM_PORT}/wd/hub/sessions") || continue
+    sessions=$(echo "$sessions" | jq -r '.value[]?.id' 2>/dev/null) || continue
+
+    local marker id age pid args seen=()
+    # with ROUTER_UUID the marker is not named by a session id
+    if [[ -z "${ROUTER_UUID// /}" ]]; then
+      for marker in "${LOG_DIR}"/.recording-artifact-*; do
+        [ -e "$marker" ] || continue
+        id=${marker##*/.recording-artifact-}
+        age=$(( $(date +%s) - $(stat -c %Y "$marker" 2>/dev/null || date +%s) ))
+        if [ "$age" -gt "$staleSec" ] && ! grep -qxF "$id" <<< "$sessions"; then
+          echo "[warn] [Watchdog] session $id is not active for ${age}s, removing its marker to share the recording"
+          rm -f "$marker"
+        fi
+      done
+    fi
+
+    for pid in $(pgrep -x ffmpeg); do
+      args=$(tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null) || continue
+      [[ "$args" =~ /tmp/([^/ ]+)\.mp4 ]] || continue
+      id=${BASH_REMATCH[1]}
+      if [ -e "${LOG_DIR}/.recording-artifact-$id" ] || [ -e "${LOG_DIR}/.sharing-artifact-$id" ]; then
+        continue
+      fi
+      seen+=("$pid")
+      orphanSeen[$pid]=$(( ${orphanSeen[$pid]:-0} + 1 ))
+      if [ "${orphanSeen[$pid]}" -ge "$orphanChecks" ]; then
+        echo "[warn] [Watchdog] ffmpeg $pid records $id without session for ${orphanChecks} checks, stopping it"
+        kill -2 "$pid"
+        sleep 30
+        kill -9 "$pid" > /dev/null 2>&1
+        rm -f "/tmp/$id.mp4"
+        unset "orphanSeen[$pid]"
+      fi
+    done
+    # forget pids that are not orphans anymore
+    for pid in "${!orphanSeen[@]}"; do
+      [[ " ${seen[*]} " == *" $pid "* ]] || unset "orphanSeen[$pid]"
+    done
+  done
 }
 
 if [ ! -z "${SALT_MASTER}" ]; then
@@ -205,11 +267,20 @@ if [ "$ADB_SHELL" = true ]; then
     CMD+=" --allow-insecure adb_shell"
 fi
 
+# one session per device: a new session ends the previous ones instead of running in parallel
+if [ "${SESSION_OVERRIDE}" != false ] && [[ " ${APPIUM_CLI} " != *" --session-override "* ]]; then
+    CMD+=" --session-override"
+fi
+
 touch ${TASK_LOG}
 echo $CMD
 $CMD &
 
 trap 'finish' SIGTERM
+
+if [ "${RECORD_ARTIFACTS}" == "true" ]; then
+  recording_watchdog &
+fi
 
 # Background process to control video recording
 # REPLY example: ./ DELETE .recording-artifact-123321123
@@ -231,10 +302,16 @@ while read -r REPLY; do
       echo "recording artifacts was disabled with RECORD_ARTIFACTS: ${RECORD_ARTIFACTS}"
     fi
   elif [[ $REPLY == *DELETE* ]]; then
-    echo "stop adb forwarding if any for mobile web testing"
-    adb forward --remove-all
+    # the forwards of a session that is already starting (e.g. UiAutomator2 system port) must stay
+    if compgen -G "${LOG_DIR}/.recording-artifact-*" > /dev/null; then
+      echo "another session is active, adb forwarding stays"
+    else
+      echo "stop adb forwarding if any for mobile web testing"
+      adb forward --remove-all
+    fi
     echo "stop recording artifact $inwRecordArtifactId"
-    share $inwRecordArtifactId
+    # in background: the next session starts its recording while this video is being finalized
+    share $inwRecordArtifactId &
   fi
 done &
 

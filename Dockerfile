@@ -66,6 +66,14 @@ ENV BROADCAST_HOST=device
 ENV BROADCAST_PORT=2223
 ENV FFMPEG_OPTS=
 ENV RECORD_ARTIFACTS=true
+# watchdog for leaked recordings: check period, age of a marker of a session unknown to Appium,
+# number of checks an ffmpeg without marker survives before it is stopped
+ENV RECORDING_WATCHDOG_SEC=60
+ENV RECORDING_STALE_SEC=600
+ENV RECORDING_ORPHAN_CHECKS=5
+
+# a new session ends the previous ones on the device (appium --session-override)
+ENV SESSION_OVERRIDE=true
 
 # Timeout settings
 ENV UNREGISTER_IF_STILL_DOWN_AFTER=3000
