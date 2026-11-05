@@ -39,11 +39,11 @@ project_checks() {
   # the .diff is the reviewable source of the patched build/lib/*.js files, both are kept in the repo
   # shellcheck disable=SC2016
   run_check "node --check of the patched js files" bash -c \
-    'for f in files/patch/node_modules/@appium/base-driver/build/lib/*/*.js; do node --check "$f" || exit 1; done'
+    'for f in files/patch/node_modules/@appium/base-driver/build/lib/*/*.js files/patch/build/lib/*.js; do node --check "$f" || exit 1; done'
   # the diff of the Appium version of the base image is the only one
   diff_file="files/patch/appium-${appium_version//./_}.diff"
   check "the patch diff is the one of Appium ${appium_version} of the base image" "$diff_file" "$(ls files/patch/appium-*.diff)"
   run_check "the patch diff is well-formed" git apply --stat "$diff_file"
   check "no non-ASCII characters in the patched js code" "" \
-    "$(LC_ALL=C grep -sn '[^[:print:][:space:]]' files/patch/node_modules/@appium/base-driver/build/lib/*/*.js "$diff_file")"
+    "$(LC_ALL=C grep -sn '[^[:print:][:space:]]' files/patch/node_modules/@appium/base-driver/build/lib/*/*.js files/patch/build/lib/*.js "$diff_file")"
 }

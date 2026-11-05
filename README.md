@@ -219,14 +219,14 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
   git clone https://github.com/zebrunner/appium.git
   cd appium
   export APPIUM_HOME="$(npm root -g)/appium"
-  cp -R -v ./files/patch/node_modules "${APPIUM_HOME}/"
+  cp -R -v ./files/patch/node_modules ./files/patch/build "${APPIUM_HOME}/"
   ```
 
   `files/patch/appium-3_1_1.diff` is the same patch for the Appium sources.
 
 ### Change the patch
 
-The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` copied into the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
+The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` (`@appium/base-driver`) and `files/patch/build` (`appium`: the grid registration keeps the node registered while the hub is slow or unavailable, the hub would end the active session of a node that registers again) copied into `APPIUM_HOME` of the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
 
 ## Exit codes and health
 
@@ -245,7 +245,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 | `make test` | `make build` and `make push` with a docker stub, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh` and `files/util/logger.sh` | bash, Python 3, jq |
 | `make docker` | the docker tests below: `make image`, `make patch`, `make e2e` and `make patch-sync` | Docker |
 | `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
-| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
+| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage, the grid registration of a slow hub | Docker |
 | `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions, `docker stop`, the exit code 101 of mcloud-grid | Docker |
 | `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
 

@@ -166,10 +166,12 @@ COPY --chown=androidusr:androidusr \
 COPY --chown=androidusr:androidusr \
     files/entrypoint.sh ${ENTRYPOINT_DIR}/
 
-# Custom Mcloud patches of @appium/base-driver, over the installed files
+# Custom Mcloud patches of @appium/base-driver and appium (the grid registration), over the installed files
 # Do not make backups because unpatched js files in the same folder might be used by Appium
 COPY --chown=androidusr:androidusr \
     files/patch/node_modules/ ${APPIUM_HOME}/node_modules/
+COPY --chown=androidusr:androidusr \
+    files/patch/build/ ${APPIUM_HOME}/build/
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Zebrunner MCloud Appium" \
