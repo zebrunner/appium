@@ -55,3 +55,7 @@ done &
 if [[ -n $CHROME_OPTIONS ]]; then
   socat TCP-LISTEN:${ANDROID_DEVTOOLS_PORT},fork TCP:connector:${ANDROID_DEVTOOLS_PORT} &
 fi
+
+# A UiAutomator2 server left on the device by the previous container answers the first status request of the next
+# session and is killed by its new instrumentation right after: every session then fails with "socket hang up"
+adb shell am force-stop io.appium.uiautomator2.server
