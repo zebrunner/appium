@@ -119,6 +119,11 @@ ENV \
     BROADCAST_PORT=2223 \
     FFMPEG_OPTS="" \
     RECORD_ARTIFACTS=true \
+    # the watchdog of the recordings without a session end: the period, the age of a marker of a session unknown to
+    # Appium, the checks an ffmpeg without a session survives
+    RECORDING_WATCHDOG_SEC=60 \
+    RECORDING_STALE_SEC=600 \
+    RECORDING_ORPHAN_CHECKS=5 \
     # Timeout settings
     UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
     # Usbmuxd settings "host:port"
@@ -151,6 +156,7 @@ USER androidusr
 # Video recorder script, device modules & Zebrunner MCloud node config generator
 COPY --chown=androidusr:androidusr \
     files/module/start-capture-artifacts.sh \
+    files/module/recording.sh \
     files/util/debug.sh \
     files/util/logger.sh \
     files/module/android.sh \

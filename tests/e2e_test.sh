@@ -219,7 +219,8 @@ docker rm -f "$WIRELESS_IOS" > /dev/null
 
 section "android"
 ANDROID="${NET}-android"
-start_device "$ANDROID" "" "${ANDROID_ENV[@]}"
+# a quick watchdog of the recordings for its checks below; the markers of the other checks are newer than its RECORDING_STALE_SEC
+start_device "$ANDROID" "" "${ANDROID_ENV[@]}" RECORDING_WATCHDOG_SEC=2 RECORDING_ORPHAN_CHECKS=2
 if ! check_starts "$ANDROID"; then
   finish
 fi
@@ -244,8 +245,59 @@ sleep 6
 docker exec "$ANDROID" rm /tmp/log/.recording-artifact-and-3
 check_shared "$ANDROID" and-2 "back-to-back sessions, the first"
 check_shared "$ANDROID" and-3 "back-to-back sessions, the second"
-check "back-to-back sessions: the first recording is finished before the second starts" \
-  "on connected closed off on connected closed off" "$(stf_events_since "$line")"
+# the second recording starts at once, the end of the first one does not switch the broadcast off under it
+check "back-to-back sessions: the broadcast is switched off once, after the last recording" "1 off" \
+  "$(events="$(stf_events_since "$line")" && echo "$(grep -o off <<< "$events" | wc -l | tr -d ' ') ${events##* }")"
+
+line="$(fake_log_lines)"
+docker exec "$ANDROID" touch /tmp/log/.recording-artifact-and-5
+sleep 4
+docker exec "$ANDROID" touch /tmp/log/.recording-artifact-and-6
+sleep 3
+docker exec "$ANDROID" rm /tmp/log/.recording-artifact-and-5
+sleep 8
+docker exec "$ANDROID" rm /tmp/log/.recording-artifact-and-6
+check_shared "$ANDROID" and-5 "overlapping sessions, the first"
+check_shared "$ANDROID" and-6 "overlapping sessions, the second"
+check "overlapping sessions: the broadcast is switched off once, after the last recording" "1 off" \
+  "$(events="$(stf_events_since "$line")" && echo "$(grep -o off <<< "$events" | wc -l | tr -d ' ') ${events##* }")"
+# the second session lasts 11 s, its video ~9 s (the start of ffmpeg); 'off' at the end of the first session would stop
+# its frames after ~3 s
+duration="$(docker exec "$ANDROID" ffprobe -v error -show_entries format=duration -of csv=p=0 /tmp/log/and-6/video.mp4 2>&1)"
+if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= 6 else 1)" "$duration" 2> /dev/null; then
+  pass "overlapping sessions: the second video goes on after the end of the first session"
+else
+  fail "overlapping sessions: the second video goes on after the end of the first session" "video duration: ${duration}" \
+    "$(
+      echo "video duration: ${duration}"
+      docker exec "$ANDROID" ffprobe -v error -show_entries stream=nb_frames,duration:format=duration /tmp/log/and-6/video.mp4 2>&1
+    )"
+fi
+
+section "android recording watchdog"
+# an ffmpeg without a session (its marker is lost) is stopped after RECORDING_ORPHAN_CHECKS checks
+docker exec --detach "$ANDROID" ffmpeg -nostdin -loglevel error -f lavfi -i testsrc=size=320x240:rate=5 -y /tmp/orphan-1.mp4
+# shellcheck disable=SC2329
+orphan_stopped() {
+  ! docker exec "$ANDROID" pgrep --full 'ffmpeg.*orphan-1.mp4' && ! docker exec "$ANDROID" test -e /tmp/orphan-1.mp4
+}
+if wait_for 30 orphan_stopped; then
+  pass "an ffmpeg without a session is stopped and its video removed"
+else
+  fail "an ffmpeg without a session is stopped and its video removed" "ffmpeg of orphan-1 runs" \
+    "$(docker logs "$ANDROID" 2>&1 | grep Watchdog | tail -5)"
+fi
+# the old marker of a session Appium does not know is removed, its recording is shared
+docker exec "$ANDROID" touch -d '-20 minutes' /tmp/log/.recording-artifact-stale-1
+if wait_for 30 shared "$ANDROID" stale-1; then
+  pass "the old marker of a session unknown to Appium is removed and its recording shared"
+else
+  fail "the old marker of a session unknown to Appium is removed and its recording shared" "no /tmp/log/.artifact-stale-1" \
+    "$(docker logs "$ANDROID" 2>&1 | grep -E 'Watchdog|stale-1' | tail -10)"
+fi
+check "the marker of a session Appium does not know is kept while it is new" "yes" \
+  "$(docker exec "$ANDROID" bash -c 'touch /tmp/log/.recording-artifact-new-1; sleep 5; test -e /tmp/log/.recording-artifact-new-1 && echo yes; rm -f /tmp/log/.recording-artifact-new-1')"
+check_shared "$ANDROID" new-1 "a new session after the watchdog checks"
 
 check_shared_on_stop "$ANDROID" and-4
 
