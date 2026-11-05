@@ -136,6 +136,8 @@ Every build of an application is usually a new url, so the storage is cleaned be
 
 Every session is recorded: the patched Appium creates `${LOG_DIR}/.recording-artifact-<session id>` on a new session and deletes it on the session end. The video, the session log and the other files of `LOG_DIR` are then moved to `${LOG_DIR}/<session id>/` and `${LOG_DIR}/.artifact-<session id>` is created for the uploader. `docker stop` finishes the active sessions the same way.
 
+The video of a session is finalized in the background, so the recording of the next session starts at once (`files/module/recording.sh`). On Android the STF screen broadcast is one for the device: `on` and `off` are sent under a lock and `off` only when no other recording reads the broadcast, and the adb forwards are removed only when no other session is active. A watchdog is the safety net of a lost session end: the marker of a session Appium does not know for `RECORDING_STALE_SEC` is removed (its recording is shared), an ffmpeg without a session is stopped after `RECORDING_ORPHAN_CHECKS` checks.
+
 | Variable | Default | Description |
 | --- | --- | --- |
 | `RECORD_ARTIFACTS` | `true` | `false` disables the video, the logs are still shared |
@@ -144,6 +146,9 @@ Every session is recorded: the patched Appium creates `${LOG_DIR}/.recording-art
 | `LOG_FILE` | `session.log` | the name of the shared session log |
 | `BROADCAST_HOST`, `BROADCAST_PORT` | `device`, `2223` | Android: the STF screen broadcast, switched `on` and `off` around the recording |
 | `FFMPEG_OPTS` | | extra ffmpeg output options |
+| `RECORDING_WATCHDOG_SEC` | `60` | the period of the watchdog of the recordings |
+| `RECORDING_STALE_SEC` | `600` | the age of the marker of a session unknown to Appium the watchdog removes |
+| `RECORDING_ORPHAN_CHECKS` | `5` | the checks of the watchdog an ffmpeg without a session survives |
 | `ROUTER_UUID` | | the marker name instead of the session id, the id of an external orchestrator of the device (e.g. on-demand emulators) |
 | `WDA_LOG_FILE`, `SHARE_WDA_LOG` | `/tmp/log/wda.log`, `false` | iOS: share the WDA log with the session artifacts |
 
@@ -219,14 +224,14 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
   git clone https://github.com/zebrunner/appium.git
   cd appium
   export APPIUM_HOME="$(npm root -g)/appium"
-  cp -R -v ./files/patch/node_modules "${APPIUM_HOME}/"
+  cp -R -v ./files/patch/node_modules ./files/patch/build "${APPIUM_HOME}/"
   ```
 
   `files/patch/appium-3_1_1.diff` is the same patch for the Appium sources.
 
 ### Change the patch
 
-The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` copied into the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
+The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` (`@appium/base-driver`) and `files/patch/build` (`appium`: the grid registration keeps the node registered while the hub is slow or unavailable, the hub would end the active session of a node that registers again) copied into `APPIUM_HOME` of the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
 
 ## Exit codes and health
 
@@ -242,11 +247,11 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 | Target | What it checks | Needs |
 | --- | --- | --- |
 | `make lint` | yamllint, actionlint, hadolint, pymarkdown, shellcheck, shfmt, `node --check`, the patch files, the Dockerfile versions in this README and no other Appium version or patch diff mentioned, every env var of the Dockerfile documented, the text file checks of CONVENTIONS.md | Python 3; on macOS `brew install hadolint` |
-| `make test` | `make build` and `make push` with a docker stub, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh` and `files/util/logger.sh` | bash, Python 3, jq |
+| `make test` | `make build` and `make push` with a docker stub, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh`, `files/util/logger.sh` and the recording module `files/module/recording.sh` (the end of a session with another one active, the STF broadcast lock, the watchdog) | bash, Python 3, jq |
 | `make docker` | the docker tests below: `make image`, `make patch`, `make e2e` and `make patch-sync` | Docker |
 | `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
-| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage | Docker |
-| `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions, `docker stop`, the exit code 101 of mcloud-grid | Docker |
+| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage, the grid registration of a slow hub | Docker |
+| `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions (back-to-back and overlapping ones, the watchdog), `docker stop`, the exit code 101 of mcloud-grid | Docker |
 | `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
 
 The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides the tag, `REBUILD=true` forces a new build, `SKIP_BUILD=true` skips the build of `make image`). The image is amd64 only, so on Apple silicon it runs emulated and the docker tests take a while. With `JUNIT_DIR` set the results are also written as JUnit XML.

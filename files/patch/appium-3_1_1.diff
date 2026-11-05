@@ -1,3 +1,25 @@
+diff --git a/packages/appium/lib/grid-register.js b/packages/appium/lib/grid-register.js
+index 80e22ef..85e7005 100644
+--- a/packages/appium/lib/grid-register.js
++++ b/packages/appium/lib/grid-register.js
+@@ -134,12 +134,14 @@ async function isAlreadyRegistered(configHolder) {
+       throw new Error(`Request failed with code ${status}`);
+     }
+     if (!data.success) {
+-      // if register fail, print the debug msg
+-      logger.debug(`Grid registration error: ${data.msg}`);
++      logger.warn(`[MCLOUD] Node is not registered on the hub, registering again: ${data.msg}`);
+     }
+     return data.success;
+   } catch (err) {
+-    logger.debug(`Hub down or not responding: ${err.message}`);
++    // Fork (Zebrunner): the hub ends the active session of a node that registers again (PROXY_REREGISTRATION), so a
++    // slow or unavailable hub keeps the registration; only the explicit answer "not registered" registers the node again
++    logger.warn(`[MCLOUD] Hub down or not responding, registration is kept: ${err.message}`);
++    return true;
+   }
+ }
+ 
 diff --git a/packages/base-driver/lib/basedriver/core.ts b/packages/base-driver/lib/basedriver/core.ts
 index 53170a3..f7bb7d8 100644
 --- a/packages/base-driver/lib/basedriver/core.ts

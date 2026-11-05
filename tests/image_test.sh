@@ -49,14 +49,14 @@ check "the tools of the scripts are installed" "" \
 sha256() {
   if command -v sha256sum > /dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi
 }
-expected="$(cd files/patch && find node_modules -type f -name '*.js' | sort | while read -r f; do sha256 "$f"; done)"
+expected="$(cd files/patch && find node_modules build -type f -name '*.js' | sort | while read -r f; do sha256 "$f"; done)"
 # the files of the repo over the installed ones in APPIUM_HOME
-files="$(cd files/patch && find node_modules -type f -name '*.js' | sort | tr '\n' ' ')"
+files="$(cd files/patch && find node_modules build -type f -name '*.js' | sort | tr '\n' ' ')"
 actual="$(in_image "cd \$APPIUM_HOME && sha256sum ${files}")"
-check "the patched base-driver files are installed" "$expected" "$actual"
+check "the patched base-driver and appium files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
-  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
+  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/recording.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
 check "the healthcheck is configured, with a start period for the startup" '["CMD","healthcheck"] 1m0s' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}} {{.Config.Healthcheck.StartPeriod}}')"
 check "the image has the OCI labels" "https://github.com/zebrunner/appium dev" \
@@ -114,11 +114,14 @@ check "the installed @appium/base-driver is the one of the patch sources (appium
   "$(in_image 'node -p "require(process.env.APPIUM_HOME + \"/node_modules/@appium/base-driver/package.json\").version"')"
 # B2: the patch replaces existing files of the base image, only the files new in the diff are added
 diff_file="files/patch/appium-${appium_version//./_}.diff"
-new_files="$(awk '/^diff --git/{new=0} /^new file mode/{new=1} new && /^\+\+\+ b\/packages\/base-driver\/lib\//{sub(/^\+\+\+ b\/packages\/base-driver\/lib\//,""); sub(/\.(ts|js)$/,".js"); print}' "$diff_file")"
-replaced="$(cd files/patch/node_modules/@appium/base-driver/build/lib && find . -name '*.js' | sed 's|^\./||' | sort | grep -vxF "$new_files")"
+# the files by their path in APPIUM_HOME, as scripts/build-patch.sh maps the sources
+new_files="$(awk '/^diff --git/{new=0} /^new file mode/{new=1} new && /^\+\+\+ b\/packages\/(base-driver|appium)\/lib\//{
+  sub(/^\+\+\+ b\/packages\/base-driver\/lib\//,"node_modules/@appium/base-driver/build/lib/"); sub(/^\+\+\+ b\/packages\/appium\/lib\//,"build/lib/");
+  sub(/\.(ts|js)$/,".js"); print}' "$diff_file")"
+replaced="$(cd files/patch && find node_modules build -name '*.js' | sort | grep -vxF "$new_files")"
 docker pull --quiet --platform "$PLATFORM" "$base_image" > /dev/null 2>&1
 missing="$(docker run --rm --platform "$PLATFORM" --entrypoint bash "$base_image" -c "
-  cd \"\$(dirname \"\$(readlink -f \"\$(command -v appium)\")\")/node_modules/@appium/base-driver/build/lib\" &&
+  cd \"\$(dirname \"\$(readlink -f \"\$(command -v appium)\")\")\" &&
   for f in $(echo "$replaced" | tr '\n' ' '); do test -f \$f || echo \"\$f\"; done" 2>&1)"
 check "the patched files replace existing files of ${base_image}" "" "$missing"
 

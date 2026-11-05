@@ -2,6 +2,8 @@
 
 # shellcheck source=../util/logger.sh
 . /opt/logger.sh
+# shellcheck source=recording.sh
+. /opt/recording.sh
 sessionId=$1
 if [[ -z "$sessionId" ]]; then
   logger "WARN" "[CaptureArtifacts] No sense to record artifacts as sessionId not detected!"
@@ -16,6 +18,9 @@ PLATFORM_NAME=$(echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]')
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   ffmpegInput="http://${WDA_HOST}:${MJPEG_PORT}"
 else
+  # 'on' and the start of ffmpeg under the lock: the end of a previous recording then sees this one and keeps the
+  # broadcast 'on' (recording.sh)
+  broadcastLock
   logger "INFO" "[CaptureArtifacts] trying to send 'on': nc ${BROADCAST_HOST} ${BROADCAST_PORT}"
   echo -n "on" | nc "${BROADCAST_HOST}" "${BROADCAST_PORT}" -q 0 -v
   ffmpegInput="tcp://${BROADCAST_HOST}:${BROADCAST_PORT}"
@@ -41,5 +46,16 @@ ffmpeg \
   -movflags +empty_moov+frag_keyframe \
   ${FFMPEG_OPTS} \
   -y /tmp/"${sessionId}".mp4 &
+ffmpegPid=$!
+
+if [[ "${PLATFORM_NAME}" != "ios" ]]; then
+  # until the forked process is ffmpeg (or 2 s): its command line is the one of this script before
+  tries=0
+  while ! broadcastRecorders | grep -qx "$ffmpegPid" && [[ "$tries" -lt 20 ]]; do
+    sleep 0.1
+    tries=$((tries + 1))
+  done
+  broadcastUnlock
+fi
 
 exit 0

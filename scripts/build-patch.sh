@@ -1,6 +1,8 @@
 #!/bin/bash
-# Builds the patched @appium/base-driver from files/patch/appium-<version>.diff and copies the built js files of
-# the patched sources into files/patch/node_modules (the files of the image) or into --out <dir>.
+# Builds the patched Appium packages from files/patch/appium-<version>.diff and copies the built js files of the
+# patched sources into files/patch (the files of the image, by their path in APPIUM_HOME) or into --out <dir>:
+# packages/base-driver/lib/<path> -> node_modules/@appium/base-driver/build/lib/<path>.js,
+# packages/appium/lib/<path> -> build/lib/<path>.js.
 # The Appium version is the one of the base image in the Dockerfile (appium/appium:vX.Y.Z-pN -> appium@X.Y.Z).
 # Needs docker: the build runs in NODE_IMAGE, the Node major of the base image (tests/image_test.sh checks it),
 # the npm cache is kept in the zbr-appium-npm-cache volume.
@@ -10,7 +12,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 NODE_IMAGE="${NODE_IMAGE:-node:22}"
-TARGET="$REPO/files/patch/node_modules/@appium/base-driver/build/lib"
+TARGET="$REPO/files/patch"
 OUT=""
 if [[ "${1:-}" == "--out" && -n "${2:-}" ]]; then
   OUT="$2"
@@ -30,8 +32,11 @@ if [[ ! -f "$REPO/$diff_file" ]]; then
   exit 1
 fi
 
-# the patched sources: packages/base-driver/lib/<path>.(ts|js) -> build/lib/<path>.js
-patched="$(sed -n -E 's#^\+\+\+ b/packages/base-driver/lib/(.*)\.(ts|js)$#\1.js#p' "$REPO/$diff_file" | sort)"
+# the patched sources, "<built file of the sources> <file in APPIUM_HOME>" per line
+patched="$(sed -n -E \
+  -e 's#^\+\+\+ b/packages/base-driver/lib/(.*)\.(ts|js)$#packages/base-driver/build/lib/\1.js node_modules/@appium/base-driver/build/lib/\1.js#p' \
+  -e 's#^\+\+\+ b/packages/appium/lib/(.*)\.(ts|js)$#packages/appium/build/lib/\1.js build/lib/\1.js#p' \
+  "$REPO/$diff_file" | sort -k 2)"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -53,11 +58,11 @@ docker run --rm \
     git apply --check /work/patch.diff
     git apply /work/patch.diff
     npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
-    npx tsc -b packages/base-driver
+    npx tsc -b packages/base-driver packages/appium
     mkdir -p /work/out
-    while read -r file; do
+    while read -r built file; do
       mkdir -p "/work/out/$(dirname "$file")"
-      cp "packages/base-driver/build/lib/$file" "/work/out/$file"
+      cp "$built" "/work/out/$file"
     done < /work/patched
     chown -R "$OWNER" /work/out'
 
@@ -68,7 +73,7 @@ if [[ -n "$OUT" ]]; then
 else
   # the built files replace the files of the image, copies of sources not in the diff anymore are removed
   find "$TARGET" -name '*.js' -type f | while read -r file; do
-    grep -qxF "${file#"$TARGET"/}" "$work/patched" || rm -v "$file"
+    cut -d ' ' -f 2 "$work/patched" | grep -qxF "${file#"$TARGET"/}" || rm -v "$file"
   done
   cp -R "$work/out/." "$TARGET/"
   echo "updated: ${TARGET#"$REPO"/}"
