@@ -215,6 +215,12 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 - `session not created: please close '<package>' and try again` on a switch to a `WEBVIEW_<package>` context: the WebView belongs to another app than the `appPackage` of the session (e.g. `org.chromium.webview_shell` on an AOSP emulator). Appium passes the `appPackage` to chromedriver as the package it expects in the DevTools, and chromedriver finds `<package>` there. Set `appium:chromeAndroidPackage` to the package of the WebView, e.g. `"appium:chromeAndroidPackage": "org.chromium.webview_shell"`.
 - An AOSP emulator has no Chrome: a mobile web session (`browserName: Chrome`) fails with `Either provide 'app' option to install 'com.android.chrome'...`. Use a WebView app (e.g. `org.chromium.webview_shell`, preinstalled on AOSP) or install Chrome.
+- `An attempt to register with the grid <hub> was unsuccessful: <reason>. <hint>` in the log: mcloud-grid refused the node registration (the reason is the error of the hub) or did not answer. The registration is retried every 5 s (`registerCycle`); the error is logged when the reason changes and once in 10 minutes for the same reason with the number of the attempts failed meanwhile, the other attempts at debug level, and `Appium is registered with the grid ...` once it succeeds. The reasons:
+  - `HTTP 500: Node <url> is not reachable from the hub (<exception>), so it is not registered`: the hub connects back to the node url (`http://STF_PROVIDER_HOST:<appium port>/wd/hub`) and gets no answer. `STF_PROVIDER_HOST` must be an address of the device host that the hub can reach (in a LAN the LAN address: the public IP often fails without NAT hairpin) and the Appium port must be published.
+  - `HTTP 500: Node <url> has no or another NODE_REGISTRATION_TOKEN than the hub`: `NODE_REGISTRATION_TOKEN` of the container must be the one of mcloud-grid (`variables.env` of mcloud).
+  - `HTTP 500: Node <url> is not in NODE_ALLOWED_NETWORKS (<networks>)`: add the network of `STF_PROVIDER_HOST` to `NODE_ALLOWED_NETWORKS` of mcloud-grid.
+  - `HTTP 500: Appium node must have 'UDID' capability` or `Node should have slot`: the generated node config has no device, check `DEVICE_UDID`.
+  - `the hub <hub> is not reachable: <error>` (e.g. `ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`): check `SELENIUM_HOST`, `SELENIUM_PORT` and the network to the hub.
 
 ## Patch local appium
 
@@ -231,7 +237,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 ### Change the patch
 
-The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` (`@appium/base-driver`) and `files/patch/build` (`appium`: the grid registration keeps the node registered while the hub is slow or unavailable, the hub would end the active session of a node that registers again) copied into `APPIUM_HOME` of the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
+The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sources (the version of the base image) and its build, the js files of `files/patch/node_modules` (`@appium/base-driver`) and `files/patch/build` (`appium`: the grid registration keeps the node registered while the hub is slow or unavailable, the hub would end the active session of a node that registers again, and logs why the hub refuses a registration) copied into `APPIUM_HOME` of the image. Change the diff (e.g. `git diff` of a patched `appium@<version>` checkout), run `make patch-build` to rebuild the js files and commit both; `make patch-sync` (also in CI) fails when they differ.
 
 ## Exit codes and health
 
@@ -250,7 +256,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 | `make test` | `make build` and `make push` with a docker stub, the config generators `files/config/zbr-*.sh`, `files/util/debug.sh`, `files/util/logger.sh` and the recording module `files/module/recording.sh` (the end of a session with another one active, the STF broadcast lock, the watchdog) | bash, Python 3, jq |
 | `make docker` | the docker tests below: `make image`, `make patch`, `make e2e` and `make patch-sync` | Docker |
 | `make image` | the image build and contents, the assumptions on the base image that a new release may break (where Appium is, the entrypoint as PID 1, the user, the Node of the patch build, the base driver version and files the patch replaces, the drivers and plugins using the patched base driver and supporting the Appium version, the default capabilities known to the drivers, the insecure features and the minimum Android of the drivers), the Android and iOS modules and the healthcheck with a fake adb and WDA, Appium startup with the env vars of the image and of mcloud-agent, `RECORD_ARTIFACTS=false`, shutdown, the `appium-image` stage with its plugin | Docker |
-| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage, the grid registration of a slow hub | Docker |
+| `make patch` | the Appium patch inside the image with `node --test` (`tests/patch/*.test.mjs`): recording markers, `/status-wda`, `/status-adb`, STF device updates, the shared app storage, the grid registration of a slow hub and the logged reasons of a refused one | Docker |
 | `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions (back-to-back and overlapping ones, the watchdog), `docker stop`, the exit code 101 of mcloud-grid | Docker |
 | `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
 
