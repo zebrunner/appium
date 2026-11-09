@@ -1,14 +1,243 @@
 diff --git a/packages/appium/lib/grid-register.js b/packages/appium/lib/grid-register.js
-index 80e22ef..85e7005 100644
+index 80e22ef..0e8127d 100644
 --- a/packages/appium/lib/grid-register.js
 +++ b/packages/appium/lib/grid-register.js
-@@ -134,12 +134,14 @@ async function isAlreadyRegistered(configHolder) {
+@@ -39,17 +39,186 @@ async function registerNode(data, addr, port, basePath) {
+   postRequest(data, addr, port, basePath);
+ }
+ 
+-async function registerToGrid(postOptions, configHolder) {
+-  try {
+-    const {status} = await axios(postOptions);
+-    if (status !== 200) {
+-      throw new Error(`Request failed with code ${status}`);
++// Fork (Zebrunner): the hub (mcloud-grid) refuses a node by an HTTP 500 error page of Jetty with the reason in its
++// title; the reason and a hint what to check are logged instead of "Request failed with status code 500"
++const REASON_MAX_LENGTH = 400;
++// the registration is retried every registerCycle: the same reason is logged as an error once in this time
++const REPEATED_FAILURE_LOG_INTERVAL_MS = 10 * 60 * 1000;
++const HTML_ENTITIES = {quot: '"', amp: '&', lt: '<', gt: '>', apos: "'", nbsp: ' '};
++
++/**
++ * @param {string} text
++ * @returns {string}
++ */
++function decodeHtmlEntities(text) {
++  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entity, name) => {
++    if (name[0] !== '#') {
++      return HTML_ENTITIES[name.toLowerCase()] ?? entity;
+     }
+-    logger.debug(
+-      `Appium successfully registered with the the grid on ` + hubUri(configHolder.configuration)
++    const code = /^#x/i.test(name) ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
++    return code <= 0x10ffff ? String.fromCodePoint(code) : entity;
++  });
++}
++
++/**
++ * @param {any} data - the response body parsed by axios
++ * @returns {string}
++ */
++function responseBodyText(data) {
++  if (Buffer.isBuffer(data)) {
++    return data.toString();
++  }
++  if (data && typeof data === 'object') {
++    const message = data.message ?? data.value?.message ?? data.msg;
++    return _.isString(message) ? message : JSON.stringify(data);
++  }
++  return _.isNil(data) ? '' : String(data);
++}
++
++/**
++ * @param {string} html - an error page, e.g. the one of Jetty: <title>Error 500 {message}</title>
++ * @returns {string}
++ */
++function htmlErrorText(html) {
++  const match =
++    /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html) ??
++    /<th>\s*MESSAGE:\s*<\/th>\s*<td>([\s\S]*?)<\/td>/i.exec(html);
++  const text = match ? match[1] : html.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ');
++  return text.replace(/<[^>]*>/g, ' ');
++}
++
++/**
++ * The reason of a failed registration request
++ * @param {any} err - the error of axios
++ * @param {string} uri - the hub
++ * @returns {string} e.g. "HTTP 500: Node http://... is not reachable from the hub (...), so it is not registered. ..."
++ */
++export function registrationFailureReason(err, uri) {
++  const response = err?.response;
++  if (!response) {
++    // a refused connection to a host with several addresses is an AggregateError without a message
++    const message = err?.message || _.map(err?.errors, 'message').join(', ') || String(err);
++    if (!err?.code) {
++      return message;
++    }
++    return `the hub ${uri} is not reachable: ${message.includes(err.code) ? message : `${err.code} ${message}`}`;
++  }
++  let text = responseBodyText(response.data);
++  if (/<(html|head|title|body)[\s>]/i.test(text)) {
++    text = htmlErrorText(text);
++  }
++  text = decodeHtmlEntities(text)
++    .replace(/\s+/g, ' ')
++    .trim()
++    .replace(/^(HTTP )?Error \d{3}:? /i, '');
++  let previous;
++  do {
++    previous = text;
++    text = text.replace(/^[\w.$]+Exception: /, '').replace(/^Error: /, '');
++  } while (text !== previous);
++  if (text.length > REASON_MAX_LENGTH) {
++    text = `${text.slice(0, REASON_MAX_LENGTH - 3)}...`;
++  }
++  return `HTTP ${response.status}: ${text || response.statusText || 'no reason given'}`;
++}
++
++/**
++ * What to check for a reason of registrationFailureReason
++ * @param {string} reason
++ * @param {string} nodeUrl - the url the node registers with
++ * @returns {string} the hint or an empty string
++ */
++export function registrationFailureHint(reason, nodeUrl) {
++  if (reason.startsWith('the hub ')) {
++    return 'Check SELENIUM_HOST and SELENIUM_PORT and the network to the hub';
++  }
++  if (reason.includes('is not reachable from the hub')) {
++    return (
++      `The hub connects back to the node url ${nodeUrl}: STF_PROVIDER_HOST must be an address of this host ` +
++      `that the hub can reach (in a LAN the LAN address: the public IP often fails without NAT hairpin); ` +
++      `the appium port must be published`
+     );
++  }
++  if (reason.includes('NODE_REGISTRATION_TOKEN')) {
++    return 'NODE_REGISTRATION_TOKEN of this container must be the one of mcloud-grid (variables.env of mcloud)';
++  }
++  if (reason.includes('NODE_ALLOWED_NETWORKS')) {
++    return 'Add the network of STF_PROVIDER_HOST to NODE_ALLOWED_NETWORKS of mcloud-grid';
++  }
++  return '';
++}
++
++/**
++ * @param {string} text
++ * @returns {string} the text ending with a period
++ */
++const sentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`);
++
++/**
++ * @typedef RegistrationFailures
++ * @property {number} attempts - the failed attempts since the last registration
++ * @property {number} suppressed - the failed attempts logged at debug level since the last error
++ * @property {string} [reason] - the reason of the last logged error
++ * @property {number} loggedAt - the time of the last logged error
++ */
++
++/**
++ * @returns {RegistrationFailures}
++ */
++const noRegistrationFailures = () => ({attempts: 0, suppressed: 0, reason: undefined, loggedAt: 0});
++
++/**
++ * @param {RegistrationFailures} failures
++ * @param {string} uri
++ * @param {string} reason
++ * @param {string} hint
++ */
++function logRegistrationFailure(failures, uri, reason, hint) {
++  const now = Date.now();
++  failures.attempts++;
++  const repeated = reason === failures.reason;
++  if (repeated && now - failures.loggedAt < REPEATED_FAILURE_LOG_INTERVAL_MS) {
++    failures.suppressed++;
++    logger.debug(`An attempt to register with the grid ${uri} was unsuccessful again: ${reason}`);
++    return;
++  }
++  const suppressed = failures.suppressed;
++  const meanwhile =
++    repeated && suppressed > 0
++      ? ` ${suppressed} more attempt${suppressed === 1 ? '' : 's'} failed the same way since the last message.`
++      : '';
++  logger.error(
++    `An attempt to register with the grid ${uri} was unsuccessful: ${sentence(reason)}` +
++      (hint ? ` ${sentence(hint)}` : '') +
++      meanwhile
++  );
++  Object.assign(failures, {suppressed: 0, reason, loggedAt: now});
++}
++
++/**
++ * @param {any} postOptions
++ * @param {any} configHolder
++ * @param {RegistrationFailures} failures
++ */
++async function registerToGrid(postOptions, configHolder, failures) {
++  const uri = hubUri(configHolder.configuration);
++  try {
++    const response = await axios(postOptions);
++    if (response.status !== 200) {
++      throw Object.assign(new Error(`Request failed with code ${response.status}`), {response});
++    }
++    if (failures.attempts > 0) {
++      const attempts = failures.attempts;
++      logger.info(
++        `Appium is registered with the grid ${uri} after ${attempts} failed attempt${attempts === 1 ? '' : 's'}`
++      );
++    } else {
++      logger.debug(`Appium successfully registered with the the grid on ` + uri);
++    }
++    Object.assign(failures, noRegistrationFailures());
+   } catch (err) {
+-    logger.error(`An attempt to register with the grid was unsuccessful: ${err.message}`);
++    const reason = registrationFailureReason(err, uri);
++    logRegistrationFailure(failures, uri, reason, registrationFailureHint(reason, configHolder.configuration.url));
+   }
+ }
+ 
+@@ -107,6 +276,7 @@ function postRequest(configHolder, addr, port, basePath) {
+   }
+   // initiate a new Thread
+   let first = true;
++  const failures = noRegistrationFailures();
+   logger.debug(
+     `Starting auto register thread for the grid. ` +
+       `Will try to register every ${registerCycleInterval} ms.`
+@@ -114,15 +284,19 @@ function postRequest(configHolder, addr, port, basePath) {
+   setInterval(async function registerRetry() {
+     if (first) {
+       first = false;
+-      await registerToGrid(regRequest, configHolder);
+-    } else if (!(await isAlreadyRegistered(configHolder))) {
++      await registerToGrid(regRequest, configHolder, failures);
++    } else if (!(await isAlreadyRegistered(configHolder, failures))) {
+       // make the http POST to the grid for registration
+-      await registerToGrid(regRequest, configHolder);
++      await registerToGrid(regRequest, configHolder, failures);
+     }
+   }, registerCycleInterval);
+ }
+ 
+-async function isAlreadyRegistered(configHolder) {
++/**
++ * @param {any} configHolder
++ * @param {RegistrationFailures} failures
++ */
++async function isAlreadyRegistered(configHolder, failures) {
+   //check if node is already registered
+   const id = configHolder.configuration.id;
+   try {
+@@ -134,12 +308,16 @@ async function isAlreadyRegistered(configHolder) {
        throw new Error(`Request failed with code ${status}`);
      }
      if (!data.success) {
 -      // if register fail, print the debug msg
 -      logger.debug(`Grid registration error: ${data.msg}`);
-+      logger.warn(`[MCLOUD] Node is not registered on the hub, registering again: ${data.msg}`);
++      // a refused registration is logged by registerToGrid, once in a while for the same reason
++      const log = failures.attempts > 0 ? logger.debug.bind(logger) : logger.warn.bind(logger);
++      log(`[MCLOUD] Node is not registered on the hub, registering again: ${data.msg}`);
      }
      return data.success;
    } catch (err) {
