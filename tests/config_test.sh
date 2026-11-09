@@ -21,7 +21,7 @@ print(json.dumps(eval(sys.argv[2])))
 
 common_env=(
   DEVICE_NAME="Pixel 7" DEVICE_UDID=udid-1 DEVICETYPE=Phone PLATFORM_VERSION=14 AUTOMATION_NAME=uiautomator2
-  ADB_PORT=5037 PROXY_PORT=8080 SERVER_PROXY_PORT=0 APPIUM_PORT=4723 UNREGISTER_IF_STILL_DOWN_AFTER=3000
+  ADB_PORT=5037 APPIUM_PORT=4723 UNREGISTER_IF_STILL_DOWN_AFTER=3000
   STF_PROVIDER_HOST=10.0.0.5 SELENIUM_HOST=hub SELENIUM_PORT=4444
   REMOTE_ADB_HOST=connector CHROMEDRIVER_PORT=8200 CHROME_OPTIONS='"androidDevToolsPort": 9222'
   WDA_HOST=connector WDA_PORT=8100 MJPEG_PORT=8101
@@ -35,6 +35,8 @@ check "udid" '"udid-1"' "$(json_get "$config" 'j["capabilities"][0]["udid"]')"
 check "deviceType" '"Phone"' "$(json_get "$config" 'j["capabilities"][0]["deviceType"]')"
 check "automationName" '"uiautomator2"' "$(json_get "$config" 'j["capabilities"][0]["automationName"]')"
 check "adb_port is a number" '5037' "$(json_get "$config" 'j["capabilities"][0]["adb_port"]')"
+check "no proxy ports of the device" '[]' \
+  "$(json_get "$config" '[k for k in j["capabilities"][0] if k in ("proxy_port", "server_proxy_port")]')"
 check "maxInstances is 1" '1' "$(json_get "$config" 'j["capabilities"][0]["maxInstances"]')"
 check "the mcloud proxy" '"com.zebrunner.mcloud.grid.MobileRemoteProxy"' "$(json_get "$config" 'j["configuration"]["proxy"]')"
 check "node url" '"http://10.0.0.5:4723/wd/hub"' "$(json_get "$config" 'j["configuration"]["url"]')"
@@ -90,6 +92,10 @@ check_contains "nodeconfig without SELENIUM_PORT: the variable is named" "SELENI
 run_gen zbr-config-gen.sh PLATFORM_NAME=android ADB_PORT=abc
 check "nodeconfig with ADB_PORT=abc: exit status 1" "1" "$STATUS"
 check_contains "nodeconfig with ADB_PORT=abc: the variable is named" "ADB_PORT must be a number, got 'abc'" "$ERR"
+# the old env vars of mcloud-agent are ignored
+run_gen zbr-config-gen.sh PLATFORM_NAME=android PROXY_PORT=abc SERVER_PROXY_PORT=
+check "nodeconfig with the old PROXY_PORT and SERVER_PROXY_PORT: exit status 0" "0" "$STATUS"
+check "nodeconfig with the old PROXY_PORT and SERVER_PROXY_PORT: valid JSON" '"ok"' "$(json_get "$OUT" '"ok"')"
 run_gen zbr-default-caps-gen.sh PLATFORM_NAME=ios WDA_PORT=
 check "ios caps without WDA_PORT: exit status 1" "1" "$STATUS"
 check_contains "ios caps without WDA_PORT: the variable is named" "WDA_PORT must be a number" "$ERR"

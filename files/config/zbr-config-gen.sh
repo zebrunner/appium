@@ -24,8 +24,6 @@ number() {
 PLATFORM_NAME="$(printf '%s' "$PLATFORM_NAME" | tr '[:upper:]' '[:lower:]')"
 
 adbPort="$(number ADB_PORT "$ADB_PORT")" || exit 1
-proxyPort="$(number PROXY_PORT "$PROXY_PORT")" || exit 1
-serverProxyPort="$(number SERVER_PROXY_PORT "$SERVER_PROXY_PORT")" || exit 1
 appiumPort="$(number APPIUM_PORT "$APPIUM_PORT")" || exit 1
 hubPort="$(number SELENIUM_PORT "$SELENIUM_PORT")" || exit 1
 unregisterIfStillDownAfter="$(number UNREGISTER_IF_STILL_DOWN_AFTER "$UNREGISTER_IF_STILL_DOWN_AFTER")" || exit 1
@@ -40,8 +38,6 @@ jq -n \
   --arg host "$STF_PROVIDER_HOST" \
   --arg hubHost "$SELENIUM_HOST" \
   --argjson adbPort "$adbPort" \
-  --argjson proxyPort "$proxyPort" \
-  --argjson serverProxyPort "$serverProxyPort" \
   --argjson port "$appiumPort" \
   --argjson hubPort "$hubPort" \
   --argjson unregisterIfStillDownAfter "$unregisterIfStillDownAfter" \
@@ -55,9 +51,7 @@ jq -n \
         "platformVersion": $platformVersion,
         "udid": $udid,
         "adb_port": $adbPort,
-        "proxy_port": $proxyPort,
-        "automationName": $automationName,
-        "server_proxy_port": $serverProxyPort
+        "automationName": $automationName
       }
     ],
     "configuration": {

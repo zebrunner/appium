@@ -238,7 +238,7 @@ section "startup"
 # the env vars of the appium container in zebrunner/mcloud-agent (roles/devices/templates/zebrunner-farm)
 MCLOUD_AGENT_ENV="PLATFORM_NAME=android DEVICE_UDID=udid-1 DEVICE_NAME=Pixel RETAIN_TASK=true CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=true"
 MCLOUD_AGENT_ENV+=" STF_PROVIDER_HOST=10.0.0.5 SELENIUM_HOST=hub SELENIUM_PORT=4444 DEFAULT_CAPABILITIES=true RELAXED_SECURITY=true"
-MCLOUD_AGENT_ENV+=" ADB_PORT=5037 PROXY_PORT=8080 SERVER_PROXY_PORT=0 APPIUM_PORT=4723 REMOTE_ADB_HOST=connector"
+MCLOUD_AGENT_ENV+=" ADB_PORT=5037 APPIUM_PORT=4723 REMOTE_ADB_HOST=connector"
 # the variants: <id>|<name>|<env vars>, the container of a variant is ${PREFIX}-<id>;
 # all containers are started at once, they are slow under emulation
 variants=(

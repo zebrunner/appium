@@ -99,9 +99,6 @@ ENV \
     CHROMEDRIVER_PORT=8200 \
     # Chromedriver devtools port
     CHROME_OPTIONS="\"androidDevToolsPort\": ${ANDROID_DEVTOOLS_PORT}" \
-    # Proxy settings
-    PROXY_PORT=8080 \
-    SERVER_PROXY_PORT=0 \
     # Log settings
     LOG_LEVEL=info \
     LOG_DIR=/tmp/log \
