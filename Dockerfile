@@ -34,8 +34,8 @@ USER androidusr
 # used by the uiautomator2 driver are pinned inside the xcuitest driver, and the build fails if it does not load
 RUN appium driver list && \
     appium plugin list && \
-    appium driver install uiautomator2@6.7.15 && \
-    appium driver install xcuitest@10.18.2 && \
+    appium driver install uiautomator2@8.7.3  && \
+    appium driver install xcuitest@12.22.8 && \
     mkdir -p /tmp/bplist-pin && \
     npm install --prefix /tmp/bplist-pin --no-save --no-package-lock \
         bplist-parser@0.3.2 bplist-creator@0.1.1 && \
@@ -164,7 +164,7 @@ ENV APPIUM_PLUGINS=images \
     NODE_PATH=${EXTRA_MODULE_DIR}/node_modules:${APPIUM_HOME}/node_modules
 
 # Install plugin
-RUN appium plugin install images@4.1.0
+RUN appium plugin install images@5.0.2
 
 USER root
 
@@ -180,7 +180,7 @@ RUN mkdir -p ${EXTRA_MODULE_DIR} && \
         --no-save \
         --package-lock=false \
         --include=optional \
-        sharp@0.34.5
+        sharp@0.35.5
 
 USER androidusr
 
