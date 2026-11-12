@@ -41,6 +41,8 @@ The image is `linux/amd64` only: the build of another platform is rejected, on A
 default, required by `push`). `make push` uses the buildx builder `mcloud` (docker-container driver), which it creates
 once.
 
+The file `VERSION` is the release in work (bumped by hand after a release, CONVENTIONS.md#versions). The `publish` job of CI pushes the image of every merge into `develop` after all the checks passed: `public.ecr.aws/zebrunner/appium:<VERSION>-develop-<sha>` (7 characters of the commit) and `<VERSION>-develop-latest`, the newest commit of `develop`.
+
 ## Run
 
 In MCloud every device has four containers, created by [mcloud-agent](https://github.com/zebrunner/mcloud-agent) (`roles/*devices/templates/zebrunner-farm` is the reference of all the options):
