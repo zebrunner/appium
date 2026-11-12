@@ -8,3 +8,4 @@ VERSION
 *.md
 .DS_Store
 **/.DS_Store
+files/playwright/node_modules

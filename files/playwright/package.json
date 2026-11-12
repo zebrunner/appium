@@ -1,0 +1,23 @@
+{
+  "name": "appium-mcloud-playwright-driver",
+  "version": "0.1.0",
+  "description": "Playwright sessions on the Android devices of Zebrunner MCloud: the Playwright server of the device on the WebSocket of the Appium session",
+  "license": "Apache-2.0",
+  "private": true,
+  "main": "lib/index.js",
+  "appium": {
+    "driverName": "playwright",
+    "automationName": "Playwright",
+    "platformNames": [
+      "Android"
+    ],
+    "mainClass": "PlaywrightDriver"
+  },
+  "peerDependencies": {
+    "appium": "^3.0.0"
+  },
+  "dependencies": {
+    "playwright-core": "1.65.0",
+    "ws": "8.18.3"
+  }
+}

@@ -25,6 +25,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 | UiAutomator2 driver | 6.7.15 |
 | XCUITest driver | 10.18.2 |
 | images plugin, `appium-image` stage | 4.1.0 (with sharp 0.34.5) |
+| Playwright driver (`files/playwright`) | playwright-core 1.65.0, see [Playwright](#playwright) |
 
 The Appium base driver is patched for MCloud (`files/patch`): recording markers, the shared application storage, the device status endpoints and the STF device updates.
 
@@ -185,6 +186,20 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `CHROMEDRIVER_PORT` | `8200` | the chromedriver port, forwarded to the connector |
 | `ANDROID_DEVTOOLS_PORT` | `9222` | the Chrome DevTools port, forwarded to the connector |
 | `CHROME_OPTIONS` | `"androidDevToolsPort": 9222` | the members of the default `chromeOptions` capability; `androidDevToolsPort` needs Chrome / WebView 87+ on the device (see Limitations) |
+
+### Playwright
+
+The `Playwright` automation runs [Playwright](https://playwright.dev/docs/api/class-android) tests on an Android device: an Appium session with `appium:automationName: Playwright` reserves the device through mcloud-grid as any other session (the queue, STF, the video and the artifacts of the session), and the driver of the image (`files/playwright`, linked into `APPIUM_HOME`) serves the Playwright server of the device on the WebSocket `/mcloud/playwright/<session id>` of Appium. mcloud-grid passes that WebSocket on to the clients (`/mcloud/playwright/<session id>` of MCloud), the client connects with `_android.connect()` and drives Chrome, the WebViews and the device itself; see the example of [MCloud](https://github.com/zebrunner/mcloud) (`examples/playwright`).
+
+- Every connection gets its own Playwright server of the device, of the version of the client: a client connects only to a server of its major.minor (Playwright checks `User-Agent`). The version of the image is bundled, another one is installed on its first connection (`npm install playwright-core@<version>` and its device driver APKs; the device host needs the npm registry) into `PLAYWRIGHT_CACHE_DIR`, the storage of the apps shared by the devices of a host. A host without the registry serves the bundled version only.
+- One client at a time: a second connection of the session is closed with `1013`. The connection ends with the session (`1001`) and with the device (the status of the Playwright server).
+- The session has no command timeout while a client is connected (the client sends no WebDriver commands); mcloud-grid keeps it while its WebSocket is open.
+- Chrome reads the command line of Playwright only on a rooted or a debuggable device (an emulator of a Google APIs image) or with `chrome://flags/#enable-command-line-on-non-rooted-devices` enabled: enable the flag once on the other devices (Play Store images too), otherwise `launchBrowser()` waits for the DevTools socket of Chrome until its timeout.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PLAYWRIGHT_BROWSERS_PATH` | `/opt/playwright/browsers` | the device driver APKs of Playwright |
+| `PLAYWRIGHT_CACHE_DIR` | `/opt/appium-storage/playwright` | the other Playwright versions, installed on demand; empty: `APPIUM_APPS_DIR/playwright` |
 
 ### iOS
 

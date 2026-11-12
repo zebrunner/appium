@@ -59,8 +59,10 @@ function checkExtensions(driversFile, pluginsFile) {
 
   for (const [type, extensions] of [['driver', drivers], ['plugin', plugins]]) {
     for (const [name, ext] of Object.entries(extensions)) {
+      // a driver of the image (the Playwright one) is linked into APPIUM_HOME: it uses the modules of Appium from there,
+      // the checks of the patched base driver below cover it
       report(
-        path.resolve(ext.installPath).startsWith(path.resolve(modules) + path.sep),
+        path.resolve(ext.installPath).startsWith(path.resolve(modules) + path.sep) || ext.installType === 'local',
         `the ${name} ${type} is installed in APPIUM_HOME`,
         `installed in ${ext.installPath}, APPIUM_HOME is ${APPIUM_HOME}`
       );

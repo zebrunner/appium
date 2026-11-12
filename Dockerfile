@@ -152,12 +152,30 @@ USER root
 # a dir of androidusr, /var/run is root only; xcrun of the simulators mirrors the app paths of the macOS host in /Users
 # and /Library/Developer/CoreSimulator
 ARG ENTRYPOINT_DIR=/opt/entrypoint
-RUN mkdir -p ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} /Users /Library/Developer/CoreSimulator && \
-    chown -R androidusr:androidusr ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} /Users /Library/Developer/CoreSimulator && \
+ARG PLAYWRIGHT_DIR=/opt/playwright
+RUN mkdir -p ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} /Users /Library/Developer/CoreSimulator ${PLAYWRIGHT_DIR} && \
+    chown -R androidusr:androidusr ${APPIUM_APPS_DIR} ${APPIUM_CONFIG_DIR} ${LOG_DIR} /tmp/usbmuxd ${ENTRYPOINT_DIR} /Users /Library/Developer/CoreSimulator ${PLAYWRIGHT_DIR} && \
     ln -s /tmp/usbmuxd/usbmuxd /var/run/usbmuxd && \
     ln -s /usr/local/bin/xcrun /usr/local/bin/lipo
 
 USER androidusr
+
+# The 'Playwright' automation of the Android devices (README.md#playwright): the driver with its modules (not the peer
+# Appium: it uses the one of APPIUM_HOME), linked into APPIUM_HOME, and the APKs of the Playwright driver of the device
+# in PLAYWRIGHT_BROWSERS_PATH; the other Playwright versions are installed on demand into PLAYWRIGHT_CACHE_DIR
+ENV PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_DIR}/browsers \
+    PLAYWRIGHT_CACHE_DIR=${APPIUM_APPS_DIR}/playwright
+COPY --chown=androidusr:androidusr files/playwright/package.json ${PLAYWRIGHT_DIR}/driver/
+# the versions are pinned in its package.json, hadolint takes the --prefix value for an unpinned package
+# hadolint ignore=DL3016
+RUN npm install --prefix ${PLAYWRIGHT_DIR}/driver --omit=peer --omit=dev --no-package-lock --no-audit --no-fund && \
+    node ${PLAYWRIGHT_DIR}/driver/node_modules/playwright-core/cli.js install android && \
+    npm cache clean --force
+COPY --chown=androidusr:androidusr files/playwright/lib/ ${PLAYWRIGHT_DIR}/driver/lib/
+# a local driver is linked by npm, which links it globally first: into a prefix of androidusr, not the one of root
+RUN mkdir -p ${PLAYWRIGHT_DIR}/npm/lib/node_modules && \
+    npm_config_prefix=${PLAYWRIGHT_DIR}/npm appium driver install --source=local ${PLAYWRIGHT_DIR}/driver && \
+    npm cache clean --force
 
 # Video recorder script, device modules & Zebrunner MCloud node config generator
 COPY --chown=androidusr:androidusr \
