@@ -96,3 +96,12 @@ jobs:
           annotate_only: true
           detailed_summary: true
           require_tests: true
+
+  # the image of a merge into develop to public.ecr.aws after all the checks (CONVENTIONS.md#versions)
+  publish:
+    needs: [lint, tests, docker, patch-sync]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      id-token: write
+    uses: zebrunner/mcloud-conventions/.github/workflows/docker-publish.yml@v1
