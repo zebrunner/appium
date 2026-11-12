@@ -18,6 +18,7 @@ source files/module/recording.sh
 # the tools of the module: nc and adb record their calls (nc with its input), no ffmpeg reads the broadcast
 stub nc "echo \"nc|\$*|\$(cat)\" >> '${WORK}/calls.log'"
 record_stub adb
+record_stub pkill
 stub pgrep 'exit 1'
 
 reset_state() {
@@ -129,6 +130,7 @@ wait "$orphan" 2> /dev/null
 check "it is stopped after RECORDING_ORPHAN_CHECKS" "no" "$(kill -0 "$orphan" 2> /dev/null && echo yes || echo no)"
 check_contains "the stop is logged" "records orphan without a session for 2 checks, it is stopped" "$(cat "$WORK/watchdog.log")"
 check "the broadcast it read is switched off" "device 2223 -q 0 -v|off" "$(calls nc)"
+check "the MJPEG relay of its recording is stopped" '--full|mjpeg-relay\.js .* orphan$' "$(calls pkill)"
 check "the forgotten ffmpeg is not counted anymore" "" "$RECORDING_ORPHANS"
 
 finish

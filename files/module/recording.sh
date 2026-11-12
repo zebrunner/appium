@@ -69,6 +69,12 @@ ffmpegRunning() {
   return 1
 }
 
+# stopRelay <id>: stops the MJPEG relay of the recording (iOS), it exits with ffmpeg by itself only when it has a frame
+# to write
+stopRelay() {
+  pkill --full "mjpeg-relay\.js .* ${1}\$" > /dev/null 2>&1
+}
+
 stopFfmpeg() {
   local artifactId=$1
   if [[ -z "${artifactId}" ]]; then
@@ -109,6 +115,7 @@ stopFfmpeg() {
       kill -9 "$pid"
     done
   fi
+  stopRelay "$artifactId"
 
   # It is important to stop streaming only after ffmpeg recording has completed,
   # since ffmpeg recording requires an image stream to complete normally.
@@ -293,6 +300,7 @@ stopOrphanRecordings() {
       tries=$((tries + 1))
     done
     kill -9 "$pid" 2> /dev/null
+    stopRelay "$id"
     rm -f "/tmp/$id.mp4"
     if [[ "$args" == *"tcp://${BROADCAST_HOST}:${BROADCAST_PORT}"* ]]; then
       broadcastOff

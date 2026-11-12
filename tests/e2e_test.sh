@@ -95,6 +95,16 @@ check_shared() {
   fi
 }
 
+# video_duration <container> <id>: the duration of the shared video of the session, s
+video_duration() {
+  docker exec "$1" ffprobe -v error -show_entries format=duration -of csv=p=0 "/tmp/log/$2/video.mp4" 2>&1
+}
+
+# at_least <value> <min>: whether the number is at least the minimum
+at_least() {
+  python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$1" "$2" 2> /dev/null
+}
+
 # check_shared_on_stop <container> <id>: docker stop during a session shares its artifacts
 check_shared_on_stop() {
   docker exec "$1" touch "/tmp/log/.recording-artifact-$2"
@@ -130,6 +140,9 @@ mkdir -p "$WORK/frames"
 chmod 777 "$WORK/frames"
 docker run --rm --platform "$PLATFORM" --volume "$WORK/frames:/frames" --entrypoint ffmpeg "$IMAGE" \
   -loglevel error -f lavfi -i testsrc=size=640x360:rate=10 -frames:v 20 -q:v 5 /frames/f%03d.jpg
+# the screenshots of WDA are PNG
+docker run --rm --platform "$PLATFORM" --volume "$WORK/frames:/frames" --entrypoint ffmpeg "$IMAGE" \
+  -loglevel error -f lavfi -i testsrc=size=640x360 -frames:v 1 /frames/screenshot.png
 docker run --detach --name "$FAKE" --platform "$PLATFORM" --network "$NET" --network-alias connector --network-alias device \
   --volume "$REPO/tests/fixtures:/fixtures:ro" --volume "$WORK/frames:/frames:ro" \
   --entrypoint node "$IMAGE" /fixtures/fake-device.js > /dev/null
@@ -195,7 +208,7 @@ check_shared_on_stop "$IOS" ios-4
 
 section "ios wireless"
 # a device without usb (WIRELESS=true): no usbmuxd forwarding, the WDA based detection still runs;
-# also SHARE_WDA_LOG=true and a MJPEG server without frames
+# also SHARE_WDA_LOG=true and a MJPEG server without frames: the first frame is the screenshot of WDA
 WIRELESS_IOS="${NET}-ios-wireless"
 start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true SHARE_WDA_LOG=true MJPEG_PORT=8102
 if check_starts "$WIRELESS_IOS"; then
@@ -209,13 +222,52 @@ if check_starts "$WIRELESS_IOS"; then
   if wait_for 60 shared "$WIRELESS_IOS" w1; then
     check "SHARE_WDA_LOG=true: the WDA log is moved to the session" "wda|" \
       "$(docker exec "$WIRELESS_IOS" bash -c 'echo "$(cat /tmp/log/w1/wda.log)|$(cat /tmp/log/wda.log)"')"
-    check "no video is shared when the MJPEG server sends no frames" "no" \
-      "$(docker exec "$WIRELESS_IOS" bash -c 'test -e /tmp/log/w1/video.mp4 && echo yes || echo no')"
+    duration="$(video_duration "$WIRELESS_IOS" w1)"
+    if at_least "$duration" 2; then
+      pass "a MJPEG server without frames: the video is the PNG screenshot of WDA"
+    else
+      fail "a MJPEG server without frames: the video is the PNG screenshot of WDA" "video duration: ${duration}" \
+        "$(docker logs "$WIRELESS_IOS" 2>&1 | grep -E 'MjpegRelay|CaptureArtifacts|Stop Video' | tail -10)"
+    fi
+    check_contains "a MJPEG server without frames: the screenshot as the first frame is logged" \
+      "[MjpegRelay] [w1] No frame of the stream in 1000 ms, the first frame is the screenshot" "$(docker logs "$WIRELESS_IOS" 2>&1)"
   else
     fail "SHARE_WDA_LOG=true: the artifacts are shared" "no /tmp/log/.artifact-w1" "$(state_and_logs "$WIRELESS_IOS")"
   fi
 fi
 docker rm -f "$WIRELESS_IOS" > /dev/null
+
+section "ios static screen"
+# the zebrunner fork of WDA sends a frame only when the screen changes and repeats it every 20 s: ffmpeg read it
+# directly, waited 5 s to probe the stream and on SIGINT for the next frame (killed after 30 s), so a short session
+# had no video
+STATIC_IOS="${NET}-ios-static"
+start_device "$STATIC_IOS" "" "${IOS_ENV[@]}" MJPEG_PORT=8103
+if check_starts "$STATIC_IOS"; then
+  session "$STATIC_IOS" static-1 4
+  start=$SECONDS
+  check_shared "$STATIC_IOS" static-1 "a short session on a static screen"
+  elapsed=$((SECONDS - start))
+  if [[ "$elapsed" -le 10 ]]; then
+    pass "a static screen: the video is finished at once on the session end"
+  else
+    fail "a static screen: the video is finished at once on the session end" "shared after ${elapsed}s" \
+      "$(docker logs "$STATIC_IOS" 2>&1 | grep -E 'Stop Video' | tail -10)"
+  fi
+  check_not_contains "a static screen: ffmpeg is not killed" "not finished correctly" "$(docker logs "$STATIC_IOS" 2>&1)"
+  check "a static screen: no MJPEG relay is left after the session" "" "$(docker exec "$STATIC_IOS" pgrep --full mjpeg-relay.js)"
+  # the repeated frames keep the timeline: the video lasts as the session, over the 20 s gap of the frames of WDA
+  session "$STATIC_IOS" static-2 25
+  check_shared "$STATIC_IOS" static-2 "a long session on a static screen"
+  duration="$(video_duration "$STATIC_IOS" static-2)"
+  if at_least "$duration" 22 && ! at_least "$duration" 28; then
+    pass "a static screen: the video lasts as the session"
+  else
+    fail "a static screen: the video lasts as the session" "video duration: ${duration}, the session: 25 s" \
+      "$(docker exec "$STATIC_IOS" ffprobe -v error -show_entries stream=nb_frames,duration:format=duration /tmp/log/static-2/video.mp4 2>&1)"
+  fi
+fi
+docker rm -f "$STATIC_IOS" > /dev/null
 
 section "android"
 ANDROID="${NET}-android"

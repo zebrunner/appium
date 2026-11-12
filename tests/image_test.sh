@@ -56,7 +56,7 @@ actual="$(in_image "cd \$APPIUM_HOME && sha256sum ${files}")"
 check "the patched base-driver and appium files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
-  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/recording.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
+  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/recording.sh /opt/mjpeg-relay.js /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
 check "the healthcheck is configured, with a start period for the startup" '["CMD","healthcheck"] 1m0s' \
   "$(docker image inspect "$IMAGE" --format '{{json .Config.Healthcheck.Test}} {{.Config.Healthcheck.StartPeriod}}')"
 check "the image has the OCI labels" "https://github.com/zebrunner/appium dev" \
