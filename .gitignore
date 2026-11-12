@@ -7,3 +7,5 @@
 # macOS
 .DS_Store
 # <<< mcloud-conventions
+# the modules of the Playwright driver (npm install in files/playwright for a local run)
+files/playwright/node_modules/
