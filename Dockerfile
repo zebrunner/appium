@@ -41,7 +41,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
     apt-get -y install --no-install-recommends \
         iputils-ping nano jq telnet netcat-traditional curl ffmpeg \
-        libimobiledevice-utils libimobiledevice6 socat inotify-tools openssh-client && \
+        libimobiledevice-utils libimobiledevice6 socat inotify-tools openssh-client fonts-dejavu-core && \
     # androidusr of the base image is a sudoer without a password: the user of Appium gets no root
     export SUDO_FORCE_REMOVE=yes && apt-get -y purge sudo && \
     gpasswd -d androidusr sudo && \
@@ -125,6 +125,11 @@ ENV \
     # delay the first frame is a screenshot
     MJPEG_RELAY_HEARTBEAT_MS=500 \
     MJPEG_RELAY_FIRST_FRAME_MS=1000 \
+    # the card of the session before its video and the time stamp of the frames, the location shown on the card
+    RECORDING_CARD=false \
+    RECORDING_CARD_SEC=3 \
+    RECORDING_TIMESTAMP=false \
+    DEVICE_LOCATION="" \
     # Timeout settings
     UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
     # Usbmuxd settings "host:port"
@@ -158,6 +163,8 @@ USER androidusr
 COPY --chown=androidusr:androidusr \
     files/module/start-capture-artifacts.sh \
     files/module/recording.sh \
+    files/module/recording-card.sh \
+    files/assets/zebrunner-logo.png \
     files/util/debug.sh \
     files/util/logger.sh \
     files/util/mjpeg-relay.js \
@@ -182,6 +189,8 @@ COPY --chown=androidusr:androidusr \
     files/patch/build/ ${APPIUM_HOME}/build/
 
 ARG VERSION=dev
+# the version of the image on the recording card
+ENV IMAGE_VERSION="${VERSION}"
 LABEL org.opencontainers.image.title="Zebrunner MCloud Appium" \
       org.opencontainers.image.description="Appium for the Android and iOS devices of Zebrunner MCloud" \
       org.opencontainers.image.source="https://github.com/zebrunner/appium" \
