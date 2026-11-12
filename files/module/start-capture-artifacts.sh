@@ -30,6 +30,12 @@ else
   videoSource="$ffmpegInput"
 fi
 
+# the time stamp of the frames (recording-card.sh)
+videoFilter="setpts=RTCTIME/1000000/TB,scale=-2:720"
+if [[ "${RECORDING_TIMESTAMP}" == "true" ]]; then
+  videoFilter+=",$(timestampFilter "$sessionId")"
+fi
+
 # you can add `-v trace` to enable verbose mode logs
 # -probesize 32 -analyzeduration 0 - encode from the first frame instead of probing 5 s of the stream: a short session
 #   ended during the probe had no video
@@ -45,7 +51,7 @@ ffmpegArgs=(
   -use_wallclock_as_timestamps 1
   -fflags +genpts
   -i "$ffmpegInput"
-  -vf "setpts=RTCTIME/1000000/TB,scale=-2:720"
+  -vf "$videoFilter"
   -c:v libx264
   -preset:v ultrafast
   -crf 35
@@ -53,6 +59,7 @@ ffmpegArgs=(
 )
 
 logger "INFO" "[CaptureArtifacts] generating video file ${sessionId}.mp4 from ${videoSource}..."
+logger "INFO" "[CaptureArtifacts] video filter: ${videoFilter}"
 # $! is the pid of ffmpeg in both cases, the last command of the pipeline
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   # FFMPEG_OPTS holds several options, it is split on purpose
@@ -74,6 +81,11 @@ if [[ "${PLATFORM_NAME}" != "ios" ]]; then
     tries=$((tries + 1))
   done
   broadcastUnlock
+fi
+
+# the details of the session for the card before its video (recording-card.sh)
+if [[ "${RECORDING_CARD}" == "true" ]]; then
+  collectSessionInfo "$sessionId" &
 fi
 
 exit 0

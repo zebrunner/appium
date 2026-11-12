@@ -4,6 +4,10 @@
 # the recording starts on the creation of the marker and is stopped and shared on its deletion.
 # Compatible with the macOS system bash 3.2 of the tests: no associative arrays (CONVENTIONS.md).
 
+# the card and the time stamp of the video, next to this file in the image (/opt) and in the repository
+# shellcheck source=recording-card.sh
+. "$(dirname "${BASH_SOURCE[0]}")/recording-card.sh"
+
 # The STF screen broadcast (Android) is one for the device and the recording of the next session may start before the
 # previous one is finished: 'on' and 'off' are sent under a lock, 'off' only when no other recording reads it.
 BROADCAST_LOCK="${BROADCAST_LOCK:-/tmp/.broadcast.lock}"
@@ -168,12 +172,16 @@ share() {
   if [[ -f "/tmp/${artifactId}.mp4" ]]; then
     videoSize=$(wc -c < "/tmp/${artifactId}.mp4")
     if [[ "${videoSize}" -gt 1024 ]]; then
+      if [[ "${RECORDING_CARD}" == "true" ]]; then
+        addRecordingCard "$artifactId" "/tmp/${artifactId}.mp4"
+      fi
       mv "/tmp/${artifactId}.mp4" "${LOG_DIR}/${artifactId}/video.mp4"
     else
       logger "WARN" "[Share] video for $artifactId is ${videoSize} bytes (no frames captured); skipping video upload"
       rm -f "/tmp/${artifactId}.mp4"
     fi
   fi
+  rm -f "$(recordingInfoFile "$artifactId")" "$(recordingStampFile "$artifactId")"
 
   cp "${TASK_LOG}" "${LOG_DIR}/${artifactId}/${LOG_FILE}"
   # do not move otherwise in global loop we should add extra verification on file presense
@@ -301,7 +309,7 @@ stopOrphanRecordings() {
     done
     kill -9 "$pid" 2> /dev/null
     stopRelay "$id"
-    rm -f "/tmp/$id.mp4"
+    rm -f "/tmp/$id.mp4" "$(recordingInfoFile "$id")" "$(recordingStampFile "$id")"
     if [[ "$args" == *"tcp://${BROADCAST_HOST}:${BROADCAST_PORT}"* ]]; then
       broadcastOff
     fi

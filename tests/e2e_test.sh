@@ -105,6 +105,11 @@ at_least() {
   python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$1" "$2" 2> /dev/null
 }
 
+# frame_luma <container> <id> <seconds>: the mean luma (0-255) of the frame of the shared video at the time
+frame_luma() {
+  docker exec "$1" bash -c "ffmpeg -nostdin -loglevel error -ss $3 -i /tmp/log/$2/video.mp4 -frames:v 1 -vf scale=1:1,format=gray -f rawvideo - | od -An -tu1 | tr -d ' \n'"
+}
+
 # check_shared_on_stop <container> <id>: docker stop during a session shares its artifacts
 check_shared_on_stop() {
   docker exec "$1" touch "/tmp/log/.recording-artifact-$2"
@@ -195,6 +200,7 @@ check "a session: the WDA log is not shared by default" "no|wda" \
 check_contains "the video is read from the WDA MJPEG server" "[MJPEG] client connected" \
   "$(docker logs "$FAKE" 2>&1 | tail -n +"$((line + 1))")"
 check "the STF broadcast is not used" "" "$(stf_events_since "$line")"
+check_not_contains "no recording card by default" "[Card]" "$(docker logs "$IOS" 2>&1)"
 
 docker exec "$IOS" touch /tmp/log/.recording-artifact-ios-2
 sleep 6
@@ -271,8 +277,10 @@ docker rm -f "$STATIC_IOS" > /dev/null
 
 section "android"
 ANDROID="${NET}-android"
-# a quick watchdog of the recordings for its checks below; the markers of the other checks are newer than its RECORDING_STALE_SEC
-start_device "$ANDROID" "" "${ANDROID_ENV[@]}" RECORDING_WATCHDOG_SEC=2 RECORDING_ORPHAN_CHECKS=2
+# a quick watchdog of the recordings for its checks below; the markers of the other checks are newer than its RECORDING_STALE_SEC;
+# the recording card and the time stamp
+start_device "$ANDROID" "" "${ANDROID_ENV[@]}" RECORDING_WATCHDOG_SEC=2 RECORDING_ORPHAN_CHECKS=2 RECORDING_CARD=true \
+  RECORDING_TIMESTAMP=true DEVICE_LOCATION="farm 1"
 if ! check_starts "$ANDROID"; then
   finish
 fi
@@ -288,6 +296,26 @@ session "$ANDROID" and-1 8
 check_shared "$ANDROID" and-1 "a session"
 # the broadcast is switched on before ffmpeg connects and off only after ffmpeg finished the video
 check "the STF broadcast is switched on and off around the recording" "on connected closed off" "$(stf_events_since "$line")"
+
+section "android recording card and time stamp"
+check_contains "RECORDING_CARD=true: the card is put before the video" "[Card] the card of and-1 is put before its video" \
+  "$(docker logs "$ANDROID" 2>&1)"
+duration="$(video_duration "$ANDROID" and-1)"
+# the session lasts 8 s, its video ~7 s (the start of ffmpeg), the card 3 s
+if at_least "$duration" 9 && ! at_least "$duration" 13; then
+  pass "RECORDING_CARD=true: the video lasts the card and the session"
+else
+  fail "RECORDING_CARD=true: the video lasts the card and the session" "video duration: ${duration}, the session: 8 s" \
+    "$(docker logs "$ANDROID" 2>&1 | grep -E '\[Card\]|Stop Video' | tail -10)"
+fi
+check "RECORDING_CARD=true: the card is white, then the frames of the device" "yes|yes" \
+  "$([[ "$(frame_luma "$ANDROID" and-1 1)" -gt 230 ]] && echo yes || echo no)|$([[ "$(frame_luma "$ANDROID" and-1 6)" -lt 200 ]] && echo yes || echo no)"
+check "RECORDING_CARD=true: the video with the card decodes without errors" "" \
+  "$(docker exec "$ANDROID" ffmpeg -nostdin -v error -i /tmp/log/and-1/video.mp4 -f null - 2>&1)"
+check "RECORDING_CARD=true: the details of the session are removed with its recording" "" \
+  "$(docker exec "$ANDROID" bash -c 'ls /tmp/and-1.info /tmp/and-1.stamp 2> /dev/null')"
+check_contains "RECORDING_TIMESTAMP=true: the frames are stamped with their time in UTC" "video filter: setpts=RTCTIME/1000000/TB,scale=-2:720,drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf':textfile='/tmp/and-1.stamp'" \
+  "$(docker exec "$ANDROID" cat /tmp/log/and-1/session.log)"
 
 line="$(fake_log_lines)"
 docker exec "$ANDROID" touch /tmp/log/.recording-artifact-and-2

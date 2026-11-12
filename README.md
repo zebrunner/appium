@@ -155,10 +155,17 @@ On iOS the video is the stream of the WDA MJPEG server, which sends a frame only
 | `RECORDING_ORPHAN_CHECKS` | `5` | the checks of the watchdog an ffmpeg without a session survives |
 | `MJPEG_RELAY_HEARTBEAT_MS` | `500` | iOS: ms without a new frame of WDA after which the MJPEG relay repeats the last one |
 | `MJPEG_RELAY_FIRST_FRAME_MS` | `1000` | iOS: ms without a frame of the stream after which the first frame is the screenshot of WDA |
+| `RECORDING_CARD` | `false` | `true` puts the card of the session before its video, see below |
+| `RECORDING_CARD_SEC` | `3` | s, the duration of the card |
+| `RECORDING_TIMESTAMP` | `false` | `true` stamps every frame with its capture time in UTC and the session id |
+| `DEVICE_LOCATION` | | the location of the device on the card, e.g. the farm and the shelf |
+| `IMAGE_VERSION` | the `VERSION` of the build | the version of the image on the card |
 | `ROUTER_UUID` | | the marker name instead of the session id, the id of an external orchestrator of the device (e.g. on-demand emulators) |
 | `WDA_LOG_FILE`, `SHARE_WDA_LOG` | `/tmp/log/wda.log`, `false` | iOS: share the WDA log with the session artifacts |
 
 A session with the `appium:mcloudExternalRecording: true` capability creates no marker: the recording is managed by the client.
+
+With `RECORDING_CARD=true` the video starts with a card of `RECORDING_CARD_SEC`: the logo and the session, the test (the first capability set of `name`, `appium:name`, `zebrunner:name`, `zebrunner:testName`, `testName`), the app (the file of `appium:app`, `appium:bundleId` or `appium:appPackage`, with the installed version on Android), the device and its model, the OS (with the API level on Android), the UDID, the start and the end in UTC with the duration, the node, the hub, `DEVICE_LOCATION` and the version of the image (`files/module/recording-card.sh`). The details are collected at the start of the recording, the card is rendered at its end with the size of the video and joined to it without encoding the video again; the video stays without a card when it fails. The card is before the session: the video is `RECORDING_CARD_SEC` longer than the session. With `RECORDING_TIMESTAMP=true` every frame shows its capture time in UTC (the wall clock timestamp of the frame) and the short session id at the bottom.
 
 ### STF
 
