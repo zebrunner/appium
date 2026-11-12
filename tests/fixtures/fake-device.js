@@ -1,7 +1,8 @@
 // The device side of the appium container for tests/e2e_test.sh, run with node as the `connector` and `device` hosts:
-// WDA (8100), the WDA MJPEG server (8101), a MJPEG server without frames (8102), usbmuxd (2222) and the adb server
-// (5037) of the connector (connections are logged only)
-// and the STF screen broadcast (2223, 'on'/'off' control and the MJPEG stream).
+// WDA (8100, its GET /screenshot is screenshot.png of FRAMES_DIR), the WDA MJPEG server (8101), a MJPEG server without
+// frames (8102), the MJPEG server of a static screen as the zebrunner fork of WDA sends it (8103: a frame on connect,
+// then the same frame every 20 s), usbmuxd (2222) and the adb server (5037) of the connector (connections are logged
+// only) and the STF screen broadcast (2223, 'on'/'off' control and the MJPEG stream).
 // The frames are JPEG files of FRAMES_DIR (none without it), FAKE_OS_NAME / FAKE_OS_VERSION are the os of the WDA
 // status (iOS 17.4 by default), the log lines are parsed by the test.
 const http = require('http');
@@ -17,9 +18,15 @@ let idx = 0;
 const next = () => frames[idx++ % frames.length] ?? Buffer.alloc(0);
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
+const screenshot = path.join(dir, 'screenshot.png');
+
 http.createServer((req, res) => {
   log('[WDA]', req.method, req.url);
   res.writeHead(200, {'Content-Type': 'application/json'});
+  if (req.url === '/screenshot' && fs.existsSync(screenshot)) {
+    res.end(JSON.stringify({value: fs.readFileSync(screenshot).toString('base64'), sessionId: null}));
+    return;
+  }
   const os = {name: process.env.FAKE_OS_NAME ?? 'iOS', version: process.env.FAKE_OS_VERSION ?? '17.4'};
   res.end(JSON.stringify({value: {state: 'success', os, ready: true}, sessionId: null}));
 }).listen(8100);
@@ -40,6 +47,20 @@ http.createServer((req, res) => {
   log('[MJPEG] client connected, no frames');
   res.writeHead(200, {'Content-Type': 'multipart/x-mixed-replace; boundary=frame'});
 }).listen(8102);
+
+http.createServer((req, res) => {
+  log('[MJPEG] client connected, a static screen');
+  res.writeHead(200, {'Content-Type': 'multipart/x-mixed-replace; boundary=frame'});
+  const f = frames[0] ?? Buffer.alloc(0);
+  const send = () => {
+    res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${f.length}\r\n\r\n`);
+    res.write(f);
+    res.write('\r\n');
+  };
+  send();
+  const t = setInterval(send, 20000);
+  req.on('close', () => { clearInterval(t); log('[MJPEG] client closed'); });
+}).listen(8103);
 
 net.createServer(sock => {
   log('[USBMUXD] client connected');

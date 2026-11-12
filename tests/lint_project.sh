@@ -31,7 +31,7 @@ project_checks() {
     "$(grep -noE 'appium-[0-9]+_[0-9]+_[0-9]+\.diff' "${docs[@]}" | grep -vF "appium-${appium_version//./_}.diff")"
 
   section "javascript"
-  for script in tests/image_checks.js tests/fixtures/fake-device.js tests/patch/*.mjs; do
+  for script in files/util/mjpeg-relay.js tests/image_checks.js tests/fixtures/*.js tests/patch/*.mjs; do
     run_check "node --check ${script}" node --check "$script"
   done
 

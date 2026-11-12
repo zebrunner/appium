@@ -121,6 +121,10 @@ ENV \
     RECORDING_WATCHDOG_SEC=60 \
     RECORDING_STALE_SEC=600 \
     RECORDING_ORPHAN_CHECKS=5 \
+    # iOS: the MJPEG relay repeats the last frame of WDA after this pause, without a frame of the stream after the
+    # delay the first frame is a screenshot
+    MJPEG_RELAY_HEARTBEAT_MS=500 \
+    MJPEG_RELAY_FIRST_FRAME_MS=1000 \
     # Timeout settings
     UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
     # Usbmuxd settings "host:port"
@@ -156,6 +160,7 @@ COPY --chown=androidusr:androidusr \
     files/module/recording.sh \
     files/util/debug.sh \
     files/util/logger.sh \
+    files/util/mjpeg-relay.js \
     files/module/android.sh \
     files/module/ios.sh \
     files/config/zbr-config-gen.sh \
