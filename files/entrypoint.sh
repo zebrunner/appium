@@ -7,8 +7,26 @@
 # shellcheck source=module/recording.sh
 . /opt/recording.sh
 
+# docker stop: bash as PID 1 ignores SIGTERM without a trap, so it is set before the startup (ios.sh waits for WDA up
+# to DEVICE_TIMEOUT); the recordings of the active sessions are shared, then the container ends
+# shellcheck disable=SC2329
+onSigterm() {
+  finishRecordings
+  exit 1
+}
+trap 'onSigterm' SIGTERM
+
 NODE_CONFIG_JSON="$APPIUM_CONFIG_DIR/nodeconfig.json"
 DEFAULT_CAPABILITIES_JSON="$APPIUM_CONFIG_DIR/defaultcapabilities.json"
+
+# invalidConfig <message>: ends the container with 0, a restart does not fix the configuration (CONVENTIONS.md#exit-codes)
+invalidConfig() {
+  logger "ERROR" "$1: the container ends, a restart does not fix the configuration"
+  exit 0
+}
+
+# every invalid variable is logged before anything starts
+/opt/zbr-config-check.sh || invalidConfig "The configuration is invalid"
 
 # show list of plugins including installed ones
 appium plugin list
@@ -39,19 +57,8 @@ if [[ "$CONNECT_TO_GRID" = true ]]; then
   if [[ -n "$CUSTOM_NODE_CONFIG" ]] && [[ "$CUSTOM_NODE_CONFIG" != true ]]; then
     logger "WARN" "CUSTOM_NODE_CONFIG is ignored, the Zebrunner node config is always generated"
   fi
-  missing=""
-  for var in SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST; do
-    [[ -n "$(printenv "$var")" ]] || missing+=" $var"
-  done
-  if [[ -n "$missing" ]]; then
-    logger "ERROR" "CONNECT_TO_GRID=true needs:${missing}"
-    exit 1
-  fi
   # generate config json file
-  if ! /opt/zbr-config-gen.sh > "$NODE_CONFIG_JSON"; then
-    logger "ERROR" "cannot generate $NODE_CONFIG_JSON"
-    exit 1
-  fi
+  /opt/zbr-config-gen.sh > "$NODE_CONFIG_JSON" || invalidConfig "Cannot generate $NODE_CONFIG_JSON"
   # the node token is not logged
   jq 'if .configuration.custom.registrationToken then .configuration.custom.registrationToken = "*****" else . end' "$NODE_CONFIG_JSON"
   CMD+=(--nodeconfig "$NODE_CONFIG_JSON")
@@ -59,10 +66,7 @@ fi
 
 if [[ "$DEFAULT_CAPABILITIES" = true ]]; then
   # the caps of the device for every session: udid, connector hosts and ports
-  if ! /opt/zbr-default-caps-gen.sh > "$DEFAULT_CAPABILITIES_JSON"; then
-    logger "ERROR" "cannot generate $DEFAULT_CAPABILITIES_JSON"
-    exit 1
-  fi
+  /opt/zbr-default-caps-gen.sh > "$DEFAULT_CAPABILITIES_JSON" || invalidConfig "Cannot generate $DEFAULT_CAPABILITIES_JSON"
   if [[ -s "$DEFAULT_CAPABILITIES_JSON" ]]; then
     cat "$DEFAULT_CAPABILITIES_JSON"
     CMD+=(--default-capabilities "$DEFAULT_CAPABILITIES_JSON")
@@ -91,8 +95,6 @@ touch "${TASK_LOG}"
 logger "INFO" "${CMD[*]}"
 "${CMD[@]}" &
 appiumPid=$!
-
-trap 'finishRecordings' SIGTERM
 
 # Background process to control video recording
 # REPLY example: ./ DELETE .recording-artifact-123321123
