@@ -5,6 +5,7 @@
 // device on the WebSocket /mcloud/playwright/<session id> of Appium, which mcloud-grid passes on to the clients.
 
 const path = require('node:path');
+const {execFile} = require('node:child_process');
 const {PlaywrightBridge} = require('./bridge');
 const {PlaywrightVersions} = require('./versions');
 
@@ -29,6 +30,26 @@ function adbServer(env = process.env) {
   return match ? {host: match[1], port: Number(match[2])} : {host: '127.0.0.1', port: 5037};
 }
 
+const ADB_SHELL_TIMEOUT_MS = 15000;
+
+/**
+ * adbShell(serial, command): the output of `adb shell` on the device, through the adb server of ADB_SERVER_SOCKET
+ */
+function adbShell(serial, command) {
+  return new Promise((resolve, reject) => {
+    execFile('adb', ['-s', serial, 'shell', command], {timeout: ADB_SHELL_TIMEOUT_MS}, (err, stdout) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(String(stdout).trim());
+      }
+    });
+  });
+}
+
+// the lock screen is shown: AOSP (isKeyguardShowing) and Samsung (mDreamingLockscreen) of `dumpsys window`
+const KEYGUARD_SHOWN = 'dumpsys window | grep -cE "isKeyguardShowing=true|mDreamingLockscreen=true"; true';
+
 const desiredCapConstraints = {
   platformName: {
     presence: true,
@@ -37,6 +58,9 @@ const desiredCapConstraints = {
   },
   udid: {
     isString: true,
+  },
+  skipUnlock: {
+    isBoolean: true,
   },
 };
 
@@ -48,6 +72,40 @@ class PlaywrightDriver extends BaseDriver {
     /** @type {PlaywrightBridge|null} */
     this.bridge = null;
     this.playwrightPath = null;
+    this.adbShell = adbShell;
+    /** @type {{serial: string, stayOn: string}|null} the setting of the device to give back at the end */
+    this.screen = null;
+  }
+
+  /**
+   * Chrome draws no frames for a screen that is off or locked (the clicks and the screenshots wait for them), so the
+   * session wakes the device, dismisses its lock screen (a secure one, PIN or pattern, stays) and keeps the screen on
+   * while plugged in (stay_on_while_plugged_in) till its end, as the UiAutomator2 sessions unlock the device
+   */
+  async wakeDevice(serial) {
+    try {
+      const stayOn = await this.adbShell(serial, 'settings get global stay_on_while_plugged_in');
+      this.screen = {serial, stayOn: /^\d+$/.test(stayOn) ? stayOn : '0'};
+      await this.adbShell(serial, 'svc power stayon true; input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard');
+      await new Promise((resolve) => setTimeout(resolve, this.unlockWaitMs ?? 1000));
+      if (Number(await this.adbShell(serial, KEYGUARD_SHOWN)) > 0) {
+        this.log.warn(`[MCLOUD] The lock screen of the device ${serial} is still shown: remove its secure lock ` +
+          '(PIN, pattern, password), Chrome draws nothing under it');
+      }
+    } catch (err) {
+      this.log.warn(`[MCLOUD] The device ${serial} is not woken up: ${err.message}`);
+    }
+  }
+
+  async restoreScreen() {
+    const screen = this.screen;
+    this.screen = null;
+    if (!screen) {
+      return;
+    }
+    await this.adbShell(screen.serial, `settings put global stay_on_while_plugged_in ${screen.stayOn}`).catch((err) => {
+      this.log.warn(`[MCLOUD] stay_on_while_plugged_in of the device ${screen.serial} is not restored: ${err.message}`);
+    });
   }
 
   async createSession(w3cCapabilities1, w3cCapabilities2, w3cCapabilities, driverData) {
@@ -59,6 +117,9 @@ class PlaywrightDriver extends BaseDriver {
       }
       if (!this.server?.addWebSocketHandler) {
         throw new errors.SessionNotCreatedError('Appium serves no WebSockets to the drivers');
+      }
+      if (!caps.skipUnlock) {
+        await this.wakeDevice(serial);
       }
       const adb = adbServer();
       const cacheDir = process.env.PLAYWRIGHT_CACHE_DIR ||
@@ -98,6 +159,7 @@ class PlaywrightDriver extends BaseDriver {
     }
     this.bridge = null;
     this.playwrightPath = null;
+    await this.restoreScreen();
   }
 
   async startNewCommandTimeout() {
@@ -109,4 +171,4 @@ class PlaywrightDriver extends BaseDriver {
   }
 }
 
-module.exports = {PlaywrightDriver, adbServer, NODE_PATH};
+module.exports = {PlaywrightDriver, adbServer, adbShell, NODE_PATH};
