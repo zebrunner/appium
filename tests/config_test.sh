@@ -116,4 +116,32 @@ check "ios caps: quotes and backslashes are escaped" "$(json_get '"x"' 'sys.argv
 section "default capabilities: other platforms"
 check "no caps without PLATFORM_NAME" "" "$(env "${common_env[@]}" PLATFORM_NAME= files/config/zbr-default-caps-gen.sh)"
 
+section "configuration check (zbr-config-check.sh)"
+# run_check_config <env vars...>: sets OUT (stdout and stderr) and STATUS of the check with the env of mcloud-agent
+run_check_config() {
+  OUT="$(env "${common_env[@]}" PLATFORM_NAME=android CONNECT_TO_GRID=true DEFAULT_CAPABILITIES=true "$@" \
+    files/config/zbr-config-check.sh 2>&1)"
+  STATUS=$?
+}
+run_check_config
+check "the settings of mcloud-agent are valid" "0|" "${STATUS}|${OUT}"
+run_check_config PLATFORM_NAME=ios
+check "the settings of mcloud-agent are valid on iOS" "0|" "${STATUS}|${OUT}"
+run_check_config CONNECT_TO_GRID= DEFAULT_CAPABILITIES= SELENIUM_HOST= SELENIUM_PORT= STF_PROVIDER_HOST= ADB_PORT= CHROMEDRIVER_PORT=
+check "without the grid and the default capabilities their variables are not needed" "0|" "${STATUS}|${OUT}"
+run_check_config SELENIUM_HOST= SELENIUM_PORT=x STF_PROVIDER_HOST= ADB_PORT=-1 APPIUM_PORT= UNREGISTER_IF_STILL_DOWN_AFTER=3s \
+  CHROMEDRIVER_PORT= 'CHROME_OPTIONS="a":'
+check "invalid variables: exit status 1" "1" "$STATUS"
+for message in "APPIUM_PORT must be a number, got ''" "UNREGISTER_IF_STILL_DOWN_AFTER must be a number, got '3s'" \
+  "SELENIUM_HOST is required with CONNECT_TO_GRID=true" "SELENIUM_PORT must be a number with CONNECT_TO_GRID=true, got 'x'" \
+  "STF_PROVIDER_HOST is required with CONNECT_TO_GRID=true" "ADB_PORT must be a number with CONNECT_TO_GRID=true, got '-1'" \
+  "CHROMEDRIVER_PORT must be a number with DEFAULT_CAPABILITIES=true, got ''" \
+  "CHROME_OPTIONS must be the members of a JSON object, got '\"a\":'"; do
+  check_contains "every invalid variable is logged: ${message%%,*}" "[ERROR] Invalid configuration: ${message}" "$OUT"
+done
+run_check_config PLATFORM_NAME=iOS WDA_PORT= MJPEG_PORT=abc
+check "invalid iOS ports: exit status 1" "1" "$STATUS"
+check_contains "invalid iOS ports: WDA_PORT is logged" "WDA_PORT must be a number with DEFAULT_CAPABILITIES=true, got ''" "$OUT"
+check_contains "invalid iOS ports: MJPEG_PORT is logged" "MJPEG_PORT must be a number with DEFAULT_CAPABILITIES=true, got 'abc'" "$OUT"
+
 finish

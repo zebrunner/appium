@@ -56,7 +56,7 @@ actual="$(in_image "cd \$APPIUM_HOME && sha256sum ${files}")"
 check "the patched base-driver and appium files are installed" "$expected" "$actual"
 
 check "the scripts of the entrypoint are executable" "" \
-  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/recording.sh /opt/recording-card.sh /opt/mjpeg-relay.js /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
+  "$(in_image 'for f in /opt/entrypoint/entrypoint.sh /opt/debug.sh /opt/logger.sh /opt/android.sh /opt/ios.sh /opt/start-capture-artifacts.sh /opt/recording.sh /opt/recording-card.sh /opt/mjpeg-relay.js /opt/zbr-config-check.sh /opt/zbr-config-gen.sh /opt/zbr-default-caps-gen.sh /usr/local/bin/healthcheck; do test -x $f || echo "not executable: $f"; done')"
 check "the recording card has its logo, its font and the drawtext filter of ffmpeg" "drawtext" \
   "$(in_image 'for f in /opt/zebrunner-logo.png /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf; do test -s $f || echo "missing: $f"; done; ffmpeg -hide_banner -filters 2> /dev/null | grep -o " drawtext " | xargs')"
 check "IMAGE_VERSION is the VERSION of the build" "dev" "$(in_image 'echo "$IMAGE_VERSION"')"
@@ -385,16 +385,44 @@ else
   fail "APPIUM_CLI with several arguments reaches Appium" "no Appium status" "$(docker logs "$container" 2>&1 | tail -15)"
 fi
 
-# a wrong config ends the container with the reason instead of a failing Appium
+# a wrong config ends the container with the reason before anything starts, with 0: the restart policy (on-failure)
+# does not restart it, a restart does not fix the configuration
 container="${PREFIX}-grid-without-hub"
-docker run --detach --name "$container" --platform "$PLATFORM" --env CONNECT_TO_GRID=true --env PLATFORM_NAME=android \
-  --env DEVICE_UDID=udid-1 "$IMAGE" > /dev/null
-if wait_for 120 container_exited "$container"; then
-  check "CONNECT_TO_GRID=true without the hub: the container exits with 1" "1" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
-  check_contains "CONNECT_TO_GRID=true without the hub: the missing variables are logged" \
-    "[ERROR] CONNECT_TO_GRID=true needs: SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST" "$(docker logs "$container" 2>&1)"
+docker run --detach --name "$container" --platform "$PLATFORM" --env CONNECT_TO_GRID=true --env PLATFORM_NAME=ios \
+  --env DEVICE_UDID=udid-1 --env WDA_PORT=9 --env DEVICE_TIMEOUT=300 --env APPIUM_PORT=x "$IMAGE" > /dev/null
+if wait_for 60 container_exited "$container"; then
+  check "an invalid configuration: the container exits with 0" "0" "$(docker inspect "$container" --format '{{.State.ExitCode}}')"
+  logs="$(docker logs "$container" 2>&1)"
+  for var in APPIUM_PORT SELENIUM_HOST SELENIUM_PORT STF_PROVIDER_HOST; do
+    check_contains "an invalid configuration: ${var} is logged" "[ERROR] Invalid configuration: ${var} " "$logs"
+  done
+  check_contains "an invalid configuration: the end is logged" "a restart does not fix the configuration" "$logs"
+  check_not_contains "an invalid configuration: nothing starts (no WDA wait of ios.sh)" "Bad or no response" "$logs"
 else
-  fail "CONNECT_TO_GRID=true without the hub: the container exits" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
+  fail "an invalid configuration: the container exits" "the container is still running" "$(docker logs "$container" 2>&1 | tail -15)"
+fi
+
+# docker stop during the startup: the SIGTERM trap is set before ios.sh waits for WDA (DEVICE_TIMEOUT)
+container="${PREFIX}-early-stop"
+docker run --detach --name "$container" --platform "$PLATFORM" --env PLATFORM_NAME=ios --env WDA_HOST=127.0.0.1 \
+  --env WDA_PORT=9 --env DEVICE_TIMEOUT=300 --env USBMUXD_SOCKET_ADDRESS= "$IMAGE" > /dev/null
+# shellcheck disable=SC2329
+waiting_for_wda() {
+  docker logs "$1" 2>&1 | grep -q "Bad or no response from http://127.0.0.1:9/status"
+}
+if wait_for 120 waiting_for_wda "$container"; then
+  start=$SECONDS
+  docker stop --time 30 "$container" > /dev/null
+  elapsed=$((SECONDS - start))
+  if [[ "$elapsed" -lt 15 ]]; then
+    pass "docker stop during the WDA wait of the startup ends the container without the kill timeout"
+  else
+    fail "docker stop during the WDA wait of the startup ends the container without the kill timeout" "took ${elapsed}s" \
+      "SIGTERM was not handled during the startup, docker stop waited ${elapsed}s"
+  fi
+  check_contains "docker stop during the startup: the SIGTERM handler runs" "on finish end" "$(docker logs "$container" 2>&1 | tail -20)"
+else
+  fail "docker stop during the startup: the container waits for WDA" "no WDA wait" "$(docker logs "$container" 2>&1 | tail -15)"
 fi
 
 if use_variant defaults; then
