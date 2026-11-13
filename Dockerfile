@@ -90,6 +90,9 @@ ENV \
     APPIUM_CLI="" \
     APPIUM_APP_SIZE_DISABLE=false \
     APPIUM_PLUGINS="" \
+    RELAXED_SECURITY="" \
+    ADB_SHELL="" \
+    DEFAULT_CAPABILITIES="" \
     # Android settings
     REMOTE_ADB_HOST=connector \
     ADB_SERVER_SOCKET=tcp:connector:5037 \
@@ -130,10 +133,18 @@ ENV \
     RECORDING_CARD_SEC=3 \
     RECORDING_TIMESTAMP=false \
     DEVICE_LOCATION="" \
+    # the registration in mcloud-grid
+    CONNECT_TO_GRID="" \
+    SELENIUM_HOST="" \
+    SELENIUM_PORT="" \
+    STF_PROVIDER_HOST="" \
+    NODE_REGISTRATION_TOKEN="" \
     # Timeout settings
     UNREGISTER_IF_STILL_DOWN_AFTER=3000 \
     # Usbmuxd settings "host:port"
     USBMUXD_SOCKET_ADDRESS=connector:2222 \
+    # iOS: a device without usbmuxd (a simulator, a WDA relayed by the connector)
+    WIRELESS=false \
     # Simulators: xcrun of the macOS host over ssh through the connector
     DEVICE_CONNECTION="" \
     HOST_SSH_USER="" \

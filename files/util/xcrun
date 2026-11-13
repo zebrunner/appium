@@ -7,10 +7,13 @@
 # XCUITest checks that they exist.
 # Without HOST_SSH_USER there is no host: xcrun fails as a missing tool, XCUITest takes the device for a real one.
 
+# shellcheck source=logger.sh
+. /opt/logger.sh
+
 # the tool of the host: the name of the link
 tool="$(basename "$0")"
 if [[ -z "$HOST_SSH_USER" ]]; then
-  echo "${tool} is not available: the device is not a simulator of a macOS host (HOST_SSH_USER is not set)" >&2
+  logger "ERROR" "${tool} is not available: the device is not a simulator of a macOS host (HOST_SSH_USER is not set)" >&2
   exit 127
 fi
 
@@ -36,7 +39,7 @@ for arg in "$@"; do
     remote="${remoteDir}${arg}"
     if ! tar -C "$(dirname "$arg")" -cf - "$(basename "$arg")" |
       "${sshCommand[@]}" "mkdir -p $(quote "$(dirname "$remote")") && tar -xf - -C $(quote "$(dirname "$remote")")"; then
-      echo "${tool}: can't copy '${arg}' to the macOS host" >&2
+      logger "ERROR" "${tool}: can't copy '${arg}' to the macOS host" >&2
       exit 1
     fi
     args+=("$remote")
