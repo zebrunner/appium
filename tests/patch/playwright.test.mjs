@@ -113,7 +113,7 @@ describe('playwright versions', () => {
         fs.writeFileSync(path.join(module, 'index.js'), `module.exports = {version: '${OTHER}'};`);
       }
     };
-    const versions = new PlaywrightVersions({cacheDir, run, log: quiet});
+    const versions = new PlaywrightVersions({cacheDir, run, log: quiet, apks: new Set()});
     const [first, second] = await Promise.all([versions.load(OTHER), versions.load(OTHER)]);
     assert.equal(first.version, OTHER);
     assert.equal(first.playwright.version, OTHER);
@@ -125,9 +125,40 @@ describe('playwright versions', () => {
     assert.ok(fs.existsSync(path.join(cacheDir, OTHER, '.complete')));
     assert.deepEqual(fs.readdirSync(cacheDir), [OTHER], 'no temporary dir is left');
 
-    // a new container of the host finds it in the cache
-    const later = new PlaywrightVersions({cacheDir, run: () => assert.fail('installed already'), log: quiet});
-    assert.equal((await later.load(OTHER)).playwright.version, OTHER);
+    // the next session of the container: the version and its APKs are there
+    const next = new PlaywrightVersions({cacheDir, run: () => assert.fail('installed already'), log: quiet,
+      apks: versions.apks});
+    assert.equal((await next.load(OTHER)).playwright.version, OTHER);
+  });
+
+  test('a container that finds a version in the cache installs its APKs once', async () => {
+    const cacheDir = tmpDir('pw-cache');
+    const module = path.join(cacheDir, OTHER, 'node_modules', 'playwright-core');
+    fs.mkdirSync(module, {recursive: true});
+    fs.writeFileSync(path.join(module, 'index.js'), `module.exports = {version: '${OTHER}'};`);
+    fs.writeFileSync(path.join(cacheDir, OTHER, '.complete'), 'another device of the host');
+    const commands = [];
+    const apks = new Set();
+    const run = async (cmd, args) => commands.push(args);
+    const versions = new PlaywrightVersions({cacheDir, run, log: quiet, apks});
+    assert.equal((await versions.load(OTHER)).playwright.version, OTHER);
+    assert.deepEqual(commands, [[path.join(module, 'cli.js'), 'install', 'android']], 'only the APKs, no npm');
+    // the next session of the container
+    await new PlaywrightVersions({cacheDir, run, log: quiet, apks}).load(OTHER);
+    assert.equal(commands.length, 1);
+
+    // a failure of the APKs names the version of the farm, the next session tries again
+    const failing = new PlaywrightVersions({cacheDir, log: quiet, apks: new Set(), run: async () => {
+      throw new Error('download failed: ECONNRESET');
+    }});
+    await assert.rejects(failing.load(OTHER), (err) => {
+      assert.ok(err.message.includes(`Playwright ${OTHER} could not be installed`), err.message);
+      assert.ok(err.message.includes('ECONNRESET'), err.message);
+      assert.ok(err.message.includes(`use Playwright ${MAJOR}.${MINOR}`), err.message);
+      return true;
+    });
+    assert.equal(failing.apks.size, 0);
+    assert.ok(fs.existsSync(path.join(cacheDir, OTHER, '.complete')), 'the cache is kept');
   });
 
   test('a failed installation names the version of the farm and leaves nothing', async () => {
