@@ -32,9 +32,9 @@ The Appium base driver is patched for MCloud (`files/patch`): recording markers,
 ## Build
 
 ```bash
-make build VERSION=3.1.1                          # public.ecr.aws/zebrunner/appium:3.1.1, the `appium` stage
-make build VERSION=3.1.1-img TARGET=appium-image  # plus the Appium images plugin and sharp
-make push VERSION=3.1.1                           # built by docker buildx and pushed: docker login public.ecr.aws first
+make build VERSION=3.1                          # public.ecr.aws/zebrunner/appium:3.1, the `appium` stage
+make build VERSION=3.1-img TARGET=appium-image  # plus the Appium images plugin and sharp
+make push VERSION=3.1                           # built by docker buildx and pushed: docker login public.ecr.aws first
 ```
 
 The image is `linux/amd64` only: the build of another platform is rejected, on Apple Silicon it is built emulated.
@@ -46,7 +46,7 @@ The file `VERSION` is the release in work (bumped by hand after a release, CONVE
 
 ## Run
 
-In MCloud every device has four containers, created by [mcloud-agent](https://github.com/zebrunner/mcloud-agent) (`roles/*devices/templates/zebrunner-farm` is the reference of all the options):
+In MCloud every device has four containers, created by [mcloud-agent](https://github.com/zebrunner/mcloud-agent) (`roles/common/files/zebrunner-farm` is the reference of all the options):
 
 - `connector`: the adb server (Android) or usbmuxd and WebDriverAgent (iOS) of the device
 - `device`: the STF provider and the screen broadcast of the device
@@ -61,7 +61,8 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
   --link device-pixel-connector:connector --link device-pixel:device \
   -v appium-storage-volume:/opt/appium-storage -v device-pixel:/tmp/log \
   -e PLATFORM_NAME=android -e DEVICE_UDID=<udid> -e DEVICE_NAME=Pixel \
-  -e CONNECT_TO_GRID=true -e SELENIUM_HOST=<hub host> -e SELENIUM_PORT=4444 -e STF_PROVIDER_HOST=<host ip> \
+  -e CONNECT_TO_GRID=true -e SELENIUM_HOST=<hub host> -e SELENIUM_PORT=4446 -e STF_PROVIDER_HOST=<host ip> \
+  -e NODE_REGISTRATION_TOKEN=<node token of the host> \
   -e DEFAULT_CAPABILITIES=true -e RELAXED_SECURITY=true \
   -e STF_API_URL=<stf url>/api/v1 -e STF_AUTH_TOKEN=<token> \
   -e APPIUM_PORT=4723 -p 4723:4723 \
@@ -86,7 +87,7 @@ The container is configured with environment variables; the defaults are the val
 | `DEVICE_NAME` | | the device name in the node config and the default capabilities |
 | `ANDROID_DEVICES` | | `/status-adb` looks for this name when `DEVICE_UDID` is empty |
 
-`PLATFORM_VERSION`, `DEVICETYPE` (Phone, Tablet, TV) and `AUTOMATION_NAME` are detected by the device module at startup.
+`PLATFORM_VERSION`, `DEVICETYPE` (Phone, Tablet, TV on Android; Phone, Tablet, tvOS on iOS) and `AUTOMATION_NAME` are detected by the device module at startup.
 
 ### Appium
 
@@ -159,12 +160,16 @@ On iOS the video is the stream of the WDA MJPEG server, which sends a frame only
 | `RECORDING_CARD` | `false` | `true` puts the card of the session before its video, see below |
 | `RECORDING_CARD_SEC` | `3` | s, the duration of the card |
 | `RECORDING_TIMESTAMP` | `false` | `true` stamps every frame with its capture time in UTC and the session id |
+| `RECORDING_FONT`, `RECORDING_LOGO` | `/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf`, `/opt/zebrunner-logo.png` | the font of the card and the time stamp, the logo of the card |
+| `RECORDING_CAPS_WAIT_SEC` | `20` | s, how long the start of a recording waits for the capabilities of its session in Appium (the details of the card) |
 | `DEVICE_LOCATION` | | the location of the device on the card, e.g. the farm and the shelf |
 | `IMAGE_VERSION` | the `VERSION` of the build | the version of the image on the card |
 | `ROUTER_UUID` | | the marker name instead of the session id, the id of an external orchestrator of the device (e.g. on-demand emulators) |
 | `WDA_LOG_FILE`, `SHARE_WDA_LOG` | `/tmp/log/wda.log`, `false` | iOS: share the WDA log with the session artifacts |
 
 A session with the `appium:mcloudExternalRecording: true` capability creates no marker: the recording is managed by the client.
+
+The scripts keep their files in paths of the container that the tests set elsewhere: `RECORDING_INFO_DIR` (`/tmp`, the details and the time stamp of the recordings), `BROADCAST_LOCK` (`/tmp/.broadcast.lock`, the lock of the STF broadcast) and `SIMULATOR_SSH_KEY` (`/tmp/zebrunner/ssh_key`, the copy of `HOST_SSH_KEY` that `xcrun` of the simulators uses).
 
 With `RECORDING_CARD=true` the video starts with a card of `RECORDING_CARD_SEC`: the logo and the session, the test (the first capability set of `name`, `appium:name`, `zebrunner:name`, `zebrunner:testName`, `testName`), the app (the file of `appium:app`, `appium:bundleId` or `appium:appPackage`, with the installed version on Android), the device and its model, the OS (with the API level on Android), the UDID, the start and the end in UTC with the duration, the node, the hub, `DEVICE_LOCATION` and the version of the image (`files/module/recording-card.sh`). The details are collected at the start of the recording, the card is rendered at its end with the size of the video and joined to it without encoding the video again; the video stays without a card when it fails. The card is before the session: the video is `RECORDING_CARD_SEC` longer than the session. With `RECORDING_TIMESTAMP=true` every frame shows its capture time in UTC (the wall clock timestamp of the frame) and the short session id at the bottom.
 
@@ -173,9 +178,9 @@ With `RECORDING_CARD=true` the video starts with a card of `RECORDING_CARD_SEC`:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `STF_API_URL` | | the STF API, e.g. `https://stf.example.com/api/v1` |
-| `STF_AUTH_TOKEN` | | the STF access token |
+| `STF_AUTH_TOKEN` | | the access token of an admin of STF: the update of a device (`PUT /api/v1/devices/<serial>`) is an admin operation |
 
-With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device errors of Appium are reported to STF: the device is marked `Unhealthy` (no space left on the host or on the device, `INSTALL_FAILED_INSUFFICIENT_STORAGE`, unfinished device setup, failed `am` command) or gets a note (another failed install - a problem of the application, e.g. `INSTALL_FAILED_VERSION_DOWNGRADE` -, lost proxy connection, unknown session).
+With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, a failed Appium command (on Android and iOS) whose error points to the device is reported to STF, the other errors are not: the device `DEVICE_UDID` is marked `Unhealthy` (no space left on the host or on the device, `INSTALL_FAILED_INSUFFICIENT_STORAGE`, unfinished device setup, failed `am` command) or gets a note (another failed install - a problem of the application, e.g. `INSTALL_FAILED_VERSION_DOWNGRADE` -, lost proxy connection, unknown session).
 
 ### Android
 
@@ -184,7 +189,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `REMOTE_ADB_HOST` | `connector` | the adb server of the device container, the default `remoteAdbHost` capability |
 | `ADB_SERVER_SOCKET` | `tcp:connector:5037` | the adb server for the adb client of the container |
 | `CHROMEDRIVER_PORT` | `8200` | the chromedriver port, forwarded to the connector |
-| `ANDROID_DEVTOOLS_PORT` | `9222` | the Chrome DevTools port, forwarded to the connector |
+| `ANDROID_DEVTOOLS_PORT` | `9222` | the Chrome DevTools port, forwarded to the connector; the default of `CHROME_OPTIONS` has `9222` (it is set when the image is built), so another port needs `CHROME_OPTIONS` with it too |
 | `CHROME_OPTIONS` | `"androidDevToolsPort": 9222` | the members of the default `chromeOptions` capability; `androidDevToolsPort` needs Chrome / WebView 87+ on the device (see Limitations) |
 
 ### Playwright

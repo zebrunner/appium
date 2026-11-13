@@ -19,7 +19,7 @@ cleanup() {
   docker network rm "$NET" > /dev/null 2>&1 || true
 }
 
-# the env vars of the appium containers in zebrunner/mcloud-agent (roles/*devices/templates/zebrunner-farm)
+# the env vars of the appium containers in zebrunner/mcloud-agent (roles/common/files/zebrunner-farm)
 COMMON_ENV=(
   TASK_LOG=/tmp/log/appium.log RETAIN_TASK=true CONNECT_TO_GRID=true CUSTOM_NODE_CONFIG=true
   STF_PROVIDER_HOST=10.0.0.5 SELENIUM_HOST=hub SELENIUM_PORT=4444 DEFAULT_CAPABILITIES=true
