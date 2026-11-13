@@ -125,10 +125,32 @@ describe('playwright versions', () => {
     assert.ok(fs.existsSync(path.join(cacheDir, OTHER, '.complete')));
     assert.deepEqual(fs.readdirSync(cacheDir), [OTHER], 'no temporary dir is left');
 
-    // a new container of the host finds it in the cache
-    const later = new PlaywrightVersions({cacheDir, run: () => assert.fail('installed already'), log: quiet});
+    // a new container of the host finds it in the cache, its APKs are installed into the container once
+    const laterCommands = [];
+    const later = new PlaywrightVersions({cacheDir, log: quiet, run: async (cmd, args) => {
+      laterCommands.push([path.basename(cmd), ...args]);
+    }});
     assert.equal((await later.load(OTHER)).playwright.version, OTHER);
+    assert.equal((await later.load(OTHER)).playwright.version, OTHER);
+    assert.equal(laterCommands.length, 1, 'no npm install, the APKs once');
+    assert.deepEqual(laterCommands[0].slice(-3), [path.join(cacheDir, OTHER, 'node_modules', 'playwright-core', 'cli.js'),
+      'install', 'android']);
   });
+
+  test('a version in the cache without its APKs in the container: a failed APK install names the version of the farm',
+    async () => {
+      const cacheDir = tmpDir('pw-cache');
+      fs.mkdirSync(path.join(cacheDir, OTHER, 'node_modules', 'playwright-core'), {recursive: true});
+      fs.writeFileSync(path.join(cacheDir, OTHER, '.complete'), 'done');
+      const versions = new PlaywrightVersions({cacheDir, log: quiet, run: async () => {
+        throw new Error('cli.js install failed: ENOTFOUND');
+      }});
+      await assert.rejects(versions.load(OTHER), (err) => {
+        assert.ok(err.message.includes(`Playwright ${OTHER} could not be installed`), err.message);
+        return true;
+      });
+      assert.ok(fs.existsSync(path.join(cacheDir, OTHER, '.complete')), 'the cached version stays');
+    });
 
   test('a failed installation names the version of the farm and leaves nothing', async () => {
     const cacheDir = tmpDir('pw-cache');
