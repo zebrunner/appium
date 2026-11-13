@@ -1,8 +1,8 @@
 diff --git a/packages/appium/lib/grid-register.js b/packages/appium/lib/grid-register.js
-index 80e22ef..0e8127d 100644
+index 80e22ef..faeb9cc 100644
 --- a/packages/appium/lib/grid-register.js
 +++ b/packages/appium/lib/grid-register.js
-@@ -39,17 +39,186 @@ async function registerNode(data, addr, port, basePath) {
+@@ -39,17 +39,197 @@ async function registerNode(data, addr, port, basePath) {
    postRequest(data, addr, port, basePath);
  }
  
@@ -16,6 +16,9 @@ index 80e22ef..0e8127d 100644
 +const REASON_MAX_LENGTH = 400;
 +// the registration is retried every registerCycle: the same reason is logged as an error once in this time
 +const REPEATED_FAILURE_LOG_INTERVAL_MS = 10 * 60 * 1000;
++// the hub answers a registration after it checked the node: its url (NODE_REACHABILITY_TIMEOUT) and its node token
++// with STF
++const REGISTRATION_TIMEOUT_MS = 60 * 1000;
 +const HTML_ENTITIES = {quot: '"', amp: '&', lt: '<', gt: '>', apos: "'", nbsp: ' '};
 +
 +/**
@@ -26,9 +29,7 @@ index 80e22ef..0e8127d 100644
 +  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entity, name) => {
 +    if (name[0] !== '#') {
 +      return HTML_ENTITIES[name.toLowerCase()] ?? entity;
-     }
--    logger.debug(
--      `Appium successfully registered with the the grid on ` + hubUri(configHolder.configuration)
++    }
 +    const code = /^#x/i.test(name) ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
 +    return code <= 0x10ffff ? String.fromCodePoint(code) : entity;
 +  });
@@ -74,7 +75,9 @@ index 80e22ef..0e8127d 100644
 +    const message = err?.message || _.map(err?.errors, 'message').join(', ') || String(err);
 +    if (!err?.code) {
 +      return message;
-+    }
+     }
+-    logger.debug(
+-      `Appium successfully registered with the the grid on ` + hubUri(configHolder.configuration)
 +    return `the hub ${uri} is not reachable: ${message.includes(err.code) ? message : `${err.code} ${message}`}`;
 +  }
 +  let text = responseBodyText(response.data);
@@ -111,10 +114,18 @@ index 80e22ef..0e8127d 100644
 +      `The hub connects back to the node url ${nodeUrl}: STF_PROVIDER_HOST must be an address of this host ` +
 +      `that the hub can reach (in a LAN the LAN address: the public IP often fails without NAT hairpin); ` +
 +      `the appium port must be published`
-     );
++    );
 +  }
-+  if (reason.includes('NODE_REGISTRATION_TOKEN')) {
-+    return 'NODE_REGISTRATION_TOKEN of this container must be the one of mcloud-grid (variables.env of mcloud)';
++  // the node token of the host (mcloud-grid NodeAuthentication): verified by STF for the address of the node
++  if (/could not verify it|STF_URL and STF_TOKEN of the hub/.test(reason)) {
++    return 'The hub verifies the node token with STF: check STF and STF_URL and STF_TOKEN of mcloud-grid';
++  }
++  if (reason.includes('node token')) {
++    return (
++      'NODE_REGISTRATION_TOKEN is the node token of this host: MCLOUD_NODE_TOKEN of mcloud-agent, written by ' +
++      './zebrunner.sh join with an invite of ./zebrunner.sh node-invite of mcloud; the token is valid only for the ' +
++      `address of the invite, the host of the node url ${nodeUrl} (STF_PROVIDER_HOST)`
+     );
 +  }
 +  if (reason.includes('NODE_ALLOWED_NETWORKS')) {
 +    return 'Add the network of STF_PROVIDER_HOST to NODE_ALLOWED_NETWORKS of mcloud-grid';
@@ -197,25 +208,53 @@ index 80e22ef..0e8127d 100644
    }
  }
  
-@@ -107,6 +276,7 @@ function postRequest(configHolder, addr, port, basePath) {
+@@ -85,11 +265,12 @@ function postRequest(configHolder, addr, port, basePath) {
+     configHolder.configuration.id = `http://${configHolder.configuration.host}:${configHolder.configuration.port}`;
+   }
+ 
+-  // the post options
++  // the post options; a hub that does not answer must not hold the registration forever
+   const regRequest = {
+     url: `${hubUri(configHolder.configuration)}/grid/register`,
+     method: 'POST',
+     data: configHolder,
++    timeout: REGISTRATION_TIMEOUT_MS,
+   };
+ 
+   if (configHolder.configuration.register !== true) {
+@@ -107,22 +288,38 @@ function postRequest(configHolder, addr, port, basePath) {
    }
    // initiate a new Thread
    let first = true;
++  // Fork (Zebrunner): a cycle still running (a slow hub) skips the next ones, the registrations do not overlap
++  let running = false;
 +  const failures = noRegistrationFailures();
    logger.debug(
      `Starting auto register thread for the grid. ` +
        `Will try to register every ${registerCycleInterval} ms.`
-@@ -114,15 +284,19 @@ function postRequest(configHolder, addr, port, basePath) {
+   );
    setInterval(async function registerRetry() {
-     if (first) {
-       first = false;
+-    if (first) {
+-      first = false;
 -      await registerToGrid(regRequest, configHolder);
 -    } else if (!(await isAlreadyRegistered(configHolder))) {
-+      await registerToGrid(regRequest, configHolder, failures);
-+    } else if (!(await isAlreadyRegistered(configHolder, failures))) {
-       // make the http POST to the grid for registration
+-      // make the http POST to the grid for registration
 -      await registerToGrid(regRequest, configHolder);
-+      await registerToGrid(regRequest, configHolder, failures);
++    if (running) {
++      logger.debug(`The previous registration with the grid is still running, this cycle is skipped`);
++      return;
++    }
++    running = true;
++    try {
++      if (first) {
++        first = false;
++        await registerToGrid(regRequest, configHolder, failures);
++      } else if (!(await isAlreadyRegistered(configHolder, failures))) {
++        // make the http POST to the grid for registration
++        await registerToGrid(regRequest, configHolder, failures);
++      }
++    } finally {
++      running = false;
      }
    }, registerCycleInterval);
  }
@@ -229,7 +268,7 @@ index 80e22ef..0e8127d 100644
    //check if node is already registered
    const id = configHolder.configuration.id;
    try {
-@@ -134,12 +308,16 @@ async function isAlreadyRegistered(configHolder) {
+@@ -134,12 +331,16 @@ async function isAlreadyRegistered(configHolder) {
        throw new Error(`Request failed with code ${status}`);
      }
      if (!data.success) {

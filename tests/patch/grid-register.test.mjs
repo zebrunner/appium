@@ -76,10 +76,99 @@ describe('grid registration', () => {
   });
 });
 
+describe('the registration requests', () => {
+  test('a registration still running skips the next cycles: the registrations do not overlap', async () => {
+    // the hub holds the answers of the registrations and does not know the node
+    const held = [];
+    const hub = await listen((req, res) => {
+      if (req.url.startsWith('/grid/register')) {
+        held.push(res);
+      } else {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({success: false, msg: 'Cannot find proxy with ID=http://node:4723 in the registry.'}));
+      }
+    });
+    const registrations = () => hub.requests.filter((r) => r.url.startsWith('/grid/register')).length;
+    const checks = () => hub.requests.filter((r) => r.url.startsWith('/grid/api/proxy')).length;
+
+    mock.timers.enable({apis: ['setInterval']});
+    try {
+      const {port, hostname} = new URL(hub.url);
+      await registerNode(
+        {capabilities: [{}], configuration: {hubHost: hostname, hubPort: Number(port), register: true, registerCycle: CYCLE}},
+        'node',
+        4723,
+        '/wd/hub',
+      );
+      mock.timers.tick(CYCLE);
+      await until(() => held.length === 1);
+      for (let cycle = 0; cycle < 3; cycle++) {
+        mock.timers.tick(CYCLE);
+        await sleep(300);
+      }
+      assert.equal(registrations(), 1, 'no other registration while the first one runs');
+      assert.equal(checks(), 0, 'no check of the registration while it runs');
+
+      held.shift().end('ok');
+      await sleep(300);
+      mock.timers.tick(CYCLE);
+      await until(() => checks() === 1);
+      await until(() => held.length === 1);
+      assert.equal(registrations(), 2, 'the next cycle after the end of the registration registers the unknown node');
+    } finally {
+      mock.timers.reset();
+      held.forEach((res) => res.end('ok'));
+      await hub.close();
+    }
+  });
+
+  test('the registration request has a timeout: a hub that does not answer does not hold it forever', async () => {
+    // the axios of grid-register.js
+    const axios = createRequire(path.join(process.env.APPIUM_HOME, 'build/lib/grid-register.js'))('axios');
+    const sent = [];
+    const interceptor = axios.interceptors.request.use((config) => {
+      sent.push(config);
+      return config;
+    });
+    const hub = await listen((req, res) => res.end('ok'));
+    mock.timers.enable({apis: ['setInterval']});
+    try {
+      const {port, hostname} = new URL(hub.url);
+      await registerNode(
+        {capabilities: [{}], configuration: {hubHost: hostname, hubPort: Number(port), register: true, registerCycle: CYCLE}},
+        'node',
+        4723,
+        '/wd/hub',
+      );
+      mock.timers.tick(CYCLE);
+      await until(() => sent.some((config) => config.url.endsWith('/grid/register')));
+      const {timeout} = sent.find((config) => config.url.endsWith('/grid/register'));
+      assert.ok(timeout > 0 && timeout <= 120000, `the timeout of the registration: ${timeout}`);
+    } finally {
+      mock.timers.reset();
+      axios.interceptors.request.eject(interceptor);
+      await hub.close();
+    }
+  });
+});
+
 const HUB = 'http://hub:4444';
 const NODE = 'http://10.255.255.1:7521';
 const NODE_URL = `${NODE}/wd/hub`;
-const TOKEN = `Node ${NODE} has no or another NODE_REGISTRATION_TOKEN than the hub, so it is not registered.`;
+// the reasons of mcloud-grid (NodeAuthentication, MobileRemoteProxy)
+const TOKEN =
+  `Node ${NODE} has an unknown or revoked node token, so it is not registered. A node token is valid only for the ` +
+  'address the node was enrolled with (10.255.255.1 is the host of the node URL); join the node again with a new invite.';
+const NO_TOKEN =
+  `Node ${NODE} has no node token, so it is not registered. Join the node to get one (NODE_REGISTRATION_TOKEN of the ` +
+  'node is its node token).';
+const STF_DOWN =
+  `Node ${NODE} has a node token, but STF could not verify it (STF did not answer), so it is not registered; the node ` +
+  'registers again later.';
+const TOKEN_HINT =
+  'NODE_REGISTRATION_TOKEN is the node token of this host: MCLOUD_NODE_TOKEN of mcloud-agent, written by ./zebrunner.sh ' +
+  'join with an invite of ./zebrunner.sh node-invite of mcloud; the token is valid only for the address of the invite, ' +
+  `the host of the node url ${NODE_URL} (STF_PROVIDER_HOST)`;
 const NOT_REACHABLE =
   `Node ${NODE} is not reachable from the hub (SocketTimeoutException: connect timed out), so it is not registered. ` +
   'Check the address the node registers with: it must be accessible from the hub.';
@@ -110,7 +199,9 @@ const httpError = (data, status = 500) => ({message: `Request failed with status
 
 describe('the reason of a refused grid registration', () => {
   const reasons = [
-    ['java.security.InvalidParameterException', `Error: ${TOKEN}`, TOKEN, /^NODE_REGISTRATION_TOKEN of this container/],
+    ['org.openqa.grid.common.exception.GridException', `Error: ${TOKEN}`, TOKEN, /^NODE_REGISTRATION_TOKEN is the node token of this host: MCLOUD_NODE_TOKEN of mcloud-agent/],
+    ['org.openqa.grid.common.exception.GridException', `Error: ${NO_TOKEN}`, NO_TOKEN, /^NODE_REGISTRATION_TOKEN is the node token of this host/],
+    ['org.openqa.grid.common.exception.GridException', `Error: ${STF_DOWN}`, STF_DOWN, /^The hub verifies the node token with STF/],
     [
       'java.security.InvalidParameterException',
       `Error: ${NOT_REACHABLE}`,
@@ -280,10 +371,7 @@ describe('the log of a refused grid registration', () => {
       refusal = TOKEN;
       await cycle();
       assert.equal(log.error.length, 3);
-      assert.equal(
-        log.error[2],
-        refused(TOKEN, 'NODE_REGISTRATION_TOKEN of this container must be the one of mcloud-grid (variables.env of mcloud).'),
-      );
+      assert.equal(log.error[2], refused(TOKEN, `${TOKEN_HINT}.`));
 
       refusal = '';
       await cycle();
