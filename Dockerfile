@@ -97,7 +97,7 @@ ENV \
     # Chromedriver settings
     CHROMEDRIVER_AUTODOWNLOAD=true \
     CHROMEDRIVER_PORT=8200 \
-    # Chromedriver devtools port
+    # Chromedriver devtools port: ANDROID_DEVTOOLS_PORT of the build, another port at runtime needs CHROME_OPTIONS too
     CHROME_OPTIONS="\"androidDevToolsPort\": ${ANDROID_DEVTOOLS_PORT}" \
     # Log settings
     LOG_LEVEL=info \
