@@ -128,8 +128,8 @@ wait "$appiumPid"
 exitCode=$?
 logger "INFO" "Exit status: $exitCode"
 
-# TODO: do we need explicit finish call to publish recorded artifacts when RETAIL_TASK is false?
-#finishRecordings
+# the sessions ended with Appium: their recordings are shared before the container ends, as on docker stop
+finishRecordings
 
 if [[ "$exitCode" -eq 101 ]]; then
   logger "WARN" "Hub down or not responding. Sleeping ${UNREGISTER_IF_STILL_DOWN_AFTER}ms and 15s..."

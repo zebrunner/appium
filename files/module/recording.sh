@@ -236,7 +236,8 @@ recordingEnded() {
   share "$1" &
 }
 
-# finishRecordings: shares the recordings of the active sessions, called by the SIGTERM trap of the entrypoint
+# finishRecordings: shares the recordings of the active sessions, called by the entrypoint when the container ends
+# (docker stop, the exit of Appium)
 # shellcheck disable=SC2329
 finishRecordings() {
   logger "INFO" "on finish begin"
