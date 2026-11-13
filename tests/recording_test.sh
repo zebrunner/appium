@@ -51,6 +51,50 @@ unset -f share
 # shellcheck source=../files/module/recording.sh
 source files/module/recording.sh
 
+section "the share of a recording"
+export TASK_LOG="$LOG_DIR/appium.log" LOG_FILE=session.log WDA_LOG_FILE="$LOG_DIR/wda.log" RECORDING_INFO_DIR="$WORK"
+reset_state
+echo "session s1" > "$TASK_LOG"
+touch "$LOG_DIR/.recording-artifact-s1"
+# the next session starts while the video of s1 is finalized
+stopFfmpeg() {
+  echo "next session" >> "$TASK_LOG"
+}
+share s1 > /dev/null 2>&1
+check "the session log is shared before the video is finalized" "session s1" "$(cat "$LOG_DIR/s1/session.log")"
+check "the lines of the next session stay in TASK_LOG" "next session" "$(cat "$TASK_LOG")"
+check "the shared recording is registered for the uploader" "artifactId=s1" "$(cat "$LOG_DIR/.artifact-s1")"
+check "the marker and the lock of the share are removed" "no|no" \
+  "$(test -e "$LOG_DIR/.recording-artifact-s1" && echo yes || echo no)|$(test -e "$LOG_DIR/.sharing-artifact-s1" && echo yes || echo no)"
+# shellcheck source=../files/module/recording.sh
+source files/module/recording.sh
+
+reset_state
+echo "session s2" > "$TASK_LOG"
+touch "$LOG_DIR/.recording-artifact-s2"
+finishRecordings > /dev/null 2>&1
+# the uploader takes the recording, the next session writes into TASK_LOG
+mv "$LOG_DIR/.artifact-s2" "$LOG_DIR/.uploading-artifact-s2"
+echo "next session" > "$TASK_LOG"
+# the deletion of the marker by finishRecordings runs share again (the inotify loop of the entrypoint)
+out="$(share s2 2>&1)"
+check "docker stop: the recording is not shared again on the deletion of its marker" "session s2|no" \
+  "$(cat "$LOG_DIR/s2/session.log")|$(test -e "$LOG_DIR/.artifact-s2" && echo yes || echo no)"
+check_contains "docker stop: the second share is logged" "s2 is already shared" "$out"
+check "docker stop: TASK_LOG keeps the next session" "next session" "$(cat "$TASK_LOG")"
+check "docker stop: the lock of the share is removed" "no" "$(test -e "$LOG_DIR/.sharing-artifact-s2" && echo yes || echo no)"
+
+reset_state
+echo "session s3" > "$TASK_LOG"
+touch "$LOG_DIR/.recording-artifact-s3"
+# the end of the session and docker stop at the same time
+share s3 > "$WORK/share1.log" 2>&1 &
+share s3 > "$WORK/share2.log" 2>&1 &
+wait
+check "two shares at the same time: the recording is shared once" "session s3" "$(cat "$LOG_DIR/s3/session.log")"
+check_contains "two shares at the same time: the other one waits for it" "other thread shared artifacts for s3" \
+  "$(cat "$WORK/share1.log" "$WORK/share2.log")"
+
 section "the STF broadcast"
 reset_state
 broadcastOff > /dev/null

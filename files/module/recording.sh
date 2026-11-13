@@ -15,11 +15,12 @@ BROADCAST_LOCK="${BROADCAST_LOCK:-/tmp/.broadcast.lock}"
 # "<pid>:<checks> ..." of the ffmpeg processes without a session at the previous check of the watchdog
 RECORDING_ORPHANS=""
 
+# recordingPlatform: PLATFORM_NAME in lower case
 recordingPlatform() {
   echo "${PLATFORM_NAME}" | tr '[:upper:]' '[:lower:]'
 }
 
-# broadcastLock: mkdir is atomic; the lock of a killed process is taken over after 10 s
+# broadcastLock: takes the lock of the STF broadcast; mkdir is atomic, the lock of a killed process is taken over after 10 s
 broadcastLock() {
   local tries=0
   until mkdir "$BROADCAST_LOCK" 2> /dev/null; do
@@ -32,6 +33,7 @@ broadcastLock() {
   done
 }
 
+# broadcastUnlock: releases the lock of broadcastLock
 broadcastUnlock() {
   rmdir "$BROADCAST_LOCK" 2> /dev/null
 }
@@ -79,6 +81,8 @@ stopRelay() {
   pkill --full "mjpeg-relay\.js .* ${1}\$" > /dev/null 2>&1
 }
 
+# stopFfmpeg <id>: stops the recording of the session (ffmpeg and the MJPEG relay) and lets ffmpeg finish the video;
+# the STF broadcast is switched off on Android when no other recording reads it
 stopFfmpeg() {
   local artifactId=$1
   if [[ -z "${artifactId}" ]]; then
@@ -132,6 +136,8 @@ stopFfmpeg() {
   fi
 }
 
+# share <id>: shares the recording of the session once: its logs and files, then its video, into ${LOG_DIR}/<id>/ and
+# ${LOG_DIR}/.artifact-<id> for the uploader; the marker of the session is removed
 share() {
   local artifactId=$1
 
@@ -140,35 +146,60 @@ share() {
     return 0
   fi
 
-  local idleTimeout=5 waitStartTime
-  # check if .share-artifact-* is beig moving by other thread
-  if [[ ! -f "${LOG_DIR}/.sharing-artifact-$artifactId" ]]; then
-    touch "${LOG_DIR}/.sharing-artifact-$artifactId"
-  else
+  # mkdir is atomic: one share of a recording at a time, the end of the session and finishRecordings may share it together
+  local lock="${LOG_DIR}/.sharing-artifact-$artifactId" idleTimeout=60 waitStartTime
+  if ! mkdir "$lock" 2> /dev/null; then
     logger "INFO" "[Share] waiting for other thread to share $artifactId files"
-    # if we can't move this file -> other thread already moved it
-    # wait until share is completed on other thread by deleting .recording-artifact-$artifactId file
     waitStartTime=$(date +%s)
-    while [[ $((waitStartTime + idleTimeout)) -gt "$(date +%s)" ]]; do
-      if [[ ! -f "${LOG_DIR}/.recording-artifact-$artifactId" ]]; then
-        logger "INFO" "[Share] other thread shared artifacts for $artifactId"
-        return 0
-      fi
+    while [[ -d "$lock" ]] && [[ $((waitStartTime + idleTimeout)) -gt "$(date +%s)" ]]; do
       sleep 0.1
     done
-    logger "WARN" "[Share] timeout waiting for other thread to share artifacts for $artifactId"
+    if [[ -d "$lock" ]]; then
+      logger "WARN" "[Share] timeout waiting for other thread to share artifacts for $artifactId"
+    else
+      logger "INFO" "[Share] other thread shared artifacts for $artifactId"
+    fi
+    return 0
+  fi
+  # the deletion of the marker by finishRecordings runs share again: a shared recording is not shared again, the
+  # uploader renames .artifact-<id> to .uploading-artifact-<id> and removes the folder after the upload
+  if [[ -e "${LOG_DIR}/.artifact-$artifactId" || -e "${LOG_DIR}/.uploading-artifact-$artifactId" || -e "${LOG_DIR}/${artifactId}" ]]; then
+    logger "INFO" "[Share] $artifactId is already shared"
+    rmdir "$lock"
     return 0
   fi
 
   # unique folder to collect all artifacts for uploading
   mkdir "${LOG_DIR}/${artifactId}"
 
+  # the logs and the files of the session first: the next session may already run and write into them while the video
+  # is finalized
+  cp "${TASK_LOG}" "${LOG_DIR}/${artifactId}/${LOG_FILE}"
+  # do not move otherwise in global loop we should add extra verification on file presense
+  : > "${TASK_LOG}"
+
+  if [[ -f "${WDA_LOG_FILE}" ]] && [[ "${SHARE_WDA_LOG}" == "true" ]]; then
+    logger "INFO" "[Share] Sharing file: ${WDA_LOG_FILE}"
+    cp "${WDA_LOG_FILE}" "${LOG_DIR}/${artifactId}/wda.log"
+    : > "${WDA_LOG_FILE}"
+  fi
+
+  # share all the rest custom reports from LOG_DIR into artifactId subfolder
+  local file
+  for file in "${LOG_DIR}"/*; do
+    if [[ -f "$file" ]] && [[ -s "$file" ]] && [[ "$file" != "${TASK_LOG}" ]] && [[ "$file" != "${WDA_LOG_FILE}" ]]; then
+      logger "INFO" "[Share] Sharing file: $file"
+      # to avoid extra publishing as launch artifact for driver sessions
+      mv "$file" "${LOG_DIR}/${artifactId}/"
+    fi
+  done
+
   stopFfmpeg "$artifactId"
 
   logger "INFO" "[Share] Video recording file:"
 
   ls -lah "/tmp/${artifactId}.mp4"
-  local videoSize file
+  local videoSize
   if [[ -f "/tmp/${artifactId}.mp4" ]]; then
     videoSize=$(wc -c < "/tmp/${artifactId}.mp4")
     if [[ "${videoSize}" -gt 1024 ]]; then
@@ -183,32 +214,12 @@ share() {
   fi
   rm -f "$(recordingInfoFile "$artifactId")" "$(recordingStampFile "$artifactId")"
 
-  cp "${TASK_LOG}" "${LOG_DIR}/${artifactId}/${LOG_FILE}"
-  # do not move otherwise in global loop we should add extra verification on file presense
-  : > "${TASK_LOG}"
-
-  if [[ -f "${WDA_LOG_FILE}" ]] && [[ "${SHARE_WDA_LOG}" == "true" ]]; then
-    logger "INFO" "[Share] Sharing file: ${WDA_LOG_FILE}"
-    cp "${WDA_LOG_FILE}" "${LOG_DIR}/${artifactId}/wda.log"
-    : > "${WDA_LOG_FILE}"
-  fi
-
-  # share all the rest custom reports from LOG_DIR into artifactId subfolder
-  for file in "${LOG_DIR}"/*; do
-    if [[ -f "$file" ]] && [[ -s "$file" ]] && [[ "$file" != "${TASK_LOG}" ]] && [[ "$file" != "${WDA_LOG_FILE}" ]]; then
-      logger "INFO" "[Share] Sharing file: $file"
-      # to avoid extra publishing as launch artifact for driver sessions
-      mv "$file" "${LOG_DIR}/${artifactId}/"
-    fi
-  done
-
   # register artifactId info to be able to parse by uploader
   echo "artifactId=$artifactId" > "${LOG_DIR}/.artifact-$artifactId"
 
-  # remove lock file (for other threads) when artifacts are shared for uploader
-  rm -f "${LOG_DIR}/.sharing-artifact-$artifactId"
-  # remove lock file (for uploader) when artifacts are shared for uploader
+  # the marker before the lock: a share started by its deletion waits for the lock and does not share again
   rm -f "${LOG_DIR}/.recording-artifact-$artifactId"
+  rmdir "$lock"
 }
 
 # recordingEnded <id>: the marker of the session is deleted
@@ -225,7 +236,8 @@ recordingEnded() {
   share "$1" &
 }
 
-# called by the SIGTERM trap of the entrypoint
+# finishRecordings: shares the recordings of the active sessions, called by the entrypoint when the container ends
+# (docker stop, the exit of Appium)
 # shellcheck disable=SC2329
 finishRecordings() {
   logger "INFO" "on finish begin"
@@ -254,6 +266,8 @@ recordingWatchdog() {
   done
 }
 
+# removeStaleMarkers: removes the markers older than RECORDING_STALE_SEC of the sessions Appium does not know (their
+# deletion shares the recordings)
 removeStaleMarkers() {
   # with ROUTER_UUID the marker is not named by a session id
   [[ -z "${ROUTER_UUID// /}" ]] || return 0
@@ -285,6 +299,7 @@ orphanChecks() {
   echo 0
 }
 
+# stopOrphanRecordings: stops the ffmpeg without a marker and without a share after RECORDING_ORPHAN_CHECKS checks
 stopOrphanRecordings() {
   local pid args id checks tries orphans=""
   for pid in $(pgrep -x ffmpeg); do
