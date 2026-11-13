@@ -135,6 +135,8 @@ Remote applications are kept in a shared storage, so the devices of a host downl
 
 Every build of an application is usually a new url, so the storage is cleaned before a download: the applications not used for `APPIUM_APPS_MAX_AGE` days, then the least recently used ones while the free space is below `APPIUM_APPS_MIN_FREE`, and the temporary copies of the interrupted downloads. An application is used when a session takes it from the storage; the ones used in the last hour and the ones being downloaded (`.lock`) are kept. A failed cleanup is logged and does not fail the session.
 
+A stored application is used when its size is the one of the remote application (the `Content-Length` of a GET of its url, the body is not read); an application whose server sends no `Content-Length` (a chunked response) has no known size and is downloaded again by every session, unless `APPIUM_APP_SIZE_DISABLE=true`.
+
 ### Video recording and artifacts
 
 Every session is recorded: the patched Appium creates `${LOG_DIR}/.recording-artifact-<session id>` on a new session and deletes it on the session end. The video, the session log and the other files of `LOG_DIR` are then moved to `${LOG_DIR}/<session id>/` and `${LOG_DIR}/.artifact-<session id>` is created for the uploader. `docker stop` finishes the active sessions the same way.

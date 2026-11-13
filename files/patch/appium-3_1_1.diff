@@ -738,10 +738,10 @@ index b3bdf5a..f02a1ba 100644
        const integrity = {};
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..87b5337
+index 0000000..d1a7ec3
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,322 @@
+@@ -0,0 +1,325 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
@@ -961,7 +961,11 @@ index 0000000..87b5337
 +  return targetPath;
 +}
 +
-+async function getFileContentLength(remoteUrl) {
++// [MCLOUD] the size of the remote app, compared with the stored one (APPIUM_APP_SIZE_DISABLE); null when the server
++// sends no Content-Length (e.g. a chunked response): the size is unknown, the caller downloads the app again. Only the
++// headers are read, the body is not: its connection is closed at once. A GET, not a HEAD: the signed urls of S3 are
++// valid for GET only.
++async function getFileContentLength(remoteUrl): Promise<number | null> {
 +  const timeout = 10000;
 +  const retries = 5;
 +  const pollingInterval = 3000;
@@ -974,29 +978,28 @@ index 0000000..87b5337
 +
 +  // getting content-length with retry
 +  let lastError;
-+  const getLengthRequest = async () => {
-+    for (let i = 0; i < retries; i++) {
-+      try {
-+        logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
-+        const {
-+          headers: responseHeaders,
-+        } = await axios(requestOpts);
-+        const responseLength = parseInt(responseHeaders['content-length'], 10);
-+        logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
-+        return responseLength;
-+      } catch (error) {
-+        lastError = error;
++  for (let i = 0; i < retries; i++) {
++    try {
++      logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
++      const {headers: responseHeaders, data: stream} = await axios(requestOpts);
++      stream?.destroy?.();
++      const header = `${responseHeaders['content-length'] ?? ''}`.trim();
++      if (!/^\d+$/.test(header)) {
++        logger.warn(`[MCLOUD] The server of the app sends no Content-Length ('${header}'): the size of the remote app is unknown`);
++        return null;
++      }
++      const responseLength = parseInt(header, 10);
++      logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
++      return responseLength;
++    } catch (error) {
++      lastError = error;
++      if (i < retries - 1) {
 +        logger.warn(`[MCLOUD] Cannot fetch info about app size. Will retry attempt in ${pollingInterval}ms`);
 +        await new Promise((resolve) => setTimeout(resolve, pollingInterval));
 +      }
 +    }
-+  };
-+  const length = await getLengthRequest();
-+  if (length) {
-+    return length;
-+  } else {
-+    throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
 +  }
++  throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
 +}
 +
 +async function executeShell(shellCommand, description) {
