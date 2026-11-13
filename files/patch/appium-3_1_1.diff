@@ -250,21 +250,25 @@ index 80e22ef..0e8127d 100644
  }
  
 diff --git a/packages/base-driver/lib/basedriver/core.ts b/packages/base-driver/lib/basedriver/core.ts
-index 53170a3..f7bb7d8 100644
+index 53170a3..7f902ff 100644
 --- a/packages/base-driver/lib/basedriver/core.ts
 +++ b/packages/base-driver/lib/basedriver/core.ts
-@@ -22,6 +22,10 @@ import {errors} from '../protocol';
+@@ -22,6 +22,14 @@ import {errors} from '../protocol';
  import {DeviceSettings} from './device-settings';
  import * as helpers from './helpers';
  import {ExtensionCore} from './extension-core';
-+import { executeShellWPromise, parseWDAUrl, getWDAStatus } from './mcloud-utils';
++import { parseWDAUrl, getWDAStatus } from './mcloud-utils';
++import { execFile } from 'child_process';
++import { promisify } from 'util';
++
++const execFileAsync = promisify(execFile);
 +
 +// [MCLOUD] a hung adb server must not hang the status check of mcloud-grid (it waits 10 s)
 +const ADB_STATUS_TIMEOUT_MS = 5000;
  
  const NEW_COMMAND_TIMEOUT_MS = 60 * 1000;
  
-@@ -209,6 +213,58 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
+@@ -209,6 +217,48 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
      return {};
    }
  
@@ -287,44 +291,34 @@ index 53170a3..f7bb7d8 100644
 +
 +  async getStatusADB(exitCode?: number | null) {
 +    const deviceUDID = process.env.DEVICE_UDID;
-+    if (deviceUDID) {
-+      const adbDevicesCmd = 'adb devices | grep $DEVICE_UDID | grep "device"';
-+      try {
-+        await executeShellWPromise(adbDevicesCmd, ADB_STATUS_TIMEOUT_MS);
-+        return {'status': 'success', 'details': `Connected device with UDID ${deviceUDID} is ready for execution`};
-+      } catch {
-+        if (exitCode != null) {
-+          this.log.error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
-+          process.exit(exitCode);
-+        }
-+        throw new Error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+      }
-+    } else {
-+      const deviceName = process.env.ANDROID_DEVICES;
-+      if (!deviceName) {
-+        throw new Error(`[MCLOUD] Neither DEVICE_UDID nor ANDROID_DEVICES environment variables were found.`);
-+      }
-+      const adbDevicesCmd = 'adb devices | grep $ANDROID_DEVICES | grep "device"';
-+      try {
-+        await executeShellWPromise(adbDevicesCmd, ADB_STATUS_TIMEOUT_MS);
-+        return {'status': 'success', 'details': `Connected device with name ${deviceName} is ready for execution`};
-+      } catch {
-+        if (exitCode != null) {
-+          this.log.error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
-+          process.exit(exitCode);
-+        }
-+        throw new Error(`[MCLOUD] Connected device with name ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+      }
++    if (!deviceUDID) {
++      throw new Error(`[MCLOUD] DEVICE_UDID environment variable was not found.`);
 +    }
++    // the state of this device: `adb devices | grep` matched another udid containing it and the "no permissions"
++    // line of a device (its help url ends with device.html)
++    let state = '';
++    try {
++      ({stdout: state} = await execFileAsync('adb', ['-s', deviceUDID, 'get-state'], {timeout: ADB_STATUS_TIMEOUT_MS}));
++    } catch (err) {
++      this.log.debug(`[MCLOUD] adb -s ${deviceUDID} get-state failed: ${err.message}`);
++    }
++    if (state.trim() === 'device') {
++      return {'status': 'success', 'details': `Connected device with UDID ${deviceUDID} is ready for execution`};
++    }
++    const message = `[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Its adb state is '${state.trim() || 'unknown'}'`;
++    if (exitCode != null) {
++      this.log.error(message);
++      this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
++      process.exit(exitCode);
++    }
++    throw new Error(message);
 +  }
 +
    /**
     * method required by MJSONWP in order to determine whether it should
     * respond with an invalid session response
 diff --git a/packages/base-driver/lib/basedriver/driver.ts b/packages/base-driver/lib/basedriver/driver.ts
-index 07258f3..a9e8d31 100644
+index 07258f3..911d181 100644
 --- a/packages/base-driver/lib/basedriver/driver.ts
 +++ b/packages/base-driver/lib/basedriver/driver.ts
 @@ -1,4 +1,6 @@
@@ -338,7 +332,8 @@ index 07258f3..a9e8d31 100644
  
      this.log.info(`Session created with session id: ${this.sessionId}`);
  
-+    // save current sessionId globally to handle negative use-case instead of desired fallbackSessionId
++    // the session being created for the errors of its creation (protocol.ts) and the .lock of an app download
++    // (helpers.js), which have no session id of their own
 +    process.env.sessionId = this.sessionId;
 +
 +    const createRecordingArtifact = async (sessionId, logDir) => {
@@ -353,9 +348,8 @@ index 07258f3..a9e8d31 100644
 +    };
 +    // directory where .recording-artifact file should be created
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
-+    // When the requesting session owns recording externally (e.g. Playwright bridge
-+    // owns one marker per test) skip per-session markers so they don't start/stop
-+    // capture per command. This is per-session (capability), not container-wide.
++    // A session with appium:mcloudExternalRecording=true leaves the recording to its client (it creates and removes
++    // the markers itself): no marker of the session. This is per session (capability), not container-wide.
 +    if (String(this.caps?.mcloudExternalRecording) === 'true') {
 +      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact create');
 +    }
@@ -371,7 +365,7 @@ index 07258f3..a9e8d31 100644
      return [this.sessionId, caps] as CreateResult;
    }
  
-@@ -392,6 +424,33 @@ export class BaseDriver<
+@@ -392,6 +424,32 @@ export class BaseDriver<
          queues[key] = [];
        }
      }
@@ -385,9 +379,8 @@ index 07258f3..a9e8d31 100644
 +      }
 +    };
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
-+    // When the requesting session owns recording externally (e.g. Playwright bridge)
-+    // skip per-session marker removal so command-end can't trigger share/stop of the
-+    // test recording. This is per-session (capability), not container-wide.
++    // A session with appium:mcloudExternalRecording=true leaves the recording to its client: the end of the session
++    // does not remove a marker of the client. This is per session (capability), not container-wide.
 +    if (String(this.caps?.mcloudExternalRecording) === 'true') {
 +      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact remove');
 +    }
@@ -1198,7 +1191,7 @@ index ddb5d55..773ce55 100644
    // set up static assets
    app.use(favicon(path.resolve(STATIC_DIR, 'favicon.ico')));
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a2..20fd718 100644
+index 02822a2..54c2b88 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
 @@ -16,6 +16,7 @@ import {MAX_LOG_BODY_LENGTH, PROTOCOLS, DEFAULT_BASE_PATH} from '../constants';
@@ -1209,7 +1202,18 @@ index 02822a2..20fd718 100644
  import type { Core, AppiumLogger, PayloadParams, MethodMap, Driver, DriverMethodDef } from '@appium/types';
  import type { BaseDriver } from '../basedriver/driver';
  import type { Request, Response, Application } from 'express';
-@@ -473,7 +474,131 @@ function buildHandler(
+@@ -406,6 +407,10 @@ function buildHandler(
+         args.push({reqForProxy: req});
+       }
+ 
++      if (spec.command === 'createSession') {
++        // [MCLOUD] set by BaseDriver.createSession of the new session; until then a failure has no session id
++        delete process.env.sessionId;
++      }
+       driverRes = await (driver as BaseDriver<any>).executeCommand(spec.command, ...args);
+ 
+       // Get the protocol after executeCommand
+@@ -473,7 +478,135 @@ function buildHandler(
              length: MAX_LOG_BODY_LENGTH,
            })}`
        );
@@ -1217,6 +1221,10 @@ index 02822a2..20fd718 100644
 +    } catch (caughtErr) {
 +      // [MCLOUD] the handling below and the response need an Error with a message (e.g. an array of errors)
 +      const err: any = toError(caughtErr);
++      // [MCLOUD] the session of the request; a failed creation has none yet: the one BaseDriver.createSession set
++      // (process.env.sessionId is shared by the sessions, so it is used for the creation only)
++      const errSessionId = req.params.sessionId || newSessionId
++        || (spec.command === 'createSession' ? process.env.sessionId : undefined);
 +      // token: string - auth token from stf
 +      // udid: string -  unique id of device
 +      // note: string - comment with error for device which would shows in stf
@@ -1325,7 +1333,7 @@ index 02822a2..20fd718 100644
 +      }
 +
 +      if (err.message.toLowerCase().includes('the session identified by') && err.message.toLowerCase().includes('is not known')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
++        getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${errSessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message); // device status will not change
@@ -1337,7 +1345,7 @@ index 02822a2..20fd718 100644
 +
 +      // PATCH #2 <appium>/node_modules/appium/node_modules/appium-base-driver/build/lib/protocol/protocol.js to return to carina "DEBUG info" about problematic step
 +      if (err.message !== 'An element could not be located on the page using the given search parameters.') {
-+        err.message = `${err.message}[[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]]`;
++        err.message = `${err.message}[[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${errSessionId}]]]`;
 +      }
        // if anything goes wrong, figure out what our response should be
        // based on the type of error that we encountered
