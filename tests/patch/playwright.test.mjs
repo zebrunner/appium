@@ -248,6 +248,25 @@ describe('playwright driver', () => {
     addWebSocketHandler: async (pathname, wss) => handlers.set(pathname, wss),
     removeWebSocketHandler: async (pathname) => handlers.delete(pathname),
   });
+  // newDriver(answers): a driver of a fake device, its adb shell commands in driver.shell; answers: the output of a
+  // command by its start, an Error rejects it
+  const newDriver = (answers = {}) => {
+    const driver = new PlaywrightDriver({});
+    const warnings = [];
+    const log = Object.create(driver.log, {warn: {value: (message) => warnings.push(message)}, warnings: {value: warnings}});
+    Object.defineProperty(driver, 'log', {value: log});
+    driver.unlockWaitMs = 0;
+    driver.shell = [];
+    driver.adbShell = async (serial, command) => {
+      driver.shell.push(`${serial}: ${command}`);
+      const answer = Object.entries(answers).find(([start]) => command.startsWith(start))?.[1];
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer ?? (command.startsWith('settings get') ? '0' : '');
+    };
+    return driver;
+  };
 
   test('the adb server of the device: ADB_SERVER_SOCKET of the image', () => {
     assert.deepEqual(adbServer({ADB_SERVER_SOCKET: 'tcp:connector:5037'}), {host: 'connector', port: 5037});
@@ -258,7 +277,7 @@ describe('playwright driver', () => {
     const logDir = tmpDir('log');
     await withEnv({LOG_DIR: logDir, ROUTER_UUID: undefined}, async () => {
       const handlers = new Map();
-      const driver = new PlaywrightDriver({});
+      const driver = newDriver();
       driver.server = appiumServer(handlers);
       const [sessionId, caps] = await driver.createSession(null, null, CAPS());
       assert.equal(caps['mcloud:playwrightPath'], `/mcloud/playwright/${sessionId}`);
@@ -274,7 +293,7 @@ describe('playwright driver', () => {
   });
 
   test('no command timeout while a client uses the device', async () => {
-    const driver = new PlaywrightDriver({});
+    const driver = newDriver();
     driver.server = appiumServer(new Map());
     const [sessionId] = await driver.createSession(null, null, CAPS({'appium:newCommandTimeout': 60}));
     try {
@@ -291,8 +310,53 @@ describe('playwright driver', () => {
   });
 
   test('only the Android devices', async () => {
-    const driver = new PlaywrightDriver({});
+    const driver = newDriver();
     driver.server = appiumServer(new Map());
     await assert.rejects(driver.createSession(null, null, CAPS({platformName: 'iOS'})), /platformName/);
+  });
+
+  test('the session wakes and unlocks the device, keeps its screen on and gives the setting back', async () => {
+    const driver = newDriver({'settings get global stay_on_while_plugged_in': '2'});
+    driver.server = appiumServer(new Map());
+    const [sessionId] = await driver.createSession(null, null, CAPS());
+    assert.deepEqual(driver.shell.slice(0, 2), [
+      'emulator-5554: settings get global stay_on_while_plugged_in',
+      'emulator-5554: svc power stayon true; input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard',
+    ]);
+    assert.equal(driver.shell.length, 3);
+    assert.match(driver.shell[2], /^emulator-5554: dumpsys window/);
+    assert.deepEqual(driver.log.warnings, []);
+    driver.shell.length = 0;
+    await driver.deleteSession(sessionId);
+    assert.deepEqual(driver.shell, ['emulator-5554: settings put global stay_on_while_plugged_in 2']);
+    assert.equal(driver.screen, null);
+  });
+
+  test('a secure lock screen is named in the log, the session goes on', async () => {
+    const driver = newDriver({'dumpsys window': '1'});
+    driver.server = appiumServer(new Map());
+    const [sessionId] = await driver.createSession(null, null, CAPS());
+    assert.equal(driver.log.warnings.length, 1);
+    assert.match(driver.log.warnings[0], /lock screen of the device emulator-5554 is still shown/);
+    await driver.deleteSession(sessionId);
+  });
+
+  test('a device adb does not reach is not woken up, the session goes on', async () => {
+    const driver = newDriver({'settings get': new Error('device offline')});
+    driver.server = appiumServer(new Map());
+    const [sessionId, caps] = await driver.createSession(null, null, CAPS());
+    assert.ok(caps['mcloud:playwrightPath']);
+    assert.match(driver.log.warnings[0], /not woken up: device offline/);
+    assert.equal(driver.screen, null);
+    await driver.deleteSession(sessionId);
+    assert.equal(driver.shell.length, 1, 'nothing to give back');
+  });
+
+  test('appium:skipUnlock leaves the screen of the device as it is', async () => {
+    const driver = newDriver();
+    driver.server = appiumServer(new Map());
+    const [sessionId] = await driver.createSession(null, null, CAPS({'appium:skipUnlock': true}));
+    await driver.deleteSession(sessionId);
+    assert.deepEqual(driver.shell, []);
   });
 });
