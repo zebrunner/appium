@@ -127,8 +127,8 @@ Remote applications are kept in a shared storage, so the devices of a host downl
 | --- | --- | --- |
 | `APPIUM_APPS_DIR` | `/opt/appium-storage` | the storage, an application is stored as `<host>/<path>` of its url without the query (an http(s) url only; its dot segments are resolved, the file stays in the storage); empty disables the storage |
 | `APPIUM_APP_SIZE_DISABLE` | `false` | `true` uses a stored application without comparing its size with the remote one |
-| `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file) |
-| `APPIUM_MAX_LOCK_FILE_LIFETIME` | `1800` | s, an older `.lock` file is removed as left by a crashed download |
+| `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file); a longer download fails the waiting session |
+| `APPIUM_MAX_LOCK_FILE_LIFETIME` | `1800` | s, a `.lock` file not refreshed for this time is removed as left by a crashed download: a running download refreshes its `.lock` four times per lifetime (at most every minute), so the lifetime does not limit the download |
 | `APPIUM_APP_FETCH_RETRIES` | `3` | the retries of a broken download, `0` disables them |
 | `APPIUM_APPS_MAX_AGE` | `7` | days, a download removes the applications not used for this time; `0` keeps them |
 | `APPIUM_APPS_MIN_FREE` | `10` | %, a download removes the least recently used applications while the free space of the storage is below it; `0` disables it |
