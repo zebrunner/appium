@@ -42,6 +42,8 @@ class PlaywrightVersions {
     this.bundled = require('playwright-core/package.json').version;
     /** @type {Map<string, Promise<string>>} version -> the dir of its playwright-core, installs in progress */
     this.installs = new Map();
+    /** @type {Set<string>} the versions whose APKs are in PLAYWRIGHT_BROWSERS_PATH of this container */
+    this.apksInstalled = new Set();
   }
 
   /**
@@ -73,6 +75,17 @@ class PlaywrightVersions {
     const target = path.join(this.cacheDir, version);
     const module = path.join(target, 'node_modules', 'playwright-core');
     if (fs.existsSync(path.join(target, '.complete'))) {
+      // the cache is shared by the containers of the host, the APKs are not (PLAYWRIGHT_BROWSERS_PATH of the image): a
+      // version another container installed gets them here too, the CLI skips the ones already installed
+      if (!this.apksInstalled.has(version)) {
+        try {
+          await this.installApks(module);
+        } catch (err) {
+          throw new Error(`Playwright ${version} could not be installed on the device host (${err.message}): ` +
+            `use Playwright ${minor(this.bundled)} in the tests, the version of the farm`);
+        }
+        this.apksInstalled.add(version);
+      }
       return module;
     }
     // installed beside and renamed: another device of the host may install the same version at the same time
@@ -82,9 +95,7 @@ class PlaywrightVersions {
       fs.mkdirSync(temp, {recursive: true});
       await this.run('npm', ['install', '--prefix', temp, '--no-save', '--no-package-lock', '--no-audit', '--no-fund',
         '--loglevel=error', `playwright-core@${version}`], process.env);
-      // the APKs of the Playwright driver of the device, into PLAYWRIGHT_BROWSERS_PATH
-      await this.run(process.execPath, [path.join(temp, 'node_modules', 'playwright-core', 'cli.js'), 'install', 'android'],
-        process.env);
+      await this.installApks(path.join(temp, 'node_modules', 'playwright-core'));
       fs.writeFileSync(path.join(temp, '.complete'), new Date().toISOString());
       try {
         fs.renameSync(temp, target);
@@ -99,8 +110,14 @@ class PlaywrightVersions {
     } finally {
       fs.rmSync(temp, {recursive: true, force: true});
     }
+    this.apksInstalled.add(version);
     this.log.info(`[MCLOUD] Playwright ${version} is installed`);
     return module;
+  }
+
+  /** installs the APKs of the Playwright driver of the device of the playwright-core dir into PLAYWRIGHT_BROWSERS_PATH */
+  async installApks(module) {
+    await this.run(process.execPath, [path.join(module, 'cli.js'), 'install', 'android'], process.env);
   }
 }
 
