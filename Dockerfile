@@ -188,6 +188,7 @@ COPY --chown=androidusr:androidusr \
     files/util/mjpeg-relay.js \
     files/module/android.sh \
     files/module/ios.sh \
+    files/config/zbr-config-check.sh \
     files/config/zbr-config-gen.sh \
     files/config/zbr-default-caps-gen.sh /opt/
 
