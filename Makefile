@@ -31,6 +31,9 @@ IMAGE_REPO ?= public.ecr.aws/zebrunner/appium
 VERSION ?= dev
 TARGET ?= appium
 PLATFORMS ?= linux/amd64
+# the publish job of CI (mcloud-conventions) pushes each platform by digest (PUSH_OUTPUT); no PUSH_CACHE:
+# the image is a copy of its large base image
+PUSH_OUTPUT ?= --tag $(IMAGE_REPO):$(VERSION) --push
 
 .PHONY: help check lint test docker image patch e2e patch-sync patch-build build push
 
@@ -71,4 +74,4 @@ push: ## the image IMAGE_REPO:VERSION for PLATFORMS, built by docker buildx and 
 	@[[ "$(TARGET)" =~ ^(appium|appium-image)$$ ]] || { echo "TARGET is appium or appium-image"; exit 1; }
 	@docker buildx inspect mcloud > /dev/null 2>&1 || docker buildx create --name mcloud --driver docker-container --driver-opt network=host > /dev/null
 	docker buildx build --builder mcloud --progress=plain --provenance=false --platform $(PLATFORMS) --target $(TARGET) \
-	  --build-arg VERSION=$(VERSION) --tag $(IMAGE_REPO):$(VERSION) --push .
+	  --build-arg VERSION=$(VERSION) $(PUSH_OUTPUT) .
