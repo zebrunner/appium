@@ -257,6 +257,40 @@ describe('shared application storage', () => {
     assert.equal(fs.existsSync(`${localFile}.lock`), false);
   });
 
+  test('a download longer than APPIUM_MAX_LOCK_FILE_LIFETIME keeps its .lock fresh: a waiting session uses its app', async () => {
+    // the headers at once, the body after 8 s (the other session starts meanwhile); the lifetime of a .lock is 1 s
+    const slow = await listen((req, res) => {
+      res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length});
+      res.flushHeaders();
+      setTimeout(() => res.end(app), 8000);
+    });
+    const slowUrl = `${slow.url}/slow/app.apk`;
+    const stored = path.join(appsDir, new URL(slow.url).host, 'slow', 'app.apk');
+    const appsEnv = Object.fromEntries(Object.entries(env({APPIUM_APP_WAITING_TIMEOUT: '30', APPIUM_MAX_LOCK_FILE_LIFETIME: '1'}))
+      .filter(([, value]) => value !== undefined));
+    try {
+      await withEnv(appsEnv, async () => {
+        const downloading = configureApp(slowUrl, OPTS);
+        for (let i = 0; i < 100 && !fs.existsSync(`${stored}.lock`); i++) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        assert.ok(fs.existsSync(`${stored}.lock`), 'the download has its .lock');
+        // another device of the host wants the same app while it is downloaded
+        const [downloaded, other] = await Promise.all([downloading, session(slowUrl, appsEnv)]);
+        assert.equal(other.error, undefined, 'the waiting session does not take the .lock for the one of a dead download');
+        assert.equal(other.result, stored);
+        assert.ok(fs.existsSync(downloaded));
+      });
+      assert.deepEqual(fs.readFileSync(stored), app);
+      assert.equal(fs.existsSync(`${stored}.lock`), false, 'no .lock left');
+      // the initial requests of both sessions and one download: the other session waited for it, it did not find the
+      // app stored and checked its size
+      assert.equal(slow.requests.length, 3, 'the app is downloaded once');
+    } finally {
+      await slow.close();
+    }
+  });
+
   test('the .lock carries the device and the session of the download', async () => {
     let lockContent;
     // the second request is the download, the .lock is written before it
