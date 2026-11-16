@@ -45,6 +45,9 @@ async function registerNode(data, addr, port, basePath) {
 const REASON_MAX_LENGTH = 400;
 // the registration is retried every registerCycle: the same reason is logged as an error once in this time
 const REPEATED_FAILURE_LOG_INTERVAL_MS = 10 * 60 * 1000;
+// the hub answers a registration after it checked the node: its url (NODE_REACHABILITY_TIMEOUT) and its node token
+// with STF
+const REGISTRATION_TIMEOUT_MS = 60 * 1000;
 const HTML_ENTITIES = { quot: '"', amp: '&', lt: '<', gt: '>', apos: "'", nbsp: ' ' };
 /**
  * @param {string} text
@@ -132,8 +135,14 @@ function registrationFailureHint(reason, nodeUrl) {
             `that the hub can reach (in a LAN the LAN address: the public IP often fails without NAT hairpin); ` +
             `the appium port must be published`);
     }
-    if (reason.includes('NODE_REGISTRATION_TOKEN')) {
-        return 'NODE_REGISTRATION_TOKEN of this container must be the one of mcloud-grid (variables.env of mcloud)';
+    // the node token of the host (mcloud-grid NodeAuthentication): verified by STF for the address of the node
+    if (/could not verify it|STF_URL and STF_TOKEN of the hub/.test(reason)) {
+        return 'The hub verifies the node token with STF: check STF and STF_URL and STF_TOKEN of mcloud-grid';
+    }
+    if (reason.includes('node token')) {
+        return ('NODE_REGISTRATION_TOKEN is the node token of this host: MCLOUD_NODE_TOKEN of mcloud-agent, written by ' +
+            './zebrunner.sh join with an invite of ./zebrunner.sh node-invite of mcloud; the token is valid only for the ' +
+            `address of the invite, the host of the node url ${nodeUrl} (STF_PROVIDER_HOST)`);
     }
     if (reason.includes('NODE_ALLOWED_NETWORKS')) {
         return 'Add the network of STF_PROVIDER_HOST to NODE_ALLOWED_NETWORKS of mcloud-grid';
@@ -234,11 +243,12 @@ function postRequest(configHolder, addr, port, basePath) {
     if (!configHolder.configuration.id) {
         configHolder.configuration.id = `http://${configHolder.configuration.host}:${configHolder.configuration.port}`;
     }
-    // the post options
+    // the post options; a hub that does not answer must not hold the registration forever
     const regRequest = {
         url: `${hubUri(configHolder.configuration)}/grid/register`,
         method: 'POST',
         data: configHolder,
+        timeout: REGISTRATION_TIMEOUT_MS,
     };
     if (configHolder.configuration.register !== true) {
         logger_1.default.debug(`No registration sent (${configHolder.configuration.register} = false)`);
@@ -252,17 +262,29 @@ function postRequest(configHolder, addr, port, basePath) {
     }
     // initiate a new Thread
     let first = true;
+    // Fork (Zebrunner): a cycle still running (a slow hub) skips the next ones, the registrations do not overlap
+    let running = false;
     const failures = noRegistrationFailures();
     logger_1.default.debug(`Starting auto register thread for the grid. ` +
         `Will try to register every ${registerCycleInterval} ms.`);
     setInterval(async function registerRetry() {
-        if (first) {
-            first = false;
-            await registerToGrid(regRequest, configHolder, failures);
+        if (running) {
+            logger_1.default.debug(`The previous registration with the grid is still running, this cycle is skipped`);
+            return;
         }
-        else if (!(await isAlreadyRegistered(configHolder, failures))) {
-            // make the http POST to the grid for registration
-            await registerToGrid(regRequest, configHolder, failures);
+        running = true;
+        try {
+            if (first) {
+                first = false;
+                await registerToGrid(regRequest, configHolder, failures);
+            }
+            else if (!(await isAlreadyRegistered(configHolder, failures))) {
+                // make the http POST to the grid for registration
+                await registerToGrid(regRequest, configHolder, failures);
+            }
+        }
+        finally {
+            running = false;
         }
     }, registerCycleInterval);
 }
