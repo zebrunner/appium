@@ -387,6 +387,9 @@ section "hub down"
 HUB_DOWN="${NET}-hub-down"
 start_device "$HUB_DOWN" "" "${ANDROID_ENV[@]}" UNREGISTER_IF_STILL_DOWN_AFTER=1000
 if wait_for 180 appium_up "$HUB_DOWN"; then
+  # a session is active when Appium exits
+  docker exec "$HUB_DOWN" touch /tmp/log/.recording-artifact-hub-1
+  sleep 6
   docker exec "$HUB_DOWN" curl -s -o /dev/null -X GET -H 'Content-Type: application/json' -d '{"exitCode": 101}' \
     http://127.0.0.1:4723/wd/hub/status-adb
   start=$SECONDS
@@ -395,6 +398,18 @@ if wait_for 180 appium_up "$HUB_DOWN"; then
     check "/status-adb with exitCode 101 for a missing device: the container exits with 1" "1" \
       "$(docker inspect "$HUB_DOWN" --format '{{.State.ExitCode}}')"
     check_contains "/status-adb with exitCode 101 for a missing device: Appium exits with 101" "Exit status: 101" "$(docker logs "$HUB_DOWN" 2>&1)"
+    rm -rf "$WORK/hub-down"
+    docker cp "$HUB_DOWN:/tmp/log" "$WORK/hub-down" > /dev/null 2>&1
+    size="$(wc -c < "$WORK/hub-down/hub-1/video.mp4" 2> /dev/null | tr -d ' ')"
+    if [[ -f "$WORK/hub-down/.artifact-hub-1" && "${size:-0}" -gt 1024 ]]; then
+      pass "the exit of Appium during a session shares its video"
+    else
+      fail "the exit of Appium during a session shares its video" "no shared video of hub-1" \
+        "$(
+          docker logs "$HUB_DOWN" 2>&1 | grep -A4 'on finish begin'
+          ls -la "$WORK/hub-down" 2>&1
+        )"
+    fi
     if [[ "$elapsed" -ge 15 ]]; then
       pass "/status-adb with exitCode 101: the container waits for the hub before the exit"
     else
