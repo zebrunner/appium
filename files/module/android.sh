@@ -61,7 +61,7 @@ fi
 
 # Forward adb port
 # Used to connect appium builtin adb and mcloud-android-connector adb
-socat TCP-LISTEN:5037,fork TCP:connector:5037 &
+socat TCP-LISTEN:5037,fork "TCP:${REMOTE_ADB_HOST}:5037" &
 
 # Forward appium-uiautomator2 port
 # Used to connect appium-uiautomator2-server and appium-uiautomator2-driver

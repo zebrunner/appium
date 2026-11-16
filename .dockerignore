@@ -4,8 +4,19 @@
 .idea
 .venv
 tests
+scripts
+Makefile
 VERSION
 *.md
+# the settings of git, the editor and the linters
+.editorconfig
+.gitignore
+.git-blame-ignore-revs
+.hadolint.yaml
+.mcloud-conventions
+.pymarkdown
+.shellcheckrc
+.yamllint
 .DS_Store
 **/.DS_Store
 files/playwright/node_modules
