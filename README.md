@@ -84,7 +84,6 @@ The container is configured with environment variables; the defaults are the val
 | `PLATFORM_NAME` | | `android` or `ios` (any case): the device module to run, the default capabilities and the video source |
 | `DEVICE_UDID` | | the udid of the device: capabilities, `/status-adb`, STF updates |
 | `DEVICE_NAME` | | the device name in the node config and the default capabilities |
-| `ANDROID_DEVICES` | | `/status-adb` looks for this name when `DEVICE_UDID` is empty |
 
 `PLATFORM_VERSION`, `DEVICETYPE` (Phone, Tablet, TV) and `AUTOMATION_NAME` are detected by the device module at startup.
 
@@ -232,7 +231,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 ### Device status
 
-`GET /wd/hub/status-adb` and `GET /wd/hub/status-wda` report whether the device or WDA is ready. With a JSON body `{"exitCode": <code>}` (as mcloud-grid sends) Appium exits with the code when the check fails, so the container restarts. WDA gets 3 s to answer and a second attempt after 500 ms (a WDA busy with the end of the last session is not down), `adb devices` gets 5 s; mcloud-grid waits 10 s for the check.
+`GET /wd/hub/status-adb` and `GET /wd/hub/status-wda` report whether the device or WDA is ready. With a JSON body `{"exitCode": <code>}` (as mcloud-grid sends) Appium exits with the code when the check fails, so the container restarts. WDA gets 3 s to answer and a second attempt after 500 ms (a WDA busy with the end of the last session is not down); the device is ready when `adb -s <DEVICE_UDID> get-state` answers `device` in 5 s (not `offline`, `unauthorized` or without the permissions of adb); mcloud-grid waits 10 s for the check.
 
 ## Limitations
 
@@ -277,7 +276,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 
 ## Exit codes and health
 
-- The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
+- The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline (an iOS container has no adb).
 - The container exits with `1` whenever Appium exits, so the `on-failure` restart policy starts it again. Appium exits with `101` when mcloud-grid finds the device or WDA down (`/status-adb`, `/status-wda` with `exitCode`): the container then waits `UNREGISTER_IF_STILL_DOWN_AFTER` plus 15 s for the hub to unregister the node.
 - An invalid configuration ends the container with `0` before anything starts, so the `on-failure` restart policy does not restart it (a restart does not fix it): every invalid variable is logged as `Invalid configuration: <variable> ...` (`files/config/zbr-config-check.sh`: a number for `APPIUM_PORT` and `UNREGISTER_IF_STILL_DOWN_AFTER`; with `CONNECT_TO_GRID=true` `SELENIUM_HOST`, `STF_PROVIDER_HOST` and a number for `SELENIUM_PORT` and `ADB_PORT`; with `DEFAULT_CAPABILITIES=true` the ports of the platform and `CHROME_OPTIONS`). An iOS container ends with `1` when WebDriverAgent does not answer in `DEVICE_TIMEOUT`.
 - `DEBUG=true` keeps an ending container for `DEBUG_TIMEOUT` seconds to look into it.

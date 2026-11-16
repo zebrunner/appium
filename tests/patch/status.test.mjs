@@ -8,11 +8,32 @@ import {BASE_DRIVER_DIR, baseDriver, listen, request, startDriverServer, tmpDir,
 
 const {BaseDriver} = baseDriver;
 
-// a fake adb on PATH printing FAKE_ADB_DEVICES as `adb devices` does
+// a fake adb on PATH with the devices of FAKE_ADB_DEVICES: "<udid>[=<state>]" (device by default, noperm: a device
+// without the permissions of the user), `adb devices` and `adb -s <udid> get-state` as adb answers them
 const adbDir = tmpDir('adb');
 fs.writeFileSync(
   path.join(adbDir, 'adb'),
-  '#!/bin/bash\necho "List of devices attached"\nfor d in ${FAKE_ADB_DEVICES}; do printf "%s\\tdevice\\n" "$d"; done\n',
+  `#!/bin/bash
+if [[ "$1" == devices ]]; then
+  echo "List of devices attached"
+  for d in \${FAKE_ADB_DEVICES}; do
+    state="\${d#*=}"; [[ "$d" == *=* ]] || state=device
+    [[ "$state" == noperm ]] && state="no permissions (missing udev rules? user is in the plugdev group); see [http://developer.android.com/tools/device.html]"
+    printf "%s\\t%s\\n" "\${d%%=*}" "$state"
+  done
+elif [[ "$1 $3" == "-s get-state" ]]; then
+  for d in \${FAKE_ADB_DEVICES}; do
+    state="\${d#*=}"; [[ "$d" == *=* ]] || state=device
+    if [[ "\${d%%=*}" == "$2" ]]; then
+      [[ "$state" == noperm ]] && { echo "error: insufficient permissions for device" >&2; exit 1; }
+      echo "$state"
+      exit 0
+    fi
+  done
+  echo "error: device '$2' not found" >&2
+  exit 1
+fi
+`,
   {mode: 0o755}
 );
 const adbEnv = (devices, extra = {}) => ({PATH: `${adbDir}:${process.env.PATH}`, FAKE_ADB_DEVICES: devices, ...extra});
@@ -154,16 +175,30 @@ describe('ADB status', () => {
     });
   });
 
-  test('getStatusADB falls back to ANDROID_DEVICES without DEVICE_UDID', async () => {
-    await withEnv(adbEnv('emulator-1', {DEVICE_UDID: undefined, ANDROID_DEVICES: 'emulator-1'}), async () => {
-      const status = await new BaseDriver({}).getStatusADB();
-      assert.equal(status.status, 'success');
+  test('getStatusADB fails for another device whose udid contains DEVICE_UDID', async () => {
+    await withEnv(adbEnv('udid-10 192.168.0.5:5555', {DEVICE_UDID: 'udid-1'}), async () => {
+      await assert.rejects(new BaseDriver({}).getStatusADB(), /NOT ready/);
+    });
+    await withEnv(adbEnv('192.168.0.5:55551', {DEVICE_UDID: '192.168.0.5:5555'}), async () => {
+      await assert.rejects(new BaseDriver({}).getStatusADB(), /NOT ready/);
     });
   });
 
-  test('getStatusADB fails without DEVICE_UDID and ANDROID_DEVICES', async () => {
-    await withEnv(adbEnv('udid-1', {DEVICE_UDID: undefined, ANDROID_DEVICES: undefined}), async () => {
-      await assert.rejects(new BaseDriver({}).getStatusADB(), /Neither DEVICE_UDID nor ANDROID_DEVICES/);
+  test('getStatusADB fails for the device without the permissions of adb ("no permissions ... device.html")', async () => {
+    await withEnv(adbEnv('udid-1=noperm', {DEVICE_UDID: 'udid-1'}), async () => {
+      await assert.rejects(new BaseDriver({}).getStatusADB(), /NOT ready/);
+    });
+  });
+
+  test('getStatusADB fails for an offline device with its state', async () => {
+    await withEnv(adbEnv('udid-1=offline', {DEVICE_UDID: 'udid-1'}), async () => {
+      await assert.rejects(new BaseDriver({}).getStatusADB(), /NOT ready for execution. Its adb state is 'offline'/);
+    });
+  });
+
+  test('getStatusADB fails without DEVICE_UDID', async () => {
+    await withEnv(adbEnv('udid-1', {DEVICE_UDID: undefined}), async () => {
+      await assert.rejects(new BaseDriver({}).getStatusADB(), /DEVICE_UDID environment variable was not found/);
     });
   });
 

@@ -2,7 +2,7 @@
 import {test, describe, before, after, beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {BASE_DRIVER_DIR, baseDriver, listen, request, startDriverServer, withEnv} from './common.mjs';
+import {BASE_DRIVER_DIR, W3C_CAPS, baseDriver, listen, request, startDriverServer, tmpDir, withEnv} from './common.mjs';
 
 const {BaseDriver} = baseDriver;
 
@@ -155,5 +155,96 @@ describe('error handler', () => {
     const res = await failWith('Device setup is not yet complete', {STF_API_URL: 'http://127.0.0.1:9/api/v1'});
     assert.equal(res.status, 500);
     assert.match(res.json.value.message, /^Device setup is not yet complete/);
+  });
+});
+
+// a driver whose session commands and creation fail as the test sets: getUrl of a session, createSession before or
+// after BaseDriver.createSession created the session
+class SessionFailingDriver extends BaseDriver {
+  async getUrl() {
+    throw new Error('url boom');
+  }
+
+  async createSession(...args) {
+    if (this.failBeforeCreation) {
+      throw new Error('caps boom');
+    }
+    const res = await super.createSession(...args);
+    if (this.failAfterCreation) {
+      throw new Error('setup boom');
+    }
+    return res;
+  }
+}
+
+describe('the session id of an error message', () => {
+  let server;
+  const driver = new SessionFailingDriver({});
+  const env = () => ({LOG_DIR: tmpDir('log'), STF_API_URL: undefined, DEVICE_UDID: 'udid-1', DEVICE_NAME: 'Pixel 7', sessionId: undefined});
+  const createSession = () => request(`${server.url}/session`, {method: 'POST', body: {capabilities: W3C_CAPS()}});
+  const sessionIdOf = (res) => /--sessionId (.*)\]\]\]$/.exec(res.json?.value?.message ?? '')?.[1];
+
+  before(async () => {
+    server = await startDriverServer(driver);
+  });
+  after(async () => {
+    await server.close();
+  });
+
+  test('a command of a session has its own id, not the one of the session created last', async () => {
+    await withEnv(env(), async () => {
+      const created = await createSession();
+      const sessionId = created.json.value.sessionId;
+      assert.ok(sessionId, 'the session is created');
+      try {
+        // another session of the container was created since then (process.env.sessionId is shared)
+        process.env.sessionId = 'later-session';
+        const res = await request(`${server.url}/session/${sessionId}/url`);
+        assert.equal(res.status, 500);
+        assert.equal(sessionIdOf(res), sessionId);
+      } finally {
+        await request(`${server.url}/session/${sessionId}`, {method: 'DELETE'});
+      }
+    });
+  });
+
+  test('a failed creation has the id of the session being created', async () => {
+    await withEnv(env(), async () => {
+      process.env.sessionId = 'earlier-session';
+      driver.failAfterCreation = true;
+      try {
+        const res = await createSession();
+        assert.equal(res.status, 500);
+        assert.match(res.json.value.message, /^setup boom/);
+        assert.notEqual(sessionIdOf(res), 'earlier-session');
+        assert.equal(sessionIdOf(res), driver.sessionId);
+      } finally {
+        driver.failAfterCreation = false;
+        await driver.deleteSession().catch(() => {});
+      }
+    });
+  });
+
+  test('a creation failing before the session exists has no id of an earlier session', async () => {
+    await withEnv(env(), async () => {
+      process.env.sessionId = 'earlier-session';
+      driver.failBeforeCreation = true;
+      try {
+        const res = await createSession();
+        assert.equal(res.status, 500);
+        assert.match(res.json.value.message, /^caps boom/);
+        assert.equal(sessionIdOf(res), 'undefined');
+      } finally {
+        driver.failBeforeCreation = false;
+      }
+    });
+  });
+
+  test('a command of an unknown session has the id of its request', async () => {
+    await withEnv(env(), async () => {
+      process.env.sessionId = 'earlier-session';
+      const res = await request(`${server.url}/session/unknown-session/url`);
+      assert.equal(sessionIdOf(res), 'unknown-session');
+    });
   });
 });

@@ -14,16 +14,18 @@ else
   exit 1
 fi
 
-#214 capture offline state and reconnect
-offline=$(adb devices | grep -c offline)
-if [[ $offline -eq 1 ]]; then
-  logger "WARN" "Device is offline!"
-  adb reconnect
+#214 capture offline state and reconnect: Android only, an iOS container has no adb server
+if [[ "$(echo "$PLATFORM_NAME" | tr '[:upper:]' '[:lower:]')" == "android" ]]; then
+  offline=$(adb devices | grep -c offline)
+  if [[ $offline -gt 0 ]]; then
+    logger "WARN" "Device is offline!"
+    adb reconnect
 
-  available=$(adb devices | grep -c -w device)
-  if [[ $available -eq 0 ]]; then
-    logger "ERROR" "Device is not accessible after reconnect!"
-    exit 1
+    available=$(adb devices | grep -c -w device)
+    if [[ $available -eq 0 ]]; then
+      logger "ERROR" "Device is not accessible after reconnect!"
+      exit 1
+    fi
   fi
 fi
 

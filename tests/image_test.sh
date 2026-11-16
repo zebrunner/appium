@@ -218,11 +218,13 @@ check "no WDA in DEVICE_TIMEOUT: the startup stops" "1|||No response from WDA" \
   "$(ios_module iOS 17.4 --env WDA_PORT=9 --env DEVICE_TIMEOUT=3)"
 
 section "healthcheck"
-# healthcheck_with <appium up: yes|no> <device state> <state after adb reconnect>: <exit status>|<adb reconnects>
-# of files/healthcheck with a fake adb (tests/fixtures/fake-adb) and a fake Appium status
+# healthcheck_with <appium up: yes|no> <device state> <state after adb reconnect> [docker args...]: <exit status>|<adb
+# reconnects> of files/healthcheck of an Android container with a fake adb (tests/fixtures/fake-adb) and a fake Appium
+# status
 healthcheck_with() {
   docker run --rm --platform "$PLATFORM" --volume "$REPO/tests/fixtures/fake-adb:/tmp/fakebin/adb:ro" \
-    --env APPIUM_UP="$1" --env FAKE_STATE="$2" --env FAKE_RECONNECT_STATE="$3" --entrypoint bash "$IMAGE" -c '
+    --env PLATFORM_NAME=Android --env APPIUM_UP="$1" --env FAKE_STATE="$2" --env FAKE_RECONNECT_STATE="$3" "${@:4}" \
+    --entrypoint bash "$IMAGE" -c '
     export PATH=/tmp/fakebin:$PATH
     if [[ "$APPIUM_UP" = yes ]]; then
       node -e "require(\"http\").createServer((req, res) => res.end(\"{}\")).listen(4723)" &
@@ -236,6 +238,8 @@ check "Appium does not answer: unhealthy" "1|0" "$(healthcheck_with no device de
 check "the device is online: healthy" "0|0" "$(healthcheck_with yes device device)"
 check "the device is offline and comes back on adb reconnect: healthy" "0|1" "$(healthcheck_with yes offline device)"
 check "the device stays offline after adb reconnect: unhealthy" "1|1" "$(healthcheck_with yes offline offline)"
+check "the device and another one offline: adb reconnect" "0|1" "$(healthcheck_with yes offline device --env FAKE_OTHER_STATE=offline)"
+check "an iOS container has no adb server: no adb reconnect" "0|0" "$(healthcheck_with yes offline offline --env PLATFORM_NAME=ios)"
 
 section "startup"
 # the env vars of the appium container in zebrunner/mcloud-agent (roles/devices/templates/zebrunner-farm)
