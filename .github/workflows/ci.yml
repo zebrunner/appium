@@ -39,27 +39,50 @@ jobs:
           detailed_summary: true
           require_tests: true
 
-  docker:
+  # the image of the docker tests, built once (as build_image of tests/docker_lib.sh) and passed to the jobs of `docker`
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       IMAGE: zbr-appium:ci
     steps:
       - uses: actions/checkout@v7
-      # every step runs even when the previous one failed: the image is built by the first one
-      - name: Docker image checks
-        id: image
-        run: tests/image_test.sh
-        env:
-          JUNIT_DIR: ${{ runner.temp }}/junit
-      - name: Tests of the Appium patch
-        if: ${{ !cancelled() && steps.image.outcome != 'skipped' }}
-        run: tests/patch_test.sh
-        env:
-          JUNIT_DIR: ${{ runner.temp }}/junit
-      - name: End-to-end tests with a fake device
-        if: ${{ !cancelled() && steps.image.outcome != 'skipped' }}
-        run: tests/e2e_test.sh
+      - name: Build the image
+        run: docker build --progress=plain --platform linux/amd64 --provenance=false --target appium --tag "$IMAGE" .
+      - name: Save the image
+        run: docker save "$IMAGE" | zstd -T0 -3 -q -o "${RUNNER_TEMP}/image.tar.zst"
+      - name: Upload the image
+        uses: actions/upload-artifact@v7
+        with:
+          name: image
+          path: ${{ runner.temp }}/image.tar.zst
+          compression-level: 0
+          retention-days: 1
+
+  # the docker tests in parallel on the image of `build`: image checks, the tests of the Appium patch, end-to-end
+  # tests with a fake device
+  docker:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [image, patch, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE: zbr-appium:ci
+      SKIP_BUILD: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the image
+        uses: actions/download-artifact@v8
+        with:
+          name: image
+          path: ${{ runner.temp }}
+      - name: Load the image
+        run: zstd -dc "${RUNNER_TEMP}/image.tar.zst" | docker load --quiet
+      - name: Docker tests (make ${{ matrix.test }})
+        run: tests/${{ matrix.test }}_test.sh
         env:
           JUNIT_DIR: ${{ runner.temp }}/junit
       - name: Docker report
@@ -67,7 +90,7 @@ jobs:
         uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
         with:
           report_paths: ${{ runner.temp }}/junit/*.xml
-          check_name: docker report
+          check_name: docker report (${{ matrix.test }})
           annotate_only: true
           detailed_summary: true
           require_tests: true
@@ -75,7 +98,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: junit-docker
+          name: junit-docker-${{ matrix.test }}
           path: ${{ runner.temp }}/junit/
 
   patch-sync:

@@ -51,9 +51,30 @@ state_and_logs() {
     "$(docker logs "$1" 2>&1 | grep -E 'socat\[[0-9]+\] E|Fatal Error|error:|Exit status' | head -10)" "$(docker logs "$1" 2>&1 | tail -8)"
 }
 
-# check_starts <container>: Appium is up and the container keeps running
+# UP_AT: SECONDS when Appium of the containers started by start_devices was up (or did not come up)
+UP_AT=0
+
+# start_devices: the device containers of the sections below, started together so that their startups and the 15 s
+# of check_starts overlap; a container that does not come up fails its check_starts
+start_devices() {
+  start_device "$IOS" "" "${IOS_ENV[@]}"
+  start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true SHARE_WDA_LOG=true MJPEG_PORT=8102
+  start_device "$STATIC_IOS" "" "${IOS_ENV[@]}" MJPEG_PORT=8103
+  # a quick watchdog of the recordings for its checks below; the markers of the other checks are newer than its
+  # RECORDING_STALE_SEC; the recording card and the time stamp
+  start_device "$ANDROID" "" "${ANDROID_ENV[@]}" RECORDING_WATCHDOG_SEC=2 RECORDING_ORPHAN_CHECKS=2 RECORDING_CARD=true \
+    RECORDING_TIMESTAMP=true DEVICE_LOCATION="farm 1"
+  local container
+  for container in "$IOS" "$WIRELESS_IOS" "$STATIC_IOS" "$ANDROID"; do
+    wait_for 180 appium_up "$container" || true
+  done
+  UP_AT=$SECONDS
+}
+
+# check_starts <container>: Appium is up and the container keeps running at least 15 s after that
 check_starts() {
-  if wait_for 180 appium_up "$1" && sleep 15 && container_running "$1" && appium_up "$1"; then
+  if wait_for 180 appium_up "$1" && sleep "$((UP_AT + 15 > SECONDS ? UP_AT + 15 - SECONDS : 0))" &&
+    container_running "$1" && appium_up "$1"; then
     pass "Appium starts and the container keeps running"
     return 0
   fi
@@ -158,9 +179,13 @@ else
   finish
 fi
 
-section "ios"
 IOS="${NET}-ios"
-start_device "$IOS" "" "${IOS_ENV[@]}"
+WIRELESS_IOS="${NET}-ios-wireless"
+STATIC_IOS="${NET}-ios-static"
+ANDROID="${NET}-android"
+start_devices
+
+section "ios"
 if ! check_starts "$IOS"; then
   finish
 fi
@@ -215,8 +240,6 @@ check_shared_on_stop "$IOS" ios-4
 section "ios wireless"
 # a device without usb (WIRELESS=true): no usbmuxd forwarding, the WDA based detection still runs;
 # also SHARE_WDA_LOG=true and a MJPEG server without frames: the first frame is the screenshot of WDA
-WIRELESS_IOS="${NET}-ios-wireless"
-start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true SHARE_WDA_LOG=true MJPEG_PORT=8102
 if check_starts "$WIRELESS_IOS"; then
   check_contains "the usbmuxd setup is skipped" "WIRELESS=true: skipping usbmuxd setup" "$(docker logs "$WIRELESS_IOS" 2>&1)"
   check "/var/run/usbmuxd is not forwarded" "no" "$(docker exec "$WIRELESS_IOS" bash -c 'test -S /var/run/usbmuxd && echo yes || echo no')"
@@ -247,8 +270,6 @@ section "ios static screen"
 # the zebrunner fork of WDA sends a frame only when the screen changes and repeats it every 20 s: ffmpeg read it
 # directly, waited 5 s to probe the stream and on SIGINT for the next frame (killed after 30 s), so a short session
 # had no video
-STATIC_IOS="${NET}-ios-static"
-start_device "$STATIC_IOS" "" "${IOS_ENV[@]}" MJPEG_PORT=8103
 if check_starts "$STATIC_IOS"; then
   session "$STATIC_IOS" static-1 4
   start=$SECONDS
@@ -276,11 +297,6 @@ fi
 docker rm -f "$STATIC_IOS" > /dev/null
 
 section "android"
-ANDROID="${NET}-android"
-# a quick watchdog of the recordings for its checks below; the markers of the other checks are newer than its RECORDING_STALE_SEC;
-# the recording card and the time stamp
-start_device "$ANDROID" "" "${ANDROID_ENV[@]}" RECORDING_WATCHDOG_SEC=2 RECORDING_ORPHAN_CHECKS=2 RECORDING_CARD=true \
-  RECORDING_TIMESTAMP=true DEVICE_LOCATION="farm 1"
 if ! check_starts "$ANDROID"; then
   finish
 fi
