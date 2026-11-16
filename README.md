@@ -300,7 +300,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 | `make e2e` | iOS (also wireless) and Android containers with the mcloud-agent settings and a fake device (`tests/fixtures/fake-device.js`): startup, health, usbmuxd and adb forwarding, video recording and the shared artifacts of sessions (back-to-back and overlapping ones, a static screen of WDA, the screenshot as the first frame, the watchdog), `docker stop`, the exit code 101 of mcloud-grid (the recording of an active session is shared) | Docker |
 | `make patch-sync` | the js files of the patch are the build of the patch diff (Appium sources of the base image version, built in `node:22`) | Docker |
 
-The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides the tag, `REBUILD=true` forces a new build, `SKIP_BUILD=true` skips the build of `make image`). The image is amd64 only, so on Apple silicon it runs emulated and the docker tests take a while. With `JUNIT_DIR` set the results are also written as JUnit XML.
+The docker tests build the image once as `zbr-appium:test` (`IMAGE` overrides the tag, `REBUILD=true` forces a new build, `SKIP_BUILD=true` skips the build of `make image`). CI builds it once in the job `build` and runs `make image`, `make patch` and `make e2e` in parallel on it (the jobs `docker (image)`, `docker (patch)`, `docker (e2e)`). The image is amd64 only, so on Apple silicon it runs emulated and the docker tests take a while. With `JUNIT_DIR` set the results are also written as JUnit XML.
 
 The shell scripts are formatted with shfmt (`.editorconfig`). Formatting-only commits are listed in `.git-blame-ignore-revs`, GitHub skips them in blame; locally: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
