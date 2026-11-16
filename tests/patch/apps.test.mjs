@@ -257,6 +257,40 @@ describe('shared application storage', () => {
     assert.equal(fs.existsSync(`${localFile}.lock`), false);
   });
 
+  test('a download longer than APPIUM_MAX_LOCK_FILE_LIFETIME keeps its .lock fresh: a waiting session uses its app', async () => {
+    // the headers at once, the body after 8 s (the other session starts meanwhile); the lifetime of a .lock is 1 s
+    const slow = await listen((req, res) => {
+      res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length});
+      res.flushHeaders();
+      setTimeout(() => res.end(app), 8000);
+    });
+    const slowUrl = `${slow.url}/slow/app.apk`;
+    const stored = path.join(appsDir, new URL(slow.url).host, 'slow', 'app.apk');
+    const appsEnv = Object.fromEntries(Object.entries(env({APPIUM_APP_WAITING_TIMEOUT: '30', APPIUM_MAX_LOCK_FILE_LIFETIME: '1'}))
+      .filter(([, value]) => value !== undefined));
+    try {
+      await withEnv(appsEnv, async () => {
+        const downloading = configureApp(slowUrl, OPTS);
+        for (let i = 0; i < 100 && !fs.existsSync(`${stored}.lock`); i++) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        assert.ok(fs.existsSync(`${stored}.lock`), 'the download has its .lock');
+        // another device of the host wants the same app while it is downloaded
+        const [downloaded, other] = await Promise.all([downloading, session(slowUrl, appsEnv)]);
+        assert.equal(other.error, undefined, 'the waiting session does not take the .lock for the one of a dead download');
+        assert.equal(other.result, stored);
+        assert.ok(fs.existsSync(downloaded));
+      });
+      assert.deepEqual(fs.readFileSync(stored), app);
+      assert.equal(fs.existsSync(`${stored}.lock`), false, 'no .lock left');
+      // the initial requests of both sessions and one download: the other session waited for it, it did not find the
+      // app stored and checked its size
+      assert.equal(slow.requests.length, 3, 'the app is downloaded once');
+    } finally {
+      await slow.close();
+    }
+  });
+
   test('the .lock carries the device and the session of the download', async () => {
     let lockContent;
     // the second request is the download, the .lock is written before it
@@ -406,5 +440,68 @@ describe('shared application storage', () => {
       assert.ok(fs.existsSync(result));
       assert.deepEqual(fs.readdirSync(appsDir), []);
     });
+  });
+});
+
+// The size check of a stored app (getFileContentLength): a GET of the app whose body is not read
+describe('the size of a remote app', () => {
+  const {getFileContentLength} = createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
+  const app = Buffer.alloc(2048, 3);
+
+  test('the size check reads the headers only and closes the connection', async () => {
+    // a big app: its body does not fit into the socket buffers, the response ends only when it is read or closed
+    const chunk = Buffer.alloc(1024 * 1024, 5);
+    const chunks = 256;
+    const closed = [];
+    const remote = await listen((req, res) => {
+      res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': chunk.length * chunks});
+      res.on('close', () => closed.push(req.url));
+      let sent = 0;
+      const send = () => {
+        while (sent < chunks) {
+          sent++;
+          if (!res.write(chunk)) {
+            res.once('drain', send);
+            return;
+          }
+        }
+        res.end();
+      };
+      send();
+    });
+    try {
+      assert.equal(await getFileContentLength(`${remote.url}/big.apk`), chunk.length * chunks);
+      for (let i = 0; i < 40 && closed.length === 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      assert.deepEqual(closed, ['/big.apk'], 'the connection of the size check is closed');
+    } finally {
+      await remote.close();
+    }
+  });
+
+  test('a server without Content-Length: the size is unknown and the stored app is downloaded again', async () => {
+    let body = app;
+    // no content-length: a chunked response
+    const remote = await listen((req, res) => {
+      res.writeHead(200, {'content-type': 'application/octet-stream'});
+      res.end(body);
+    });
+    const appsDir = tmpDir('apps');
+    const url = `${remote.url}/chunked/app.apk`;
+    const stored = path.join(appsDir, new URL(remote.url).host, 'chunked', 'app.apk');
+    try {
+      assert.equal(await getFileContentLength(url), null);
+      await withEnv({APPIUM_APPS_DIR: appsDir, APPIUM_APP_SIZE_DISABLE: undefined}, async () => {
+        await configureApp(url, OPTS);
+        assert.deepEqual(fs.readFileSync(stored), app, 'the first session stores the app');
+        // the next session cannot compare the sizes: the app is downloaded again, as a new build may be at the url
+        body = Buffer.alloc(4096, 4);
+        await configureApp(url, OPTS);
+        assert.deepEqual(fs.readFileSync(stored), body, 'the next session stores the app again');
+      });
+    } finally {
+      await remote.close();
+    }
   });
 });

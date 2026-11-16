@@ -84,7 +84,6 @@ The container is configured with environment variables; the defaults are the val
 | `PLATFORM_NAME` | | `android` or `ios` (any case): the device module to run, the default capabilities and the video source |
 | `DEVICE_UDID` | | the udid of the device: capabilities, `/status-adb`, STF updates |
 | `DEVICE_NAME` | | the device name in the node config and the default capabilities |
-| `ANDROID_DEVICES` | | `/status-adb` looks for this name when `DEVICE_UDID` is empty |
 
 `PLATFORM_VERSION`, `DEVICETYPE` (Phone, Tablet, TV) and `AUTOMATION_NAME` are detected by the device module at startup.
 
@@ -127,13 +126,15 @@ Remote applications are kept in a shared storage, so the devices of a host downl
 | --- | --- | --- |
 | `APPIUM_APPS_DIR` | `/opt/appium-storage` | the storage, an application is stored as `<host>/<path>` of its url without the query (an http(s) url only; its dot segments are resolved, the file stays in the storage); empty disables the storage |
 | `APPIUM_APP_SIZE_DISABLE` | `false` | `true` uses a stored application without comparing its size with the remote one |
-| `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file) |
-| `APPIUM_MAX_LOCK_FILE_LIFETIME` | `1800` | s, an older `.lock` file is removed as left by a crashed download |
+| `APPIUM_APP_WAITING_TIMEOUT` | `600` | s, how long a session waits for the download of the same application by another device (`.lock` file); a longer download fails the waiting session |
+| `APPIUM_MAX_LOCK_FILE_LIFETIME` | `1800` | s, a `.lock` file not refreshed for this time is removed as left by a crashed download: a running download refreshes its `.lock` four times per lifetime (at most every minute), so the lifetime does not limit the download |
 | `APPIUM_APP_FETCH_RETRIES` | `3` | the retries of a broken download, `0` disables them |
 | `APPIUM_APPS_MAX_AGE` | `7` | days, a download removes the applications not used for this time; `0` keeps them |
 | `APPIUM_APPS_MIN_FREE` | `10` | %, a download removes the least recently used applications while the free space of the storage is below it; `0` disables it |
 
 Every build of an application is usually a new url, so the storage is cleaned before a download: the applications not used for `APPIUM_APPS_MAX_AGE` days, then the least recently used ones while the free space is below `APPIUM_APPS_MIN_FREE`, and the temporary copies of the interrupted downloads. An application is used when a session takes it from the storage; the ones used in the last hour and the ones being downloaded (`.lock`) are kept. A failed cleanup is logged and does not fail the session.
+
+A stored application is used when its size is the one of the remote application (the `Content-Length` of a GET of its url, the body is not read); an application whose server sends no `Content-Length` (a chunked response) has no known size and is downloaded again by every session, unless `APPIUM_APP_SIZE_DISABLE=true`.
 
 ### Video recording and artifacts
 
@@ -230,7 +231,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 ### Device status
 
-`GET /wd/hub/status-adb` and `GET /wd/hub/status-wda` report whether the device or WDA is ready. With a JSON body `{"exitCode": <code>}` (as mcloud-grid sends) Appium exits with the code when the check fails, so the container restarts. WDA gets 3 s to answer and a second attempt after 500 ms (a WDA busy with the end of the last session is not down), `adb devices` gets 5 s; mcloud-grid waits 10 s for the check.
+`GET /wd/hub/status-adb` and `GET /wd/hub/status-wda` report whether the device or WDA is ready. With a JSON body `{"exitCode": <code>}` (as mcloud-grid sends) Appium exits with the code when the check fails, so the container restarts. WDA gets 3 s to answer and a second attempt after 500 ms (a WDA busy with the end of the last session is not down); the device is ready when `adb -s <DEVICE_UDID> get-state` answers `device` in 5 s (not `offline`, `unauthorized` or without the permissions of adb); mcloud-grid waits 10 s for the check.
 
 ## Limitations
 
@@ -244,7 +245,7 @@ A simulator runs on the macOS host, its connector boots it and starts WebDriverA
 
 - `session not created: please close '<package>' and try again` on a switch to a `WEBVIEW_<package>` context: the WebView belongs to another app than the `appPackage` of the session (e.g. `org.chromium.webview_shell` on an AOSP emulator). Appium passes the `appPackage` to chromedriver as the package it expects in the DevTools, and chromedriver finds `<package>` there. Set `appium:chromeAndroidPackage` to the package of the WebView, e.g. `"appium:chromeAndroidPackage": "org.chromium.webview_shell"`.
 - An AOSP emulator has no Chrome: a mobile web session (`browserName: Chrome`) fails with `Either provide 'app' option to install 'com.android.chrome'...`. Use a WebView app (e.g. `org.chromium.webview_shell`, preinstalled on AOSP) or install Chrome.
-- `An attempt to register with the grid <hub> was unsuccessful: <reason>. <hint>` in the log: mcloud-grid refused the node registration (the reason is the error of the hub) or did not answer. The registration is retried every 5 s (`registerCycle`); the error is logged when the reason changes and once in 10 minutes for the same reason with the number of the attempts failed meanwhile, the other attempts at debug level, and `Appium is registered with the grid ...` once it succeeds. The reasons:
+- `An attempt to register with the grid <hub> was unsuccessful: <reason>. <hint>` in the log: mcloud-grid refused the node registration (the reason is the error of the hub) or did not answer. The registration is retried every 5 s (`registerCycle`), a cycle is skipped while the last registration runs and a registration the hub does not answer in 60 s fails; the error is logged when the reason changes and once in 10 minutes for the same reason with the number of the attempts failed meanwhile, the other attempts at debug level, and `Appium is registered with the grid ...` once it succeeds. The reasons:
   - `HTTP 500: Node <url> is not reachable from the hub (<exception>), so it is not registered`: the hub connects back to the node url (`http://STF_PROVIDER_HOST:<appium port>/wd/hub`) and gets no answer. `STF_PROVIDER_HOST` must be an address of the device host that the hub can reach (in a LAN the LAN address: the public IP often fails without NAT hairpin) and the Appium port must be published.
   - `HTTP 500: Node <url> has an unknown or revoked node token, so it is not registered`: STF does not know the token or the node is not active: it was revoked, or the host joined again (a new join replaces the token, the old one is invalid). Check that `MCLOUD_NODE_TOKEN` of mcloud-agent is the token of the last `./zebrunner.sh join` and that the node is active in STF; otherwise invite the host again and join it.
   - the same answer when `STF_PROVIDER_HOST` is not the address of the node invite: a node token is valid only for the address the host joined with, which must be the host of the node url (`http://STF_PROVIDER_HOST:<appium port>/wd/hub`). Set `STF_PROVIDER_HOST` of mcloud-agent back to that address (`./zebrunner.sh join` writes it), or invite the host with its new address and join it again.
@@ -275,7 +276,7 @@ The patch is kept twice: `files/patch/appium-<version>.diff` for the Appium sour
 
 ## Exit codes and health
 
-- The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline.
+- The docker healthcheck (every 10 s, after a 60 s start period) requires the Appium status; an offline Android device gets `adb reconnect` and is unhealthy when it stays offline (an iOS container has no adb).
 - The container exits with `1` whenever Appium exits, so the `on-failure` restart policy starts it again. Appium exits with `101` when mcloud-grid finds the device or WDA down (`/status-adb`, `/status-wda` with `exitCode`): the container then waits `UNREGISTER_IF_STILL_DOWN_AFTER` plus 15 s for the hub to unregister the node.
 - An invalid configuration ends the container with `0` before anything starts, so the `on-failure` restart policy does not restart it (a restart does not fix it): every invalid variable is logged as `Invalid configuration: <variable> ...` (`files/config/zbr-config-check.sh`: a number for `APPIUM_PORT` and `UNREGISTER_IF_STILL_DOWN_AFTER`; with `CONNECT_TO_GRID=true` `SELENIUM_HOST`, `STF_PROVIDER_HOST` and a number for `SELENIUM_PORT` and `ADB_PORT`; with `DEFAULT_CAPABILITIES=true` the ports of the platform and `CHROME_OPTIONS`). An iOS container ends with `1` when WebDriverAgent does not answer in `DEVICE_TIMEOUT`.
 - `DEBUG=true` keeps an ending container for `DEBUG_TIMEOUT` seconds to look into it.

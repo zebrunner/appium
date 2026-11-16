@@ -1,8 +1,8 @@
 diff --git a/packages/appium/lib/grid-register.js b/packages/appium/lib/grid-register.js
-index 80e22ef..0e8127d 100644
+index 80e22ef..faeb9cc 100644
 --- a/packages/appium/lib/grid-register.js
 +++ b/packages/appium/lib/grid-register.js
-@@ -39,17 +39,186 @@ async function registerNode(data, addr, port, basePath) {
+@@ -39,17 +39,197 @@ async function registerNode(data, addr, port, basePath) {
    postRequest(data, addr, port, basePath);
  }
  
@@ -16,6 +16,9 @@ index 80e22ef..0e8127d 100644
 +const REASON_MAX_LENGTH = 400;
 +// the registration is retried every registerCycle: the same reason is logged as an error once in this time
 +const REPEATED_FAILURE_LOG_INTERVAL_MS = 10 * 60 * 1000;
++// the hub answers a registration after it checked the node: its url (NODE_REACHABILITY_TIMEOUT) and its node token
++// with STF
++const REGISTRATION_TIMEOUT_MS = 60 * 1000;
 +const HTML_ENTITIES = {quot: '"', amp: '&', lt: '<', gt: '>', apos: "'", nbsp: ' '};
 +
 +/**
@@ -26,9 +29,7 @@ index 80e22ef..0e8127d 100644
 +  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entity, name) => {
 +    if (name[0] !== '#') {
 +      return HTML_ENTITIES[name.toLowerCase()] ?? entity;
-     }
--    logger.debug(
--      `Appium successfully registered with the the grid on ` + hubUri(configHolder.configuration)
++    }
 +    const code = /^#x/i.test(name) ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
 +    return code <= 0x10ffff ? String.fromCodePoint(code) : entity;
 +  });
@@ -74,7 +75,9 @@ index 80e22ef..0e8127d 100644
 +    const message = err?.message || _.map(err?.errors, 'message').join(', ') || String(err);
 +    if (!err?.code) {
 +      return message;
-+    }
+     }
+-    logger.debug(
+-      `Appium successfully registered with the the grid on ` + hubUri(configHolder.configuration)
 +    return `the hub ${uri} is not reachable: ${message.includes(err.code) ? message : `${err.code} ${message}`}`;
 +  }
 +  let text = responseBodyText(response.data);
@@ -111,10 +114,18 @@ index 80e22ef..0e8127d 100644
 +      `The hub connects back to the node url ${nodeUrl}: STF_PROVIDER_HOST must be an address of this host ` +
 +      `that the hub can reach (in a LAN the LAN address: the public IP often fails without NAT hairpin); ` +
 +      `the appium port must be published`
-     );
++    );
 +  }
-+  if (reason.includes('NODE_REGISTRATION_TOKEN')) {
-+    return 'NODE_REGISTRATION_TOKEN of this container must be the one of mcloud-grid (variables.env of mcloud)';
++  // the node token of the host (mcloud-grid NodeAuthentication): verified by STF for the address of the node
++  if (/could not verify it|STF_URL and STF_TOKEN of the hub/.test(reason)) {
++    return 'The hub verifies the node token with STF: check STF and STF_URL and STF_TOKEN of mcloud-grid';
++  }
++  if (reason.includes('node token')) {
++    return (
++      'NODE_REGISTRATION_TOKEN is the node token of this host: MCLOUD_NODE_TOKEN of mcloud-agent, written by ' +
++      './zebrunner.sh join with an invite of ./zebrunner.sh node-invite of mcloud; the token is valid only for the ' +
++      `address of the invite, the host of the node url ${nodeUrl} (STF_PROVIDER_HOST)`
+     );
 +  }
 +  if (reason.includes('NODE_ALLOWED_NETWORKS')) {
 +    return 'Add the network of STF_PROVIDER_HOST to NODE_ALLOWED_NETWORKS of mcloud-grid';
@@ -197,25 +208,53 @@ index 80e22ef..0e8127d 100644
    }
  }
  
-@@ -107,6 +276,7 @@ function postRequest(configHolder, addr, port, basePath) {
+@@ -85,11 +265,12 @@ function postRequest(configHolder, addr, port, basePath) {
+     configHolder.configuration.id = `http://${configHolder.configuration.host}:${configHolder.configuration.port}`;
+   }
+ 
+-  // the post options
++  // the post options; a hub that does not answer must not hold the registration forever
+   const regRequest = {
+     url: `${hubUri(configHolder.configuration)}/grid/register`,
+     method: 'POST',
+     data: configHolder,
++    timeout: REGISTRATION_TIMEOUT_MS,
+   };
+ 
+   if (configHolder.configuration.register !== true) {
+@@ -107,22 +288,38 @@ function postRequest(configHolder, addr, port, basePath) {
    }
    // initiate a new Thread
    let first = true;
++  // Fork (Zebrunner): a cycle still running (a slow hub) skips the next ones, the registrations do not overlap
++  let running = false;
 +  const failures = noRegistrationFailures();
    logger.debug(
      `Starting auto register thread for the grid. ` +
        `Will try to register every ${registerCycleInterval} ms.`
-@@ -114,15 +284,19 @@ function postRequest(configHolder, addr, port, basePath) {
+   );
    setInterval(async function registerRetry() {
-     if (first) {
-       first = false;
+-    if (first) {
+-      first = false;
 -      await registerToGrid(regRequest, configHolder);
 -    } else if (!(await isAlreadyRegistered(configHolder))) {
-+      await registerToGrid(regRequest, configHolder, failures);
-+    } else if (!(await isAlreadyRegistered(configHolder, failures))) {
-       // make the http POST to the grid for registration
+-      // make the http POST to the grid for registration
 -      await registerToGrid(regRequest, configHolder);
-+      await registerToGrid(regRequest, configHolder, failures);
++    if (running) {
++      logger.debug(`The previous registration with the grid is still running, this cycle is skipped`);
++      return;
++    }
++    running = true;
++    try {
++      if (first) {
++        first = false;
++        await registerToGrid(regRequest, configHolder, failures);
++      } else if (!(await isAlreadyRegistered(configHolder, failures))) {
++        // make the http POST to the grid for registration
++        await registerToGrid(regRequest, configHolder, failures);
++      }
++    } finally {
++      running = false;
      }
    }, registerCycleInterval);
  }
@@ -229,7 +268,7 @@ index 80e22ef..0e8127d 100644
    //check if node is already registered
    const id = configHolder.configuration.id;
    try {
-@@ -134,12 +308,16 @@ async function isAlreadyRegistered(configHolder) {
+@@ -134,12 +331,16 @@ async function isAlreadyRegistered(configHolder) {
        throw new Error(`Request failed with code ${status}`);
      }
      if (!data.success) {
@@ -250,21 +289,25 @@ index 80e22ef..0e8127d 100644
  }
  
 diff --git a/packages/base-driver/lib/basedriver/core.ts b/packages/base-driver/lib/basedriver/core.ts
-index 53170a3..f7bb7d8 100644
+index 53170a3..7f902ff 100644
 --- a/packages/base-driver/lib/basedriver/core.ts
 +++ b/packages/base-driver/lib/basedriver/core.ts
-@@ -22,6 +22,10 @@ import {errors} from '../protocol';
+@@ -22,6 +22,14 @@ import {errors} from '../protocol';
  import {DeviceSettings} from './device-settings';
  import * as helpers from './helpers';
  import {ExtensionCore} from './extension-core';
-+import { executeShellWPromise, parseWDAUrl, getWDAStatus } from './mcloud-utils';
++import { parseWDAUrl, getWDAStatus } from './mcloud-utils';
++import { execFile } from 'child_process';
++import { promisify } from 'util';
++
++const execFileAsync = promisify(execFile);
 +
 +// [MCLOUD] a hung adb server must not hang the status check of mcloud-grid (it waits 10 s)
 +const ADB_STATUS_TIMEOUT_MS = 5000;
  
  const NEW_COMMAND_TIMEOUT_MS = 60 * 1000;
  
-@@ -209,6 +213,58 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
+@@ -209,6 +217,48 @@ export class DriverCore<const C extends Constraints, Settings extends StringReco
      return {};
    }
  
@@ -287,44 +330,34 @@ index 53170a3..f7bb7d8 100644
 +
 +  async getStatusADB(exitCode?: number | null) {
 +    const deviceUDID = process.env.DEVICE_UDID;
-+    if (deviceUDID) {
-+      const adbDevicesCmd = 'adb devices | grep $DEVICE_UDID | grep "device"';
-+      try {
-+        await executeShellWPromise(adbDevicesCmd, ADB_STATUS_TIMEOUT_MS);
-+        return {'status': 'success', 'details': `Connected device with UDID ${deviceUDID} is ready for execution`};
-+      } catch {
-+        if (exitCode != null) {
-+          this.log.error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
-+          process.exit(exitCode);
-+        }
-+        throw new Error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+      }
-+    } else {
-+      const deviceName = process.env.ANDROID_DEVICES;
-+      if (!deviceName) {
-+        throw new Error(`[MCLOUD] Neither DEVICE_UDID nor ANDROID_DEVICES environment variables were found.`);
-+      }
-+      const adbDevicesCmd = 'adb devices | grep $ANDROID_DEVICES | grep "device"';
-+      try {
-+        await executeShellWPromise(adbDevicesCmd, ADB_STATUS_TIMEOUT_MS);
-+        return {'status': 'success', 'details': `Connected device with name ${deviceName} is ready for execution`};
-+      } catch {
-+        if (exitCode != null) {
-+          this.log.error(`[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+          this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
-+          process.exit(exitCode);
-+        }
-+        throw new Error(`[MCLOUD] Connected device with name ${deviceUDID} is NOT ready for execution. Device was not returned by adb`);
-+      }
++    if (!deviceUDID) {
++      throw new Error(`[MCLOUD] DEVICE_UDID environment variable was not found.`);
 +    }
++    // the state of this device: `adb devices | grep` matched another udid containing it and the "no permissions"
++    // line of a device (its help url ends with device.html)
++    let state = '';
++    try {
++      ({stdout: state} = await execFileAsync('adb', ['-s', deviceUDID, 'get-state'], {timeout: ADB_STATUS_TIMEOUT_MS}));
++    } catch (err) {
++      this.log.debug(`[MCLOUD] adb -s ${deviceUDID} get-state failed: ${err.message}`);
++    }
++    if (state.trim() === 'device') {
++      return {'status': 'success', 'details': `Connected device with UDID ${deviceUDID} is ready for execution`};
++    }
++    const message = `[MCLOUD] Connected device with UDID ${deviceUDID} is NOT ready for execution. Its adb state is '${state.trim() || 'unknown'}'`;
++    if (exitCode != null) {
++      this.log.error(message);
++      this.log.warn(`[MCLOUD] Killing Appium instance with "exit(${exitCode})"`);
++      process.exit(exitCode);
++    }
++    throw new Error(message);
 +  }
 +
    /**
     * method required by MJSONWP in order to determine whether it should
     * respond with an invalid session response
 diff --git a/packages/base-driver/lib/basedriver/driver.ts b/packages/base-driver/lib/basedriver/driver.ts
-index 07258f3..a9e8d31 100644
+index 07258f3..911d181 100644
 --- a/packages/base-driver/lib/basedriver/driver.ts
 +++ b/packages/base-driver/lib/basedriver/driver.ts
 @@ -1,4 +1,6 @@
@@ -338,7 +371,8 @@ index 07258f3..a9e8d31 100644
  
      this.log.info(`Session created with session id: ${this.sessionId}`);
  
-+    // save current sessionId globally to handle negative use-case instead of desired fallbackSessionId
++    // the session being created for the errors of its creation (protocol.ts) and the .lock of an app download
++    // (helpers.js), which have no session id of their own
 +    process.env.sessionId = this.sessionId;
 +
 +    const createRecordingArtifact = async (sessionId, logDir) => {
@@ -353,9 +387,8 @@ index 07258f3..a9e8d31 100644
 +    };
 +    // directory where .recording-artifact file should be created
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
-+    // When the requesting session owns recording externally (e.g. Playwright bridge
-+    // owns one marker per test) skip per-session markers so they don't start/stop
-+    // capture per command. This is per-session (capability), not container-wide.
++    // A session with appium:mcloudExternalRecording=true leaves the recording to its client (it creates and removes
++    // the markers itself): no marker of the session. This is per session (capability), not container-wide.
 +    if (String(this.caps?.mcloudExternalRecording) === 'true') {
 +      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact create');
 +    }
@@ -371,7 +404,7 @@ index 07258f3..a9e8d31 100644
      return [this.sessionId, caps] as CreateResult;
    }
  
-@@ -392,6 +424,33 @@ export class BaseDriver<
+@@ -392,6 +424,32 @@ export class BaseDriver<
          queues[key] = [];
        }
      }
@@ -385,9 +418,8 @@ index 07258f3..a9e8d31 100644
 +      }
 +    };
 +    const logDirName: string = process.env.LOG_DIR ?? '/tmp/log';
-+    // When the requesting session owns recording externally (e.g. Playwright bridge)
-+    // skip per-session marker removal so command-end can't trigger share/stop of the
-+    // test recording. This is per-session (capability), not container-wide.
++    // A session with appium:mcloudExternalRecording=true leaves the recording to its client: the end of the session
++    // does not remove a marker of the client. This is per session (capability), not container-wide.
 +    if (String(this.caps?.mcloudExternalRecording) === 'true') {
 +      this.log.info('[MCLOUD] mcloudExternalRecording cap set; skipping per-session .recording-artifact remove');
 +    }
@@ -406,10 +438,17 @@ index 07258f3..a9e8d31 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..f02a1ba 100644
+index b3bdf5a..e2af2e9 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
-@@ -7,6 +7,7 @@ import { LRUCache } from 'lru-cache';
+@@ -1,12 +1,14 @@
+ import _ from 'lodash';
+ import path from 'path';
+ import url from 'url';
++import {promises as nodeFs} from 'fs';
+ import logger from './logger';
+ import {tempDir, fs, util, timing, node} from '@appium/support';
+ import { LRUCache } from 'lru-cache';
  import AsyncLock from 'async-lock';
  import axios from 'axios';
  import B from 'bluebird';
@@ -417,7 +456,7 @@ index b3bdf5a..f02a1ba 100644
  
  // for compat with running tests transpiled and in-place
  export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
-@@ -27,7 +28,10 @@ const APPLICATIONS_CACHE = new LRUCache({
+@@ -27,7 +29,10 @@ const APPLICATIONS_CACHE = new LRUCache({
        `The application '${app}' cached at '${fullPath}' has ` +
          `expired after ${CACHED_APPS_MAX_AGE_MS}ms`
      );
@@ -429,7 +468,7 @@ index b3bdf5a..f02a1ba 100644
        fs.rimraf(fullPath);
      }
    },
-@@ -43,13 +47,15 @@ process.on('exit', () => {
+@@ -43,13 +48,15 @@ process.on('exit', () => {
      return;
    }
  
@@ -446,7 +485,7 @@ index b3bdf5a..f02a1ba 100644
        // @ts-ignore it's defined
        fs.rimrafSync(appPath);
      } catch (e) {
-@@ -100,6 +106,7 @@ export async function configureApp(
+@@ -100,6 +107,7 @@ export async function configureApp(
    let newApp = app;
    const originalAppLink = app;
    let packageHash = null;
@@ -454,7 +493,7 @@ index b3bdf5a..f02a1ba 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +168,243 @@ export async function configureApp(
+@@ -161,38 +169,247 @@ export async function configureApp(
              }
            }
          }
@@ -476,18 +515,19 @@ index b3bdf5a..f02a1ba 100644
 +        let fileName;
 +        let lockFile = '';
 +        const waitingTime = 1000;
-+        const maxAttemptsCount = toNaturalNumber(90, 'APPIUM_APP_WAITING_TIMEOUT');
-+        const maxLockFileLifetime = toNaturalNumber(180, 'APPIUM_MAX_LOCK_FILE_LIFETIME');
++        // the defaults of the image (Dockerfile, README)
++        const maxAttemptsCount = toNaturalNumber(600, 'APPIUM_APP_WAITING_TIMEOUT');
++        const maxLockFileLifetime = toNaturalNumber(1800, 'APPIUM_MAX_LOCK_FILE_LIFETIME');
 +        const appSizeCheckDisabled = process.env.APPIUM_APP_SIZE_DISABLE?.toLowerCase?.() === 'true';
 +        const appFetchRetriesEnv = parseInt(`${process.env.APPIUM_APP_FETCH_RETRIES}`, 10);
 +        let appFetchRetries = appFetchRetriesEnv >= 0 ? appFetchRetriesEnv : 3; // 0 disables the retries
 +        // the session owns the .lock (it downloads the app) only when it created the .lock
 +        let lockOwned = false;
 +
-+        // the creation time of the .lock, null when there is no .lock (anymore)
-+        const lockCreatedTime = async () => {
++        // the last refresh of the .lock by its download (refreshLockWhileDownloading), null when there is no .lock (anymore)
++        const lockRefreshedTime = async () => {
 +          try {
-+            return (await fs.stat(lockFile)).ctime;
++            return (await fs.stat(lockFile)).mtime;
 +          } catch (err) {
 +            if (err.code === 'ENOENT') {
 +              return null;
@@ -507,11 +547,12 @@ index b3bdf5a..f02a1ba 100644
 +          }
 +          logger.info(`[MCLOUD] Local version of app not found but .lock file exists. Waiting for .lock to disappear. Device/session details: ${lockDetails}`);
 +          let attemptsCount = 0;
-+          let createdTime;
-+          while ((createdTime = await lockCreatedTime()) && (attemptsCount++ < maxAttemptsCount)) {
-+            const diffInSeconds = (new Date().getTime() - createdTime.getTime()) / 1000;
++          let refreshedTime;
++          while ((refreshedTime = await lockRefreshedTime()) && (attemptsCount++ < maxAttemptsCount)) {
++            const diffInSeconds = (new Date().getTime() - refreshedTime.getTime()) / 1000;
++            // a running download refreshes its .lock: an old one is left by a download that died
 +            if (diffInSeconds >= maxLockFileLifetime) {
-+              logger.info(`[MCLOUD] Removing .lock file since its lifetime reached to the limit`);
++              logger.info(`[MCLOUD] Removing .lock file since it was not refreshed for ${maxLockFileLifetime}s: its download died`);
 +              await fs.rimraf(lockFile);
 +              throw Error(`[MCLOUD] .lock file was removed due to lifetime limit. New download attempt will start for the next session request`);
 +            }
@@ -520,12 +561,21 @@ index b3bdf5a..f02a1ba 100644
 +              setTimeout(resolve, waitingTime);
 +            });
 +          }
-+          if (await lockCreatedTime()) {
++          if (await lockRefreshedTime()) {
 +            throw Error(`[MCLOUD] .lock file for downloading application has not disappeared after ${waitingTime * maxAttemptsCount}ms`);
-+          }
+           }
+-          logger.info(
+-            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
+-              `or its integrity has been damaged. Deleting it from the internal cache`
+-          );
+-          APPLICATIONS_CACHE.delete(appCacheKey);
+-
+-          if (!stream.closed) {
+-            stream.destroy();
 +          if (!await fs.exists(localFile)) {
 +            throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
-+          }
+           }
+-          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
 +          logger.info(`[MCLOUD] Local version of app was found after .lock file removal. Will use it for new session`);
 +        };
 +
@@ -572,7 +622,7 @@ index b3bdf5a..f02a1ba 100644
 +              newApp = localFile;
 +              downloadIsNeeded = false;
 +            }
-+          } else if (await lockCreatedTime()) {
++          } else if (await lockRefreshedTime()) {
 +            await waitForParallelDownload();
 +            await touchSharedApp(localFile);
 +            newApp = localFile;
@@ -580,19 +630,23 @@ index b3bdf5a..f02a1ba 100644
 +          } else {
 +            logger.info(`[MCLOUD] Neither local version of app nor .lock file was found. Will download app from remote URL.`);
 +            downloadIsNeeded = true;
-           }
--          logger.info(
--            `The application at '${cachedAppInfo.fullPath}' does not exist anymore ` +
--              `or its integrity has been damaged. Deleting it from the internal cache`
--          );
--          APPLICATIONS_CACHE.delete(appCacheKey);
--
--          if (!stream.closed) {
--            stream.destroy();
++          }
 +        } else {
 +          logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic. Use variable APPIUM_APPS_DIR for path setting`);
-+        }
-+
+         }
+ 
+-        if (onDownload) {
+-          newApp = await onDownload({
+-            url: originalAppLink,
+-            headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(headers)),
+-            stream,
+-          });
+-        } else {
+-          const fileName = determineFilename(headers, pathname, supportedAppExtensions);
+-          newApp = await fetchApp(stream, await tempDir.path({
+-            prefix: fileName,
+-            suffix: '',
+-          }));
 +        if (downloadIsNeeded && localAppsFolder !== undefined) {
 +          logger.info(`[MCLOUD] Local version of app was not found. Hence using default Appium logic for downloading`);
 +          const sharedFolderPath = await getSharedFolderForAppUrl(app);
@@ -617,25 +671,13 @@ index b3bdf5a..f02a1ba 100644
 +            await touchSharedApp(/** @type {string} */ (localFile));
 +            newApp = /** @type {string} */ (localFile);
 +            downloadIsNeeded = false;
-           }
--          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
-         }
- 
--        if (onDownload) {
--          newApp = await onDownload({
--            url: originalAppLink,
--            headers: /** @type {import('@appium/types').HTTPHeaders} */ (_.clone(headers)),
--            stream,
--          });
--        } else {
--          const fileName = determineFilename(headers, pathname, supportedAppExtensions);
--          newApp = await fetchApp(stream, await tempDir.path({
--            prefix: fileName,
--            suffix: '',
--          }));
++          }
++        }
++
 +        if (downloadIsNeeded) {
 +          // the temporary copy of the downloaded app in the shared storage, renamed when complete
 +          const localTmpFile = localFile ? `${localFile}.${process.pid}.tmp` : '';
++          const lockRefresher = lockOwned ? refreshLockWhileDownloading(lockFile, maxLockFileLifetime) : undefined;
 +          try {
 +            if (cachedAppInfo && status === HTTP_STATUS_NOT_MODIFIED) {
 +              if (await isAppIntegrityOk(/** @type {string} */ (cachedAppInfo.fullPath), cachedAppInfo.integrity)) {
@@ -709,6 +751,7 @@ index b3bdf5a..f02a1ba 100644
 +              }
 +            }
 +          } finally {
++            clearInterval(lockRefresher);
 +            if (localTmpFile) {
 +              await fs.rimraf(localTmpFile);
 +            }
@@ -724,7 +767,7 @@ index b3bdf5a..f02a1ba 100644
            stream.destroy();
          }
        }
-@@ -218,7 +430,10 @@ export async function configureApp(
+@@ -218,7 +435,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
@@ -736,12 +779,46 @@ index b3bdf5a..f02a1ba 100644
          await fs.rimraf(cachedFullPath);
        }
        const integrity = {};
+@@ -540,6 +760,33 @@ function isEnvOptionEnabled(optionName, defaultValue = null) {
+   return !_.isEmpty(value) && !['0', 'false', 'no'].includes(_.toLower(value));
+ }
+ 
++/**
++ * [MCLOUD] Keeps the .lock of a download of the shared storage fresh: the sessions waiting for the download remove a
++ * .lock older than APPIUM_MAX_LOCK_FILE_LIFETIME as left by a dead download, so a download longer than that was taken
++ * for a dead one and the app was downloaded again in parallel. The .lock is touched several times per lifetime, so its
++ * age stays below the lifetime while the download runs; the timer ends with the process of a dead download.
++ *
++ * @param {string} lockFile
++ * @param {number} lifetimeSec APPIUM_MAX_LOCK_FILE_LIFETIME
++ * @returns {NodeJS.Timeout} the timer, cleared when the download ends
++ */
++function refreshLockWhileDownloading(lockFile, lifetimeSec) {
++  const intervalMs = Math.min(Math.max(lifetimeSec * 1000 / 4, 250), 60 * 1000);
++  const timer = setInterval(async () => {
++    const now = new Date();
++    try {
++      await nodeFs.utimes(lockFile, now, now);
++    } catch (err) {
++      // removed at the end of the download
++      if (err.code !== 'ENOENT') {
++        logger.warn(`[MCLOUD] Cannot refresh the lock file ${lockFile} of the download: ${err.message}`);
++      }
++    }
++  }, intervalMs);
++  timer.unref();
++  return timer;
++}
++
+ /**
+  *
+  * @param {string} [envVarName]
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..87b5337
+index 0000000..d1a7ec3
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,322 @@
+@@ -0,0 +1,325 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
@@ -961,7 +1038,11 @@ index 0000000..87b5337
 +  return targetPath;
 +}
 +
-+async function getFileContentLength(remoteUrl) {
++// [MCLOUD] the size of the remote app, compared with the stored one (APPIUM_APP_SIZE_DISABLE); null when the server
++// sends no Content-Length (e.g. a chunked response): the size is unknown, the caller downloads the app again. Only the
++// headers are read, the body is not: its connection is closed at once. A GET, not a HEAD: the signed urls of S3 are
++// valid for GET only.
++async function getFileContentLength(remoteUrl): Promise<number | null> {
 +  const timeout = 10000;
 +  const retries = 5;
 +  const pollingInterval = 3000;
@@ -974,29 +1055,28 @@ index 0000000..87b5337
 +
 +  // getting content-length with retry
 +  let lastError;
-+  const getLengthRequest = async () => {
-+    for (let i = 0; i < retries; i++) {
-+      try {
-+        logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
-+        const {
-+          headers: responseHeaders,
-+        } = await axios(requestOpts);
-+        const responseLength = parseInt(responseHeaders['content-length'], 10);
-+        logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
-+        return responseLength;
-+      } catch (error) {
-+        lastError = error;
++  for (let i = 0; i < retries; i++) {
++    try {
++      logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
++      const {headers: responseHeaders, data: stream} = await axios(requestOpts);
++      stream?.destroy?.();
++      const header = `${responseHeaders['content-length'] ?? ''}`.trim();
++      if (!/^\d+$/.test(header)) {
++        logger.warn(`[MCLOUD] The server of the app sends no Content-Length ('${header}'): the size of the remote app is unknown`);
++        return null;
++      }
++      const responseLength = parseInt(header, 10);
++      logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
++      return responseLength;
++    } catch (error) {
++      lastError = error;
++      if (i < retries - 1) {
 +        logger.warn(`[MCLOUD] Cannot fetch info about app size. Will retry attempt in ${pollingInterval}ms`);
 +        await new Promise((resolve) => setTimeout(resolve, pollingInterval));
 +      }
 +    }
-+  };
-+  const length = await getLengthRequest();
-+  if (length) {
-+    return length;
-+  } else {
-+    throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
 +  }
++  throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
 +}
 +
 +async function executeShell(shellCommand, description) {
@@ -1198,7 +1278,7 @@ index ddb5d55..773ce55 100644
    // set up static assets
    app.use(favicon(path.resolve(STATIC_DIR, 'favicon.ico')));
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a2..20fd718 100644
+index 02822a2..54c2b88 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
 @@ -16,6 +16,7 @@ import {MAX_LOG_BODY_LENGTH, PROTOCOLS, DEFAULT_BASE_PATH} from '../constants';
@@ -1209,7 +1289,18 @@ index 02822a2..20fd718 100644
  import type { Core, AppiumLogger, PayloadParams, MethodMap, Driver, DriverMethodDef } from '@appium/types';
  import type { BaseDriver } from '../basedriver/driver';
  import type { Request, Response, Application } from 'express';
-@@ -473,7 +474,131 @@ function buildHandler(
+@@ -406,6 +407,10 @@ function buildHandler(
+         args.push({reqForProxy: req});
+       }
+ 
++      if (spec.command === 'createSession') {
++        // [MCLOUD] set by BaseDriver.createSession of the new session; until then a failure has no session id
++        delete process.env.sessionId;
++      }
+       driverRes = await (driver as BaseDriver<any>).executeCommand(spec.command, ...args);
+ 
+       // Get the protocol after executeCommand
+@@ -473,7 +478,135 @@ function buildHandler(
              length: MAX_LOG_BODY_LENGTH,
            })}`
        );
@@ -1217,6 +1308,10 @@ index 02822a2..20fd718 100644
 +    } catch (caughtErr) {
 +      // [MCLOUD] the handling below and the response need an Error with a message (e.g. an array of errors)
 +      const err: any = toError(caughtErr);
++      // [MCLOUD] the session of the request; a failed creation has none yet: the one BaseDriver.createSession set
++      // (process.env.sessionId is shared by the sessions, so it is used for the creation only)
++      const errSessionId = req.params.sessionId || newSessionId
++        || (spec.command === 'createSession' ? process.env.sessionId : undefined);
 +      // token: string - auth token from stf
 +      // udid: string -  unique id of device
 +      // note: string - comment with error for device which would shows in stf
@@ -1325,7 +1420,7 @@ index 02822a2..20fd718 100644
 +      }
 +
 +      if (err.message.toLowerCase().includes('the session identified by') && err.message.toLowerCase().includes('is not known')) {
-+        getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
++        getLogger(driver, req.params.sessionId || newSessionId).error(`[MCLOUD] [BaseDriver] Got error: the session identified by [[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${errSessionId}]]] is not known. Error message: ${err.message}. Exit code 0.`);
 +        // process.exit(0);
 +        try {
 +          await updateDevice(token, udid, err.message); // device status will not change
@@ -1337,7 +1432,7 @@ index 02822a2..20fd718 100644
 +
 +      // PATCH #2 <appium>/node_modules/appium/node_modules/appium-base-driver/build/lib/protocol/protocol.js to return to carina "DEBUG info" about problematic step
 +      if (err.message !== 'An element could not be located on the page using the given search parameters.') {
-+        err.message = `${err.message}[[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${process.env.sessionId}]]]`;
++        err.message = `${err.message}[[[--udid ${process.env.DEVICE_UDID} --name ${process.env.DEVICE_NAME} --sessionId ${errSessionId}]]]`;
 +      }
        // if anything goes wrong, figure out what our response should be
        // based on the type of error that we encountered
