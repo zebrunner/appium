@@ -327,6 +327,8 @@ if use_variant defaults; then
   check "without NODE_REGISTRATION_TOKEN Appium answers any host" "200" "$(node_status "$VARIANT")"
 fi
 if use_variant caps; then
+  check_contains "the banner of the image is logged" $'\xe2\x94\x81\xe2\x94\x81 appium ' \
+    "$(docker logs "$VARIANT" 2>&1)"
   check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps are passed" "--default-capabilities /opt/config/defaultcapabilities.json" \
     "$(appium_cmdline "$VARIANT")"
   check_contains "DEFAULT_CAPABILITIES=true without the grid: the caps of the device" '"appium:udid": "udid-1"' \

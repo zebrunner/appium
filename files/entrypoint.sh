@@ -7,6 +7,9 @@
 # shellcheck source=module/recording.sh
 . /opt/recording.sh
 
+# the first log line: the image, its version and the device (CONVENTIONS.md#terminal-output)
+loggerBanner appium "${IMAGE_VERSION:-dev}" "${PLATFORM_NAME:--}" "udid ${DEVICE_UDID:--}"
+
 # docker stop: bash as PID 1 ignores SIGTERM without a trap, so it is set before the startup (ios.sh waits for WDA up
 # to DEVICE_TIMEOUT); the recordings of the active sessions are shared, then the container ends
 # shellcheck disable=SC2329
