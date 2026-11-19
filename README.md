@@ -164,7 +164,7 @@ On iOS the video is the stream of the WDA MJPEG server, which sends a frame only
 | `RECORDING_FONT`, `RECORDING_LOGO` | `/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf`, `/opt/zebrunner-logo.png` | the font of the card and the time stamp, the logo of the card |
 | `RECORDING_CAPS_WAIT_SEC` | `20` | s, how long the start of a recording waits for the capabilities of its session in Appium (the details of the card) |
 | `DEVICE_LOCATION` | | the location of the device on the card, e.g. the farm and the shelf |
-| `IMAGE_VERSION` | the `VERSION` of the build | the version of the image on the card |
+| `IMAGE_VERSION` | the `VERSION` of the build | the version of the image on the card and in the first log line |
 | `ROUTER_UUID` | | the marker name instead of the session id, the id of an external orchestrator of the device (e.g. on-demand emulators) |
 | `WDA_LOG_FILE`, `SHARE_WDA_LOG` | `/tmp/log/wda.log`, `false` | iOS: share the WDA log with the session artifacts |
 
