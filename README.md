@@ -64,7 +64,7 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
   -e CONNECT_TO_GRID=true -e SELENIUM_HOST=<hub host> -e SELENIUM_PORT=4446 -e STF_PROVIDER_HOST=<host ip> \
   -e NODE_REGISTRATION_TOKEN=<node token of the host> \
   -e DEFAULT_CAPABILITIES=true -e RELAXED_SECURITY=true \
-  -e STF_API_URL=<stf url>/api/v1 -e STF_AUTH_TOKEN=<token> \
+  -e STF_API_URL=<stf url>/api/v1 \
   -e APPIUM_PORT=4723 -p 4723:4723 \
   public.ecr.aws/zebrunner/appium:<tag>
 
@@ -179,9 +179,9 @@ With `RECORDING_CARD=true` the video starts with a card of `RECORDING_CARD_SEC`:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `STF_API_URL` | | the STF API, e.g. `https://stf.example.com/api/v1` |
-| `STF_AUTH_TOKEN` | | the access token of an admin of STF: the update of a device (`PUT /api/v1/devices/<serial>`) is an admin operation |
+| `STF_AUTH_TOKEN` | | deprecated, only without `NODE_REGISTRATION_TOKEN`: the access token of an admin of STF for `PUT /api/v1/devices/<serial>` (an STF without `PUT /api/v1/nodes/self/devices/<serial>`) |
 
-With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, a failed Appium command (on Android and iOS) whose error points to the device is reported to STF, the other errors are not: the device `DEVICE_UDID` is marked `Unhealthy` (no space left on the host or on the device, `INSTALL_FAILED_INSUFFICIENT_STORAGE`, unfinished device setup, failed `am` command) or gets a note (another failed install - a problem of the application, e.g. `INSTALL_FAILED_VERSION_DOWNGRADE` -, lost proxy connection, unknown session).
+The device is updated with the node token of the host (`NODE_REGISTRATION_TOKEN`): `PUT /api/v1/nodes/self/devices/<serial>` of STF takes only the status `Unhealthy` and the note of a device of the node ([ZEBRUNNER.md of STF](https://github.com/zebrunner/stf/blob/develop/ZEBRUNNER.md#device-status-of-a-node)), so the containers need no access token of an admin of STF. With `STF_API_URL`, `DEVICE_UDID` and a token (`NODE_REGISTRATION_TOKEN`, or else `STF_AUTH_TOKEN`) set, a failed Appium command (on Android and iOS) whose error points to the device is reported to STF, the other errors are not: the device `DEVICE_UDID` is marked `Unhealthy` (no space left on the host or on the device, `INSTALL_FAILED_INSUFFICIENT_STORAGE`, unfinished device setup, failed `am` command) or gets a note (another failed install - a problem of the application, e.g. `INSTALL_FAILED_VERSION_DOWNGRADE` -, lost proxy connection, unknown session).
 
 ### Android
 

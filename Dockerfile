@@ -73,7 +73,7 @@ ENV \
     # Device data
     PLATFORM_NAME="" \
     DEVICE_UDID="" \
-    # Credentials for changing status of device
+    # the STF API for the status of the device (NODE_REGISTRATION_TOKEN, or else the deprecated STF_AUTH_TOKEN)
     STF_API_URL="" \
     STF_AUTH_TOKEN="" \
     # the id of an external orchestrator of the device (e.g. on-demand emulators): the name of the recording artifacts
