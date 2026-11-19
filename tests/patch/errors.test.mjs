@@ -37,6 +37,7 @@ describe('error handler', () => {
   const env = (extra = {}) => ({
     STF_API_URL: `${stf.url}/api/v1`,
     STF_AUTH_TOKEN: 'stf-auth-token',
+    NODE_REGISTRATION_TOKEN: undefined,
     STF_TOKEN: undefined,
     DEVICE_UDID: 'udid-1',
     DEVICE_NAME: 'Pixel 7',
@@ -104,6 +105,19 @@ describe('error handler', () => {
   test('STF calls are authorized with STF_AUTH_TOKEN (the env var of the image)', async () => {
     await failWith('Device setup is not yet complete');
     assert.equal(stf.requests[0]?.headers.authorization, 'Bearer stf-auth-token');
+  });
+
+  test('the node token updates the device of its node (PUT /nodes/self/devices), not STF_AUTH_TOKEN', async () => {
+    const node = {NODE_REGISTRATION_TOKEN: 'mcn1.node-1.secret'};
+    await failWith('Device setup is not yet complete', {...node, DEVICE_UDID: 'udid/1'});
+    assert.equal(stf.requests.length, 1, 'one STF call');
+    assert.equal(stf.requests[0].method, 'PUT');
+    assert.equal(stf.requests[0].url, '/api/v1/nodes/self/devices/udid%2F1');
+    assert.equal(stf.requests[0].headers.authorization, 'Bearer mcn1.node-1.secret');
+    stf.requests.length = 0;
+    await failWith('Device setup is not yet complete', {...node, STF_AUTH_TOKEN: undefined});
+    assert.equal(stf.requests[0]?.url, '/api/v1/nodes/self/devices/udid-1');
+    assert.equal(JSON.parse(stf.requests[0]?.body ?? '{}').device?.status, 'Unhealthy');
   });
 
   for (const missing of ['STF_AUTH_TOKEN', 'DEVICE_UDID', 'STF_API_URL']) {

@@ -1278,7 +1278,7 @@ index ddb5d55..773ce55 100644
    // set up static assets
    app.use(favicon(path.resolve(STATIC_DIR, 'favicon.ico')));
 diff --git a/packages/base-driver/lib/protocol/protocol.ts b/packages/base-driver/lib/protocol/protocol.ts
-index 02822a2..54c2b88 100644
+index 02822a2..8f7e718 100644
 --- a/packages/base-driver/lib/protocol/protocol.ts
 +++ b/packages/base-driver/lib/protocol/protocol.ts
 @@ -16,6 +16,7 @@ import {MAX_LOG_BODY_LENGTH, PROTOCOLS, DEFAULT_BASE_PATH} from '../constants';
@@ -1300,7 +1300,7 @@ index 02822a2..54c2b88 100644
        driverRes = await (driver as BaseDriver<any>).executeCommand(spec.command, ...args);
  
        // Get the protocol after executeCommand
-@@ -473,7 +478,135 @@ function buildHandler(
+@@ -473,7 +478,140 @@ function buildHandler(
              length: MAX_LOG_BODY_LENGTH,
            })}`
        );
@@ -1312,16 +1312,21 @@ index 02822a2..54c2b88 100644
 +      // (process.env.sessionId is shared by the sessions, so it is used for the creation only)
 +      const errSessionId = req.params.sessionId || newSessionId
 +        || (spec.command === 'createSession' ? process.env.sessionId : undefined);
-+      // token: string - auth token from stf
++      // token: string - the node token of the host (NODE_REGISTRATION_TOKEN), or else the access token of an admin
++      //   of STF (STF_AUTH_TOKEN, for an STF without PUT /nodes/self/devices)
 +      // udid: string -  unique id of device
 +      // note: string - comment with error for device which would shows in stf
 +      // status: string - new status for device if null, update only note
 +      async function updateDevice(token, udid, note?: string, status?: string) {
-+        // skip without the STF settings: STF_AUTH_TOKEN, DEVICE_UDID and STF_API_URL
++        // skip without the STF settings: a token, DEVICE_UDID and STF_API_URL
 +        if (!token || !udid || !process.env.STF_API_URL) {
 +          return;
 +        }
-+        const url = `${process.env.STF_API_URL}/devices/${udid}`;
++        // [MCLOUD] the node token updates only the devices of its node (Unhealthy and the note), the access token of
++        // an admin any device
++        const url = process.env.NODE_REGISTRATION_TOKEN
++          ? `${process.env.STF_API_URL}/nodes/self/devices/${encodeURIComponent(udid)}`
++          : `${process.env.STF_API_URL}/devices/${udid}`;
 +
 +        const headers = {
 +          'Authorization': `Bearer ${token}`,
@@ -1351,7 +1356,7 @@ index 02822a2..54c2b88 100644
 +        }
 +      }
 +
-+      const token = process.env.STF_AUTH_TOKEN;
++      const token = process.env.NODE_REGISTRATION_TOKEN || process.env.STF_AUTH_TOKEN;
 +      const udid = process.env.DEVICE_UDID;
 +
 +      // handling error with Cannot find any free port in range
