@@ -54,6 +54,7 @@ docker run -d --name device-pixel-appium --net mcloud --restart on-failure:5 \
 # iOS: the same with
 #   -e PLATFORM_NAME=ios -e WDA_HOST=connector -e APPIUM_CLI=--session-override
 # a wireless tvOS device has no connector: -e WIRELESS=true -e WDA_HOST=<host of its WebDriverAgent>
+# (sessions without app, bundleId and fullReset only, see WIRELESS)
 ```
 
 ## Health and restarts
@@ -169,7 +170,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `MJPEG_PORT` | `8101` | the WDA MJPEG server, the video source |
 | `DEVICE_TIMEOUT` | `300` | s, how long the startup waits for WDA |
 | `USBMUXD_SOCKET_ADDRESS` | `connector:2222` | usbmuxd of the connector; the iOS tools use it directly, `/var/run/usbmuxd` is forwarded to it |
-| `WIRELESS` | `false` | `true` for a device without usb (e.g. Apple TV 4K over a network tunnel): no usbmuxd forwarding, WDA is reached at `WDA_HOST:WDA_PORT` |
+| `WIRELESS` | `false` | `true` for a device without usb (e.g. Apple TV 4K over a network tunnel): no usbmuxd forwarding and `USBMUXD_SOCKET_ADDRESS` is unset, WDA is reached at `WDA_HOST:WDA_PORT`. Appium has no channel to the device but WDA: the `app`, `bundleId` and `fullReset` capabilities fail the session, the app must be preinstalled and started with `mobile: launchApp` |
 
 ### Debug
 

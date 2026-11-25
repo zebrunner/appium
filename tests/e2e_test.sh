@@ -201,6 +201,8 @@ start_device "$WIRELESS_IOS" "" "${IOS_ENV[@]}" WIRELESS=true SHARE_WDA_LOG=true
 if check_starts "$WIRELESS_IOS"; then
   check_contains "the usbmuxd setup is skipped" "WIRELESS=true: skipping usbmuxd setup" "$(docker logs "$WIRELESS_IOS" 2>&1)"
   check "/var/run/usbmuxd is not forwarded" "no" "$(docker exec "$WIRELESS_IOS" bash -c 'test -S /var/run/usbmuxd && echo yes || echo no')"
+  check "Appium runs without USBMUXD_SOCKET_ADDRESS" "0" \
+    "$(docker exec "$WIRELESS_IOS" bash -c 'tr "\0" "\n" < /proc/$(pgrep -f "node.*appium" | head -1)/environ | grep -c "^USBMUXD_SOCKET_ADDRESS="')"
   check_contains "the platform version is detected from WDA" '"appium:platformVersion": "17.4"' \
     "$(docker exec "$WIRELESS_IOS" cat /opt/config/defaultcapabilities.json)"
   docker exec "$WIRELESS_IOS" bash -c 'echo wda > /tmp/log/wda.log; touch /tmp/log/.recording-artifact-w1'
