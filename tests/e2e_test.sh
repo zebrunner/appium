@@ -205,6 +205,8 @@ if check_starts "$WIRELESS_IOS"; then
     "$(docker exec "$WIRELESS_IOS" bash -c 'tr "\0" "\n" < /proc/$(pgrep -f "node.*appium" | head -1)/environ | grep -c "^USBMUXD_SOCKET_ADDRESS="')"
   check_contains "the platform version is detected from WDA" '"appium:platformVersion": "17.4"' \
     "$(docker exec "$WIRELESS_IOS" cat /opt/config/defaultcapabilities.json)"
+  check "no mjpegServerPort default capability" "false" \
+    "$(docker exec "$WIRELESS_IOS" jq 'has("appium:mjpegServerPort")' /opt/config/defaultcapabilities.json)"
   docker exec "$WIRELESS_IOS" bash -c 'echo wda > /tmp/log/wda.log; touch /tmp/log/.recording-artifact-w1'
   sleep 6
   docker exec "$WIRELESS_IOS" rm -f /tmp/log/.recording-artifact-w1

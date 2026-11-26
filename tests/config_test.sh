@@ -66,6 +66,11 @@ check "clearSystemFiles is the JSON boolean false" 'false' "$(json_get "$caps" '
 check "simpleIsVisibleCheck is the JSON boolean true" 'true' "$(json_get "$caps" 'j["appium:simpleIsVisibleCheck"]')"
 check "wdaLocalPort is a number" '8100' "$(json_get "$caps" 'j["appium:wdaLocalPort"]')"
 check "no preventWDAAttachments (unused by XCUITest)" 'false' "$(json_get "$caps" '"appium:preventWDAAttachments" in j')"
+caps="$(env "${common_env[@]}" PLATFORM_NAME=ios AUTOMATION_NAME=XCUITest WIRELESS=true files/config/zbr-default-caps-gen.sh)"
+check "WIRELESS=true: no mjpegServerPort (XCUITest cannot forward it)" 'false' \
+  "$(json_get "$caps" '"appium:mjpegServerPort" in j')"
+check "WIRELESS=true: the other ios caps stay" '["http://connector:8100", 8100]' \
+  "$(json_get "$caps" '[j["appium:webDriverAgentUrl"], j["appium:wdaLocalPort"]]')"
 
 section "wrong values"
 # run_gen <script> <env vars...>: sets OUT (stdout), ERR (stderr) and STATUS of the generator

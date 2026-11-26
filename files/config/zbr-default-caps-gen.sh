@@ -49,7 +49,10 @@ fi
 if [[ "${PLATFORM_NAME}" == "ios" ]]; then
   mjpegServerPort="$(number MJPEG_PORT "$MJPEG_PORT")" || exit 1
   wdaPort="$(number WDA_PORT "$WDA_PORT")" || exit 1
+  # WIRELESS=true: no mjpegServerPort, XCUITest fails the session when it cannot forward the requested port to the
+  # device and has no channel to a wireless one; without the capability it only warns. The video reads MJPEG_PORT.
   jq -n \
+    --arg wireless "${WIRELESS:-false}" \
     --arg platformName "$PLATFORM_NAME" \
     --arg platformVersion "$PLATFORM_VERSION" \
     --arg deviceName "$DEVICE_NAME" \
@@ -69,5 +72,5 @@ if [[ "${PLATFORM_NAME}" == "ios" ]]; then
       "appium:webDriverAgentUrl": $webDriverAgentUrl,
       "appium:simpleIsVisibleCheck": true,
       "appium:wdaLocalPort": $wdaLocalPort
-    }'
+    } | if $wireless == "true" then del(."appium:mjpegServerPort") else . end'
 fi
