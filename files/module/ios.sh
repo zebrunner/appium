@@ -11,12 +11,18 @@ echo DEVICE_UDID: "$DEVICE_UDID"
 # container for such a device and therefore no usbmuxd socket to join, so the socat
 # below is skipped. The WebDriverAgent readiness check and the PLATFORM_VERSION /
 # DEVICETYPE detection below are HTTP against WDA_HOST/WDA_PORT and still run.
+# USBMUXD_SOCKET_ADDRESS (connector:2222 by default) is unset for Appium: the driver reads it
+# itself and would otherwise fail on the missing connector host. Without usbmuxd the driver has
+# no channel to the device, only WDA: app, bundleId and fullReset fail the session.
 #
 # Set by zebrunner/mcloud-agent for device-list rows with wireless=true.
 USBMUXD_SOCKET=/tmp/usbmuxd/usbmuxd
 if [[ "${WIRELESS:-false}" == "true" ]]; then
+  unset USBMUXD_SOCKET_ADDRESS
   echo "WIRELESS=true: skipping usbmuxd setup, this device has no usb path."
   echo "WebDriverAgent is expected at http://${WDA_HOST}:${WDA_PORT} (published outside this container)."
+  echo "[warn] WIRELESS=true: no usbmuxd channel to the device, only WDA. Sessions with app, bundleId or" \
+    "fullReset fail; use a preinstalled app and start it with 'mobile: launchApp'."
 elif [[ -z $USBMUXD_SOCKET_ADDRESS ]]; then
   echo "[warn] USBMUXD_SOCKET_ADDRESS is not defined, /var/run/usbmuxd is not forwarded."
 else
