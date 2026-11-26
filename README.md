@@ -170,7 +170,7 @@ With all of `STF_API_URL`, `STF_AUTH_TOKEN` and `DEVICE_UDID` set, the device er
 | `MJPEG_PORT` | `8101` | the WDA MJPEG server, the video source |
 | `DEVICE_TIMEOUT` | `300` | s, how long the startup waits for WDA |
 | `USBMUXD_SOCKET_ADDRESS` | `connector:2222` | usbmuxd of the connector; the iOS tools use it directly, `/var/run/usbmuxd` is forwarded to it |
-| `WIRELESS` | `false` | `true` for a device without usb (e.g. Apple TV 4K over a network tunnel): no usbmuxd forwarding and `USBMUXD_SOCKET_ADDRESS` is unset, WDA is reached at `WDA_HOST:WDA_PORT`. Appium has no channel to the device but WDA: the `app`, `bundleId` and `fullReset` capabilities fail the session, the app must be preinstalled and started with `mobile: launchApp` |
+| `WIRELESS` | `false` | `true` for a device without usb (e.g. Apple TV 4K over a network tunnel): no usbmuxd forwarding, `USBMUXD_SOCKET_ADDRESS` is unset and no `mjpegServerPort` default capability (XCUITest cannot forward it), WDA is reached at `WDA_HOST:WDA_PORT`. Appium has no channel to the device but WDA: the `app`, `bundleId` and `fullReset` capabilities fail the session, the app must be preinstalled and started with `mobile: launchApp` |
 
 ### Debug
 
