@@ -66,6 +66,21 @@ check "the lines of the next session stay in TASK_LOG" "next session" "$(cat "$T
 check "the shared recording is registered for the uploader" "artifactId=s1" "$(cat "$LOG_DIR/.artifact-s1")"
 check "the marker and the lock of the share are removed" "no|no" \
   "$(test -e "$LOG_DIR/.recording-artifact-s1" && echo yes || echo no)|$(test -e "$LOG_DIR/.sharing-artifact-s1" && echo yes || echo no)"
+
+reset_state
+echo "session s4" > "$TASK_LOG"
+touch "$LOG_DIR/.recording-artifact-s4"
+# the files of the session, of another session and of the connector (appium#519)
+for name in s4.log s4-logcat.txt s4_report.html s40.log s5.log tunnel.log wda-run.out background.exit; do
+  echo "$name" > "$LOG_DIR/$name"
+done
+: > "$LOG_DIR/s4-empty.txt"
+share s4 > /dev/null 2>&1
+check "only the files named by the session id are shared with it" "s4-logcat.txt s4.log s4_report.html session.log" \
+  "$(find "$LOG_DIR/s4" -type f -exec basename {} \; | LC_ALL=C sort | xargs)"
+check "the files of the connector and of the other sessions stay in LOG_DIR" "background.exit s4-empty.txt s40.log s5.log tunnel.log wda-run.out" \
+  "$(find "$LOG_DIR" -maxdepth 1 -type f ! -name '.*' ! -name appium.log -exec basename {} \; | LC_ALL=C sort | xargs)"
+rm -f "$LOG_DIR"/s4-empty.txt "$LOG_DIR"/s40.log "$LOG_DIR"/s5.log "$LOG_DIR"/tunnel.log "$LOG_DIR"/wda-run.out "$LOG_DIR"/background.exit
 # shellcheck source=../files/module/recording.sh
 source files/module/recording.sh
 
