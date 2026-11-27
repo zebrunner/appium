@@ -2,19 +2,25 @@
 
 // The Playwright versions of the driver: a client connects only to a server of its major.minor version (Playwright
 // checks User-Agent), so the driver serves the version of the client. The one of the image is bundled, the others are
-// installed on the first connection into PLAYWRIGHT_CACHE_DIR (the volume of the apps, shared by the devices of a host).
-// The APKs of the Android driver of a version go to PLAYWRIGHT_BROWSERS_PATH of the container, not to the shared cache:
-// a container that finds a version in the cache installs its APKs once.
+// installed on the first connection into PLAYWRIGHT_CACHE_DIR of the container: only the exact versions of the range
+// PLAYWRIGHT_VERSIONS, without the install scripts of npm and without the secrets of the container in the environment
+// of npm. The cache is not shared with the other containers of the host: the code another container could put there
+// is not loaded. The APKs of the Android driver of a version go to PLAYWRIGHT_BROWSERS_PATH of the container: a
+// container that finds a version in its cache installs its APKs once.
 
 const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const semver = require('semver');
 
 // "Playwright/1.65.0 (arm64; macOS 15.0) node/24.0" -> 1.65.0; a pre-release keeps its suffix
 const USER_AGENT = /^Playwright\/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/;
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
+// the environment of npm and of the install of the APKs: the paths, the locale, the proxies and the settings of npm
+// and Playwright, not the tokens of the container (NODE_REGISTRATION_TOKEN, ...)
+const INSTALL_ENV = /^(PATH|HOME|TMPDIR|LANG|LC_ALL|NODE_EXTRA_CA_CERTS|HTTPS?_PROXY|NO_PROXY|npm_config_.+|PLAYWRIGHT_.+)$/i;
 // the versions whose APKs are in PLAYWRIGHT_BROWSERS_PATH of this container
 const CONTAINER_APKS = new Set();
 
@@ -32,16 +38,33 @@ function minor(version) {
   return version.split('.').slice(0, 2).join('.');
 }
 
+/** @returns {object} the variables of the environment an installation gets (INSTALL_ENV) */
+function installEnv(env = process.env) {
+  return Object.fromEntries(Object.entries(env).filter(([name, value]) => INSTALL_ENV.test(name) && value !== undefined));
+}
+
+/** @returns {string|null} the semver range of PLAYWRIGHT_VERSIONS, null when it is empty or not a range */
+function allowedRange(range) {
+  const text = String(range ?? '').trim();
+  return text === '' ? null : semver.validRange(text);
+}
+
 class PlaywrightVersions {
   /**
    * @param {object} opts
    * @param {string} [opts.cacheDir] where the other versions are installed, none without it
+   * @param {string} [opts.allowed] the semver range of the other versions (PLAYWRIGHT_VERSIONS), none without it
    * @param {(cmd: string, args: string[], env: object) => Promise<void>} [opts.run] runs a command (tests)
    * @param {{info: Function, warn: Function}} [opts.log]
    * @param {Set<string>} [opts.apks] the versions whose APKs the container has (tests)
    */
-  constructor({cacheDir, run = runCommand, log = console, apks = CONTAINER_APKS} = {}) {
+  constructor({cacheDir, allowed = process.env.PLAYWRIGHT_VERSIONS, run = runCommand, log = console, apks = CONTAINER_APKS} = {}) {
     this.cacheDir = cacheDir;
+    this.allowedText = String(allowed ?? '').trim();
+    this.allowed = allowedRange(allowed);
+    if (this.allowedText !== '' && !this.allowed) {
+      log.warn(`[MCLOUD] PLAYWRIGHT_VERSIONS='${this.allowedText}' is not a semver range: only the bundled Playwright is served`);
+    }
     this.run = run;
     this.log = log;
     this.apks = apks;
@@ -58,12 +81,17 @@ class PlaywrightVersions {
     if (!wanted || minor(wanted) === minor(this.bundled)) {
       return {version: this.bundled, playwright: require('playwright-core')};
     }
-    if (!VERSION.test(wanted)) {
+    if (!VERSION.test(wanted) || !semver.valid(wanted)) {
       throw new Error(`'${wanted}' is not a Playwright version`);
     }
     if (!this.cacheDir) {
       throw new Error(`Playwright ${wanted} is not available on the device host: only ${this.bundled} is, ` +
         `use Playwright ${minor(this.bundled)} in the tests`);
+    }
+    // an exact version of the range: a pre-release only when the range names one of its version
+    if (!this.allowed || !semver.satisfies(wanted, this.allowed)) {
+      throw new Error(`Playwright ${wanted} is not allowed on the device host (PLAYWRIGHT_VERSIONS: ` +
+        `'${this.allowedText}'): use Playwright ${minor(this.bundled)} in the tests, the version of the farm`);
     }
     let install = this.installs.get(wanted);
     if (!install) {
@@ -87,11 +115,17 @@ class PlaywrightVersions {
     this.log.info(`[MCLOUD] Installing Playwright ${version} for the clients of that version into ${target}`);
     try {
       fs.mkdirSync(temp, {recursive: true});
+      // the exact version without its install scripts (playwright-core has none, a package that has some is not it)
       await this.run('npm', ['install', '--prefix', temp, '--no-save', '--no-package-lock', '--no-audit', '--no-fund',
-        '--loglevel=error', `playwright-core@${version}`], process.env);
+        '--ignore-scripts', '--omit=dev', '--omit=optional', '--omit=peer', '--loglevel=error',
+        `playwright-core@${version}`], installEnv());
+      const installed = JSON.parse(fs.readFileSync(path.join(temp, 'node_modules', 'playwright-core', 'package.json'), 'utf8'));
+      if (installed.name !== 'playwright-core' || installed.version !== version) {
+        throw new Error(`npm installed ${installed.name}@${installed.version}`);
+      }
       // the APKs of the Playwright driver of the device, into PLAYWRIGHT_BROWSERS_PATH
       await this.run(process.execPath, [path.join(temp, 'node_modules', 'playwright-core', 'cli.js'), 'install', 'android'],
-        process.env);
+        installEnv());
       this.apks.add(version);
       fs.writeFileSync(path.join(temp, '.complete'), new Date().toISOString());
       try {
@@ -117,7 +151,7 @@ class PlaywrightVersions {
     }
     this.log.info(`[MCLOUD] Installing the Android driver APKs of Playwright ${version} into this container`);
     try {
-      await this.run(process.execPath, [path.join(module, 'cli.js'), 'install', 'android'], process.env);
+      await this.run(process.execPath, [path.join(module, 'cli.js'), 'install', 'android'], installEnv());
     } catch (err) {
       throw this.installError(version, err);
     }
@@ -143,4 +177,4 @@ function runCommand(cmd, args, env) {
   });
 }
 
-module.exports = {PlaywrightVersions, clientVersion, minor};
+module.exports = {PlaywrightVersions, clientVersion, minor, installEnv};
