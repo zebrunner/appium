@@ -66,6 +66,18 @@ RUN appium driver list && \
     npm cache clean --force && \
     rm -rf /home/androidusr/.cache/node-gyp
 
+# appium-ios-remotexpc, the optional dependency of the XCUITest driver for the devices of iOS 18 and newer (the crash
+# reports, AFC, ...): the driver install leaves it out and the driver fails to create its clients. The driver loads it
+# with import(), which finds the global modules of /usr/lib/node_modules, where the npm of the driver installs do not
+# prune it; pinned, without install scripts (its tun/tap module has prebuilt binaries)
+USER root
+RUN npm install --global --ignore-scripts --no-audit --no-fund --loglevel=error appium-ios-remotexpc@0.45.2 && \
+    npm cache clean --force
+USER androidusr
+# the driver loads it as it does in a session
+RUN node -e "require(process.env.APPIUM_HOME + '/node_modules/appium-xcuitest-driver/build/lib/device/remotexpc-utils.js') \
+        .getRemoteXPCServices().then((s) => { if (typeof s.startCrashReportsService !== 'function') process.exit(1); })"
+
 # Set environment variables
 ENV ANDROID_DEVTOOLS_PORT=9222
 

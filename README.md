@@ -24,6 +24,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 | Base image | `appium/appium:v3.1.1-p0` (Appium 3.1.1) |
 | UiAutomator2 driver | 6.7.15 |
 | XCUITest driver | 10.18.2 |
+| appium-ios-remotexpc (XCUITest, iOS 18+) | 0.45.2 |
 | images plugin, `appium-image` stage | 4.1.0 (with sharp 0.34.5) |
 | Playwright driver (`files/playwright`) | playwright-core 1.65.0, see [Playwright](#playwright) |
 

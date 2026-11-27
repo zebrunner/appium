@@ -42,6 +42,12 @@ for driver in uiautomator2 xcuitest; do
   check "${driver} driver ${version}" "$version" \
     "$(printf '%s' "$drivers" | python3 -c "import json,sys; print(json.load(sys.stdin)['${driver}']['version'])" 2>&1)"
 done
+# the optional dependency of the XCUITest driver for iOS 18+, loaded by the driver as in a session
+remotexpc="$(dockerfile_value 'appium-ios-remotexpc@([0-9.]+)')"
+check "appium-ios-remotexpc ${remotexpc} is installed" "$remotexpc" \
+  "$(in_image 'jq -r .version "$(npm root -g)/appium-ios-remotexpc/package.json"')"
+check "the XCUITest driver loads appium-ios-remotexpc" "function" \
+  "$(in_image 'cd "$APPIUM_HOME/node_modules/appium-xcuitest-driver" && node -e "require(\"./build/lib/device/remotexpc-utils.js\").getRemoteXPCServices().then((s) => console.log(typeof s.startCrashReportsService), (e) => console.log(e.message))"')"
 check "the tools of the scripts are installed" "" \
   "$(in_image 'for t in adb curl ffmpeg ffprobe idevice_id inotifywait jq nc pgrep socat healthcheck; do command -v $t > /dev/null || echo "missing $t"; done')"
 
