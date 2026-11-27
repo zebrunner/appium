@@ -3,14 +3,22 @@
 import {test, describe, before, after, beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {BASE_DRIVER_DIR, helpers, listen, tmpDir, withEnv} from './common.mjs';
 
 const {configureApp} = helpers;
-const {getLocalFileForAppUrl, evictSharedApps} = createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
+const {getSharedApp, evictSharedApps, writeStoredAppMeta} =
+  createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
 const OPTS = {supportedExtensions: ['.apk']};
+const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
+// the file of the app of a url in the storage: <host>/<sha256 of the full url>/<last segment of its path>
+const storedPath = (appsDir, url) => {
+  const parsed = new URL(url);
+  return path.join(appsDir, parsed.host, sha256(`url\n${parsed.href}`), parsed.pathname.split('/').pop());
+};
 
 // session(url, env): configureApp in another node process, like a session of another device container of the host;
 // resolves {result} or {error}
@@ -40,20 +48,25 @@ describe('shared application storage', () => {
   let onRequest = () => {};
   // the delay of every response, ms
   let delay = 0;
+  // respond(req): {status, headers, body} of a request instead of the test app, or undefined
+  let respond = () => undefined;
   const counts = {};
 
   before(async () => {
     remote = await listen((req, res) => {
-      res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length});
       const index = (counts[req.url] = (counts[req.url] ?? 0) + 1);
+      const custom = respond(req);
+      const body = custom?.body ?? app;
+      res.writeHead(custom?.status ?? 200,
+        {'content-type': 'application/octet-stream', 'content-length': body.length, ...custom?.headers});
       onRequest(index);
       setTimeout(() => {
         if (breaks(index)) {
-          res.write(app.subarray(0, 10));
+          res.write(body.subarray(0, 10));
           res.destroy();
           return;
         }
-        res.end(app);
+        res.end(body);
       }, delay);
     });
   });
@@ -67,12 +80,13 @@ describe('shared application storage', () => {
     app = Buffer.alloc(2048, 1);
     breaks = () => false;
     onRequest = () => {};
+    respond = () => undefined;
     delay = 0;
     appsDir = tmpDir('apps');
     // a new path every test: configureApp also keeps an in-memory cache by url
     n++;
     url = `${remote.url}/builds/${n}/app.apk?token=secret`;
-    localFile = path.join(appsDir, new URL(remote.url).host, 'builds', `${n}`, 'app.apk');
+    localFile = storedPath(appsDir, url);
   });
   const env = (extra = {}) => ({
     APPIUM_APPS_DIR: appsDir,
@@ -82,43 +96,86 @@ describe('shared application storage', () => {
     APPIUM_APP_SIZE_DISABLE: undefined,
     ...extra,
   });
+  const downloads = (prefix) => remote.requests.filter((r) => r.url.startsWith(prefix)).length;
+  // store(file, body, headers): an app of the storage with its metadata, as a download with the response headers
+  const store = async (file, body, headers = {'content-length': String(body.length)}) => {
+    fs.mkdirSync(path.dirname(file), {recursive: true});
+    fs.writeFileSync(`${file}.1.tmp`, body);
+    await writeStoredAppMeta(file, `${file}.1.tmp`, 'url', headers);
+    fs.renameSync(`${file}.1.tmp`, file);
+  };
 
-  test('the file of an app url: <host>/<path>, inside the storage only', async () => {
+  test('the file of an app url: <host>/<sha256 of the full url>/<name>, inside the storage only', async () => {
     await withEnv(env(), async () => {
-      assert.equal(await getLocalFileForAppUrl('https://Builds.example.com:8443/a/b.apk?sig=1'),
-        path.join(appsDir, 'builds.example.com:8443', 'a', 'b.apk'));
-      // the dot segments of a url are resolved by URL, also the encoded ones: the file stays in the storage
-      assert.equal(await getLocalFileForAppUrl('http://evil/../../usr/lib/node_modules/appium/x.js'),
-        path.join(appsDir, 'evil', 'usr', 'lib', 'node_modules', 'appium', 'x.js'));
-      assert.equal(await getLocalFileForAppUrl('http://evil/%2e%2e/%2E%2E/x.apk'), path.join(appsDir, 'evil', 'x.apk'));
-      assert.equal(await getLocalFileForAppUrl('http://evil/a%2F..%2F..%2Fx.apk'),
-        path.join(appsDir, 'evil', 'a%2F..%2F..%2Fx.apk'));
+      const appUrl = 'https://Builds.example.com:8443/a/b.apk?sig=1';
+      assert.deepEqual(await getSharedApp(appUrl),
+        {file: path.join(appsDir, 'builds.example.com:8443', sha256('url\nhttps://builds.example.com:8443/a/b.apk?sig=1'), 'b.apk'), key: 'url'});
+      // the query is a part of the key: the urls of two builds are two files
+      assert.notEqual((await getSharedApp('http://host/download/app.apk?id=1')).file,
+        (await getSharedApp('http://host/download/app.apk?id=2')).file);
       // the same path of two servers is two files
-      assert.notEqual(await getLocalFileForAppUrl('http://a.example/x.apk'), await getLocalFileForAppUrl('http://b.example/x.apk'));
-      for (const url of ['file:///etc/passwd', 'ftp://host/a.apk', 'http://host', 'http://host/', 'not a url']) {
-        assert.equal(await getLocalFileForAppUrl(url), null, url);
+      assert.notEqual((await getSharedApp('http://a.example/x.apk')).file, (await getSharedApp('http://b.example/x.apk')).file);
+      // the dot segments of a url are resolved by URL, also the encoded ones: the file stays in the storage
+      for (const escape of ['http://evil/../../usr/lib/node_modules/appium/x.js', 'http://evil/%2e%2e/%2E%2E/x.apk',
+        'http://evil/a%2F..%2F..%2Fx.apk']) {
+        const {file} = await getSharedApp(escape);
+        assert.equal(path.relative(path.join(appsDir, 'evil'), path.dirname(file)).length, 64, escape);
       }
+      for (const bad of ['file:///etc/passwd', 'ftp://host/a.apk', 'http://host', 'http://host/', 'not a url',
+        'http://host/a.lock', 'http://host/a.meta.json', 'http://host/a.1.tmp', `http://host/${'a'.repeat(201)}`]) {
+        assert.equal(await getSharedApp(bad), null, bad);
+      }
+    });
+  });
+
+  test('a signed url with a strong ETag is keyed by its object: the url without the signature parameters', async () => {
+    await withEnv(env(), async () => {
+      const etag = {etag: '"abc"'};
+      const s3 = (signature) => `https://bucket.s3.amazonaws.com/app.apk?versionId=7&X-Amz-Algorithm=AWS4-HMAC-SHA256` +
+        `&X-Amz-Credential=key&X-Amz-Date=20260101T000000Z&X-Amz-Expires=600&X-Amz-SignedHeaders=host&X-Amz-Signature=${signature}`;
+      const first = await getSharedApp(s3('1'), etag);
+      assert.equal(first.key, 'signed');
+      assert.deepEqual(await getSharedApp(s3('2'), etag), first, 'another signature of the object');
+      assert.notEqual((await getSharedApp(s3('1').replace('versionId=7', 'versionId=8'), etag)).file, first.file,
+        'another version of the object');
+      const sas = (sig) => `https://distribution.azureedge.net/1234/app.apk?sv=2019-02-02&sr=c&sig=${sig}&se=2026-01-01&sp=r`;
+      assert.equal((await getSharedApp(sas('a'), etag)).file, (await getSharedApp(sas('b'), etag)).file, 'Azure SAS (App Center)');
+      // without a strong ETag the stored app of another signature could not be checked: the full url is the key
+      for (const headers of [{}, {etag: 'W/"abc"'}]) {
+        const unchecked = await getSharedApp(s3('1'), headers);
+        assert.equal(unchecked.key, 'url', JSON.stringify(headers));
+        assert.notEqual(unchecked.file, (await getSharedApp(s3('2'), headers)).file);
+      }
+      // a query that is not a signature keeps the full url as the key
+      assert.equal((await getSharedApp('http://host/app.apk?sig=1', etag)).key, 'url');
     });
   });
 
   test('an app url that tries to leave the storage is stored in it', async () => {
     await withEnv(env(), async () => {
       const escape = `escape-${n}.apk`;
-      await configureApp(`${remote.url}/../../../../tmp/${escape}`, OPTS);
-      assert.deepEqual(fs.readFileSync(path.join(appsDir, new URL(remote.url).host, 'tmp', escape)), app);
+      const escapeUrl = `${remote.url}/../../../../tmp/${escape}`;
+      await configureApp(escapeUrl, OPTS);
+      assert.deepEqual(fs.readFileSync(storedPath(appsDir, escapeUrl)), app);
       assert.equal(fs.existsSync(path.join('/tmp', escape)), false, 'nothing outside the storage');
     });
   });
 
-  test('a downloaded app is stored by its url path without the query', async () => {
+  test('a downloaded app is stored by its full url with its metadata', async () => {
+    respond = () => ({headers: {etag: '"v1"', 'last-modified': 'Wed, 01 Jan 2026 00:00:00 GMT'}});
     await withEnv(env(), async () => {
       await configureApp(url, OPTS);
       assert.deepEqual(fs.readFileSync(localFile), app);
+      assert.deepEqual(JSON.parse(fs.readFileSync(`${localFile}.meta.json`, 'utf8')), {
+        key: 'url', etag: '"v1"', lastModified: 'Wed, 01 Jan 2026 00:00:00 GMT', contentLength: app.length,
+        sha256: crypto.createHash('sha256').update(app).digest('hex'),
+      });
       assert.equal(fs.existsSync(`${localFile}.lock`), false, 'no .lock left');
+      assert.equal(JSON.stringify(fs.readdirSync(path.dirname(localFile))).includes('secret'), false, 'the url is not stored');
     });
   });
 
-  test('the stored app is used when the remote size is the same', async () => {
+  test('the stored app is used when the response has its Content-Length', async () => {
     await withEnv(env(), async () => {
       await configureApp(url, OPTS);
       assert.equal(await configureApp(url, OPTS), localFile);
@@ -134,26 +191,134 @@ describe('shared application storage', () => {
     });
   });
 
-  test('APPIUM_APP_SIZE_DISABLE=true uses the stored app without the size check', async () => {
+  test('the ETag decides: the same one uses the stored app, another one replaces it', async () => {
+    let etag = '"v1"';
+    respond = () => ({headers: {etag}});
+    await withEnv(env(), async () => {
+      await configureApp(url, OPTS);
+      assert.equal(await configureApp(url, OPTS), localFile, 'the same ETag');
+      // a new build of the same size at the same url
+      etag = '"v2"';
+      app = Buffer.alloc(2048, 7);
+      assert.notEqual(await configureApp(url, OPTS), localFile, 'another ETag: downloaded');
+      assert.deepEqual(fs.readFileSync(localFile), app);
+    });
+  });
+
+  test('urls that differ only by the query never share an app, even of the same size', async () => {
+    const base = `${remote.url}/download/${n}/app.apk`;
+    respond = (req) => ({body: Buffer.alloc(2048, req.url.endsWith('id=1') ? 1 : 9)});
+    await withEnv(env(), async () => {
+      const first = await configureApp(`${base}?id=1`, OPTS);
+      const second = await configureApp(`${base}?id=2`, OPTS);
+      assert.deepEqual(fs.readFileSync(first), Buffer.alloc(2048, 1));
+      assert.deepEqual(fs.readFileSync(second), Buffer.alloc(2048, 9), 'the app of its own url');
+      assert.deepEqual(fs.readFileSync(storedPath(appsDir, `${base}?id=1`)), Buffer.alloc(2048, 1));
+      assert.deepEqual(fs.readFileSync(storedPath(appsDir, `${base}?id=2`)), Buffer.alloc(2048, 9));
+    });
+    assert.equal(downloads(`/download/${n}/`), 4, 'both apps are downloaded');
+  });
+
+  test('a stored app whose bytes changed is not used, it is downloaded again', async () => {
+    await withEnv(env(), async () => {
+      await configureApp(url, OPTS);
+      // the same size, other bytes
+      fs.writeFileSync(localFile, Buffer.alloc(2048, 6));
+      assert.notEqual(await configureApp(url, OPTS), localFile);
+      assert.deepEqual(fs.readFileSync(localFile), app, 'the stored app is downloaded again');
+    });
+  });
+
+  test('a stored app without metadata (of an older image) is not used', async () => {
     fs.mkdirSync(path.dirname(localFile), {recursive: true});
-    fs.writeFileSync(localFile, 'old');
+    fs.writeFileSync(localFile, Buffer.alloc(2048, 5));
+    await withEnv(env({APPIUM_APP_SIZE_DISABLE: 'true'}), async () => {
+      assert.notEqual(await configureApp(url, OPTS), localFile);
+    });
+    assert.deepEqual(fs.readFileSync(localFile), app);
+  });
+
+  test('APPIUM_APP_SIZE_DISABLE=true uses the stored app of the same url without comparing the response', async () => {
+    await withEnv(env(), async () => {
+      await configureApp(url, OPTS);
+    });
+    const stored = app;
+    app = Buffer.alloc(4096, 3);
     await withEnv(env({APPIUM_APP_SIZE_DISABLE: 'true'}), async () => {
       assert.equal(await configureApp(url, OPTS), localFile);
-      assert.equal(fs.readFileSync(localFile, 'utf8'), 'old');
+    });
+    assert.deepEqual(fs.readFileSync(localFile), stored);
+  });
+
+  test('a signed url: the app of its object is used for another signature with the same ETag', async () => {
+    const object = `/bucket/${n}/app.apk`;
+    const signed = (signature) => `${remote.url}${object}?X-Amz-Credential=key&X-Amz-Signature=${signature}`;
+    // the server accepts the signatures "good-*" only
+    let etag = '"object-v1"';
+    respond = (req) => (new URL(req.url, remote.url).searchParams.get('X-Amz-Signature').startsWith('good')
+      ? {headers: {etag}} : {status: 403, body: Buffer.from('denied')});
+    await withEnv(env(), async () => {
+      await configureApp(signed('good-1'), OPTS);
+      const {file} = await getSharedApp(signed('good-1'), {etag});
+      assert.deepEqual(fs.readFileSync(file), app);
+      assert.equal(await configureApp(signed('good-2'), OPTS), file, 'another signature, the same object');
+      await assert.rejects(configureApp(signed('bad'), OPTS), /403/, 'a refused signature gets no app');
+      // a new version of the object
+      etag = '"object-v2"';
+      app = Buffer.alloc(2048, 8);
+      assert.notEqual(await configureApp(signed('good-3'), OPTS), file);
+      assert.deepEqual(fs.readFileSync(file), app);
+    });
+  });
+
+  test('a signed url: APPIUM_APP_SIZE_DISABLE=true does not skip the ETag', async () => {
+    const signed = (signature) => `${remote.url}/bucket/${n}/app.apk?X-Amz-Credential=key&X-Amz-Signature=${signature}`;
+    let etag = '"one"';
+    respond = () => ({headers: {etag}});
+    await withEnv(env({APPIUM_APP_SIZE_DISABLE: 'true'}), async () => {
+      await configureApp(signed('1'), OPTS);
+      etag = '"two"';
+      const {file} = await getSharedApp(signed('1'), {etag});
+      assert.notEqual(await configureApp(signed('2'), OPTS), file);
     });
   });
 
   test('a parallel download (.lock) is awaited and its app is used', async () => {
     fs.mkdirSync(path.dirname(localFile), {recursive: true});
     fs.writeFileSync(`${localFile}.lock`, 'device UUID: other');
-    setTimeout(() => {
-      fs.writeFileSync(localFile, app);
+    setTimeout(async () => {
+      await store(localFile, app);
       fs.unlinkSync(`${localFile}.lock`);
     }, 1500);
     await withEnv(env(), async () => {
       assert.equal(await configureApp(url, OPTS), localFile);
     });
-    assert.equal(remote.requests.filter((r) => r.url.startsWith(`/builds/${n}/`)).length, 1, 'only the initial request');
+    assert.equal(downloads(`/builds/${n}/`), 1, 'only the initial request');
+  });
+
+  test('the app of a parallel download that is not the one of the response is not used', async () => {
+    fs.mkdirSync(path.dirname(localFile), {recursive: true});
+    fs.writeFileSync(`${localFile}.lock`, 'device UUID: other');
+    const other = Buffer.alloc(4096, 4);
+    setTimeout(async () => {
+      await store(localFile, other);
+      fs.unlinkSync(`${localFile}.lock`);
+    }, 1500);
+    await withEnv(env(), async () => {
+      const result = await configureApp(url, OPTS);
+      assert.notEqual(result, localFile);
+      assert.deepEqual(fs.readFileSync(result), app, 'the session downloads its own app');
+    });
+    assert.deepEqual(fs.readFileSync(localFile), other, 'the stored app of the other download is left');
+  });
+
+  test('a parallel download that stores nothing: the session downloads the app for itself', async () => {
+    fs.mkdirSync(path.dirname(localFile), {recursive: true});
+    fs.writeFileSync(`${localFile}.lock`, 'device UUID: other');
+    setTimeout(() => fs.unlinkSync(`${localFile}.lock`), 1000);
+    await withEnv(env(), async () => {
+      assert.deepEqual(fs.readFileSync(await configureApp(url, OPTS)), app);
+    });
   });
 
   test('two parallel sessions of the same app download it once', async () => {
@@ -168,8 +333,7 @@ describe('shared application storage', () => {
   });
 
   test('the stored app survives the exit of the Appium process that used it', async () => {
-    fs.mkdirSync(path.dirname(localFile), {recursive: true});
-    fs.writeFileSync(localFile, app);
+    await store(localFile, app);
     const appsEnv = Object.fromEntries(Object.entries(env()).filter(([, value]) => value !== undefined));
     const {result, error} = await session(url, appsEnv);
     assert.equal(error, undefined);
@@ -206,14 +370,15 @@ describe('shared application storage', () => {
         }
       });
       const dir = tmpDir('apps');
-      const stored = path.join(dir, new URL(server.url).host, 'race', 'app.apk');
+      const stored = storedPath(dir, `${server.url}/race/app.apk`);
       try {
         const results = await Promise.all([1, 2].map(() => session(`${server.url}/race/app.apk`, {...appsEnv, APPIUM_APPS_DIR: dir})));
         const outcome = `run ${run}: ${JSON.stringify(results)}`;
         assert.deepEqual(results.filter((r) => r.error), [], outcome);
         assert.equal(results.filter((r) => r.result === stored).length, 1, `one session uses the stored app, ${outcome}`);
         assert.deepEqual(fs.readFileSync(stored), app, outcome);
-        assert.deepEqual(fs.readdirSync(path.dirname(stored)), ['app.apk'], `no .lock or temporary file left, ${outcome}`);
+        assert.deepEqual(fs.readdirSync(path.dirname(stored)).sort(), ['app.apk', 'app.apk.meta.json'],
+          `no .lock or temporary file left, ${outcome}`);
       } finally {
         clearTimeout(timer);
         await server.close();
@@ -237,7 +402,7 @@ describe('shared application storage', () => {
         return true;
       });
     });
-    assert.deepEqual(fs.readdirSync(path.join(storage, new URL(url).host, 'builds', `${n}`)), [], 'no .lock or partial app left');
+    assert.deepEqual(fs.readdirSync(path.dirname(storedPath(storage, url))), [], 'no .lock, metadata or partial app left');
   });
 
   test('a .lock that is not removed in APPIUM_APP_WAITING_TIMEOUT fails the session', async () => {
@@ -265,7 +430,7 @@ describe('shared application storage', () => {
       setTimeout(() => res.end(app), 8000);
     });
     const slowUrl = `${slow.url}/slow/app.apk`;
-    const stored = path.join(appsDir, new URL(slow.url).host, 'slow', 'app.apk');
+    const stored = storedPath(appsDir, slowUrl);
     const appsEnv = Object.fromEntries(Object.entries(env({APPIUM_APP_WAITING_TIMEOUT: '30', APPIUM_MAX_LOCK_FILE_LIFETIME: '1'}))
       .filter(([, value]) => value !== undefined));
     try {
@@ -283,8 +448,8 @@ describe('shared application storage', () => {
       });
       assert.deepEqual(fs.readFileSync(stored), app);
       assert.equal(fs.existsSync(`${stored}.lock`), false, 'no .lock left');
-      // the initial requests of both sessions and one download: the other session waited for it, it did not find the
-      // app stored and checked its size
+      // the initial requests of both sessions and one download: the other session waited for it and checked the stored
+      // app with the headers of its initial request
       assert.equal(slow.requests.length, 3, 'the app is downloaded once');
     } finally {
       await slow.close();
@@ -427,6 +592,63 @@ describe('shared application storage', () => {
     assert.equal(fs.existsSync(unused), false);
   });
 
+  // age(file, ms): the file was used ms ago
+  const age = (file, ms) => {
+    const time = new Date(Date.now() - ms);
+    fs.utimesSync(file, time, time);
+  };
+
+  test('an app goes with its metadata, a folder (the .app of a simulator) is one app, the metadata of no app goes', async () => {
+    const file = path.join(appsDir, 'host', 'a'.repeat(64), 'old.apk');
+    await store(file, Buffer.from('old'));
+    age(file, 8 * DAY);
+    const folder = path.join(appsDir, 'host', 'b'.repeat(64), 'Sim.app');
+    fs.mkdirSync(path.join(folder, 'Frameworks'), {recursive: true});
+    fs.writeFileSync(path.join(folder, 'Info.plist'), 'plist');
+    fs.writeFileSync(`${folder}.meta.json`, '{}');
+    // the files of an unzipped app keep the times of the archive
+    age(path.join(folder, 'Info.plist'), 300 * DAY);
+    age(folder, 2 * DAY);
+    const orphan = path.join(appsDir, 'host', 'c'.repeat(64), 'gone.apk.meta.json');
+    fs.mkdirSync(path.dirname(orphan), {recursive: true});
+    fs.writeFileSync(orphan, '{}');
+    age(orphan, 2 * HOUR);
+    await withEnv(env({APPIUM_APPS_MIN_FREE: '0'}), async () => {
+      await evictSharedApps(appsDir);
+    });
+    assert.equal(fs.existsSync(file), false, 'not used for 8 days');
+    assert.equal(fs.existsSync(`${file}.meta.json`), false, 'its metadata');
+    assert.ok(fs.existsSync(path.join(folder, 'Info.plist')), 'the folder app was used 2 days ago: its files stay');
+    assert.ok(fs.existsSync(`${folder}.meta.json`));
+    assert.equal(fs.existsSync(orphan), false, 'the metadata of no app');
+  });
+
+  test('a folder app not used for APPIUM_APPS_MAX_AGE days is removed as a whole', async () => {
+    const folder = path.join(appsDir, 'host', 'd'.repeat(64), 'Sim.app');
+    fs.mkdirSync(folder, {recursive: true});
+    fs.writeFileSync(path.join(folder, 'Info.plist'), 'plist');
+    fs.writeFileSync(`${folder}.meta.json`, '{}');
+    age(folder, 8 * DAY);
+    await withEnv(env({APPIUM_APPS_MIN_FREE: '0'}), async () => {
+      await evictSharedApps(appsDir);
+    });
+    assert.equal(fs.existsSync(folder), false);
+    assert.equal(fs.existsSync(`${folder}.meta.json`), false);
+  });
+
+  test('the Playwright versions of PLAYWRIGHT_CACHE_DIR in the storage are not apps', async () => {
+    const version = path.join(appsDir, 'playwright', '1.50.0', 'node_modules', 'playwright-core', 'index.js');
+    fs.mkdirSync(path.dirname(version), {recursive: true});
+    fs.writeFileSync(version, 'module.exports = {};');
+    age(version, 30 * DAY);
+    const old = stored('old.apk', 8 * DAY);
+    await withEnv(env({APPIUM_APPS_MIN_FREE: '0', PLAYWRIGHT_CACHE_DIR: path.join(appsDir, 'playwright')}), async () => {
+      await evictSharedApps(appsDir);
+    });
+    assert.ok(fs.existsSync(version));
+    assert.equal(fs.existsSync(old), false);
+  });
+
   test('a failed eviction does not fail the session', async () => {
     await withEnv(env({APPIUM_APPS_MIN_FREE: 'not a number', APPIUM_APPS_MAX_AGE: '-1'}), async () => {
       await evictSharedApps(path.join(appsDir, 'missing'));
@@ -443,44 +665,30 @@ describe('shared application storage', () => {
   });
 });
 
-// The size check of a stored app (getFileContentLength): a GET of the app whose body is not read
-describe('the size of a remote app', () => {
-  const {getFileContentLength} = createRequire(import.meta.url)(path.join(BASE_DRIVER_DIR, 'build/lib/basedriver/mcloud-utils.js'));
+// The check of a stored app uses the headers of the request of Appium: no request of its own
+describe('the check of a stored app', () => {
   const app = Buffer.alloc(2048, 3);
 
-  test('the size check reads the headers only and closes the connection', async () => {
-    // a big app: its body does not fit into the socket buffers, the response ends only when it is read or closed
-    const chunk = Buffer.alloc(1024 * 1024, 5);
-    const chunks = 256;
-    const closed = [];
+  test('the stored app is checked with the headers of the request of the session, without a request of its own', async () => {
     const remote = await listen((req, res) => {
-      res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': chunk.length * chunks});
-      res.on('close', () => closed.push(req.url));
-      let sent = 0;
-      const send = () => {
-        while (sent < chunks) {
-          sent++;
-          if (!res.write(chunk)) {
-            res.once('drain', send);
-            return;
-          }
-        }
-        res.end();
-      };
-      send();
+      res.writeHead(200, {'content-type': 'application/octet-stream', 'content-length': app.length, etag: '"e"'});
+      res.end(app);
     });
+    const appsDir = tmpDir('apps');
     try {
-      assert.equal(await getFileContentLength(`${remote.url}/big.apk`), chunk.length * chunks);
-      for (let i = 0; i < 40 && closed.length === 0; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-      assert.deepEqual(closed, ['/big.apk'], 'the connection of the size check is closed');
+      await withEnv({APPIUM_APPS_DIR: appsDir, APPIUM_APP_SIZE_DISABLE: undefined}, async () => {
+        await configureApp(`${remote.url}/checked/app.apk`, OPTS);
+        assert.equal(remote.requests.length, 2, 'the request of Appium and the download');
+        remote.requests.length = 0;
+        await configureApp(`${remote.url}/checked/app.apk`, OPTS);
+        assert.equal(remote.requests.length, 1, 'the request of Appium only');
+      });
     } finally {
       await remote.close();
     }
   });
 
-  test('a server without Content-Length: the size is unknown and the stored app is downloaded again', async () => {
+  test('a server without ETag, Last-Modified and Content-Length: the stored app is downloaded again', async () => {
     let body = app;
     // no content-length: a chunked response
     const remote = await listen((req, res) => {
@@ -489,13 +697,12 @@ describe('the size of a remote app', () => {
     });
     const appsDir = tmpDir('apps');
     const url = `${remote.url}/chunked/app.apk`;
-    const stored = path.join(appsDir, new URL(remote.url).host, 'chunked', 'app.apk');
+    const stored = storedPath(appsDir, url);
     try {
-      assert.equal(await getFileContentLength(url), null);
       await withEnv({APPIUM_APPS_DIR: appsDir, APPIUM_APP_SIZE_DISABLE: undefined}, async () => {
         await configureApp(url, OPTS);
         assert.deepEqual(fs.readFileSync(stored), app, 'the first session stores the app');
-        // the next session cannot compare the sizes: the app is downloaded again, as a new build may be at the url
+        // the next session cannot compare the app: it is downloaded again, as a new build may be at the url
         body = Buffer.alloc(4096, 4);
         await configureApp(url, OPTS);
         assert.deepEqual(fs.readFileSync(stored), body, 'the next session stores the app again');
