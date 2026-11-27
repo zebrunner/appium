@@ -190,9 +190,17 @@ describe('playwright versions', () => {
     const run = () => assert.fail('nothing is installed');
     const versions = (allowed) => new PlaywrightVersions({cacheDir: tmpDir('pw-cache'), allowed, run, log: quiet});
     const notAllowed = /is not allowed on the device host \(PLAYWRIGHT_VERSIONS/;
-    for (const allowed of [undefined, '', '   ', 'not a range']) {
+    for (const allowed of ['', '   ', 'not a range']) {
       await assert.rejects(versions(allowed).load(OTHER), notAllowed, `PLAYWRIGHT_VERSIONS='${allowed}'`);
     }
+    await withEnv({PLAYWRIGHT_VERSIONS: undefined}, async () => {
+      await assert.rejects(new PlaywrightVersions({cacheDir: tmpDir('pw-cache'), run, log: quiet}).load(OTHER), notAllowed,
+        'without PLAYWRIGHT_VERSIONS');
+    });
+    await withEnv({PLAYWRIGHT_VERSIONS: ALLOWED}, async () => {
+      await assert.rejects(new PlaywrightVersions({cacheDir: tmpDir('pw-cache'), run, log: quiet}).load(OTHER),
+        /nothing is installed/, 'PLAYWRIGHT_VERSIONS is the default');
+    });
     await assert.rejects(versions(`<${OTHER}`).load(OTHER), notAllowed, 'out of the range');
     // a pre-release only when the range names it
     await assert.rejects(versions(ALLOWED).load(`${MAJOR}.${MINOR + 1}.0-alpha-2026-11-27`), notAllowed);
