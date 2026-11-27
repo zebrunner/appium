@@ -213,13 +213,16 @@ fi
 
 section "ios recording"
 line="$(fake_log_lines)"
-# the other files of LOG_DIR are reports of the session, the WDA log is shared only with SHARE_WDA_LOG=true
-docker exec "$IOS" bash -c 'touch /tmp/log/.recording-artifact-ios-1; echo report > /tmp/log/custom-report.txt; echo wda > /tmp/log/wda.log'
+# the files of LOG_DIR named by the session id are its reports, the others (e.g. of the connector) stay (appium#519),
+# the WDA log is shared only with SHARE_WDA_LOG=true
+docker exec "$IOS" bash -c 'touch /tmp/log/.recording-artifact-ios-1; echo report > /tmp/log/ios-1-report.txt; echo tunnel > /tmp/log/tunnel.log; echo wda > /tmp/log/wda.log'
 sleep 8
 docker exec "$IOS" rm -f /tmp/log/.recording-artifact-ios-1
 check_shared "$IOS" ios-1 "a session"
-check "a session: the other files of LOG_DIR are moved to the session" "report|no" \
-  "$(docker exec "$IOS" bash -c 'echo "$(cat /tmp/log/ios-1/custom-report.txt)|$(test -e /tmp/log/custom-report.txt && echo yes || echo no)"')"
+check "a session: the files of LOG_DIR named by the session id are moved to the session" "report|no" \
+  "$(docker exec "$IOS" bash -c 'echo "$(cat /tmp/log/ios-1/ios-1-report.txt)|$(test -e /tmp/log/ios-1-report.txt && echo yes || echo no)"')"
+check "a session: the other files of LOG_DIR (the connector) stay" "tunnel|no" \
+  "$(docker exec "$IOS" bash -c 'echo "$(cat /tmp/log/tunnel.log)|$(test -e /tmp/log/ios-1/tunnel.log && echo yes || echo no)"')"
 check "a session: the WDA log is not shared by default" "no|wda" \
   "$(docker exec "$IOS" bash -c 'echo "$(test -e /tmp/log/ios-1/wda.log && echo yes || echo no)|$(cat /tmp/log/wda.log)"')"
 check_contains "the video is read from the WDA MJPEG server" "[MJPEG] client connected" \

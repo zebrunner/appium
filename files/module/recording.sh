@@ -184,10 +184,13 @@ share() {
     : > "${WDA_LOG_FILE}"
   fi
 
-  # share all the rest custom reports from LOG_DIR into artifactId subfolder
-  local file
+  # the other files of the session in LOG_DIR: named by its id (<id>.<ext>, <id>-<name>, <id>_<name>); LOG_DIR is shared
+  # with the connector and the other sessions, their files (e.g. tunnel.log, background.exit of the connector) stay
+  local file name
   for file in "${LOG_DIR}"/*; do
-    if [[ -f "$file" ]] && [[ -s "$file" ]] && [[ "$file" != "${TASK_LOG}" ]] && [[ "$file" != "${WDA_LOG_FILE}" ]]; then
+    name="${file##*/}"
+    if [[ -f "$file" ]] && [[ -s "$file" ]] && [[ "$file" != "${TASK_LOG}" ]] && [[ "$file" != "${WDA_LOG_FILE}" ]] &&
+      [[ "$name" == "$artifactId".* || "$name" == "$artifactId"-* || "$name" == "$artifactId"_* ]]; then
       logger "INFO" "[Share] Sharing file: $file"
       # to avoid extra publishing as launch artifact for driver sessions
       mv "$file" "${LOG_DIR}/${artifactId}/"
