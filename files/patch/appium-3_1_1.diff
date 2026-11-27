@@ -438,7 +438,7 @@ index 07258f3..911d181 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..e2af2e9 100644
+index b3bdf5a..8ed2350 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -1,12 +1,14 @@
@@ -452,7 +452,7 @@ index b3bdf5a..e2af2e9 100644
  import AsyncLock from 'async-lock';
  import axios from 'axios';
  import B from 'bluebird';
-+import { getLocalAppsFolder, getSharedFolderForAppUrl, getLocalFileForAppUrl, getFileContentLength, isInSharedStorage, toError, touchSharedApp, evictSharedApps } from './mcloud-utils';
++import { getLocalAppsFolder, getSharedApp, getSharedFolder, checkStoredApp, writeStoredAppMeta, isInSharedStorage, toError, touchSharedApp, evictSharedApps } from './mcloud-utils';
  
  // for compat with running tests transpiled and in-place
  export const {version: BASEDRIVER_VER} = fs.readPackageJsonFrom(__dirname);
@@ -493,7 +493,7 @@ index b3bdf5a..e2af2e9 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +169,247 @@ export async function configureApp(
+@@ -161,38 +169,236 @@ export async function configureApp(
              }
            }
          }
@@ -502,18 +502,20 @@ index b3bdf5a..e2af2e9 100644
 -            logger.info(`Reusing previously downloaded application at '${cachedAppInfo.fullPath}'`);
 -            return verifyAppExtension(/** @type {string} */ (cachedAppInfo.fullPath), supportedAppExtensions);
 +
-+        // ***** Custom logic for verification of local static path for APPs *****
++        // ***** [MCLOUD] The shared storage of the apps of the host (APPIUM_APPS_DIR, getSharedApp) *****
 +        let downloadIsNeeded = true;
 +        localAppsFolder = await getLocalAppsFolder();
-+        // the shared storage keeps only the apps whose url has a file in it (getLocalFileForAppUrl)
-+        const sharedFile = localAppsFolder !== undefined ? await getLocalFileForAppUrl(newApp) : null;
-+        if (localAppsFolder !== undefined && !sharedFile) {
++        // the shared storage keeps only the apps of the urls it has a file for; its key depends on the response
++        const sharedApp = localAppsFolder !== undefined ? await getSharedApp(newApp, headers) : null;
++        if (localAppsFolder !== undefined && !sharedApp) {
 +          logger.warn(`[MCLOUD] The application url has no file in the shared storage, it is downloaded for this session only`);
 +          localAppsFolder = undefined;
 +        }
 +        let localFile;
 +        let fileName;
 +        let lockFile = '';
++        // the response headers of the download, kept in the metadata of the stored app
++        let downloadHeaders = headers;
 +        const waitingTime = 1000;
 +        // the defaults of the image (Dockerfile, README)
 +        const maxAttemptsCount = toNaturalNumber(600, 'APPIUM_APP_WAITING_TIMEOUT');
@@ -545,7 +547,7 @@ index b3bdf5a..e2af2e9 100644
 +              throw err;
 +            }
 +          }
-+          logger.info(`[MCLOUD] Local version of app not found but .lock file exists. Waiting for .lock to disappear. Device/session details: ${lockDetails}`);
++          logger.info(`[MCLOUD] The application is being downloaded by another session (.lock), waiting for its end. Device/session details: ${lockDetails}`);
 +          let attemptsCount = 0;
 +          let refreshedTime;
 +          while ((refreshedTime = await lockRefreshedTime()) && (attemptsCount++ < maxAttemptsCount)) {
@@ -572,64 +574,47 @@ index b3bdf5a..e2af2e9 100644
 -
 -          if (!stream.closed) {
 -            stream.destroy();
++        };
++        // whether the stored app is the app of this url (checkStoredApp): its metadata, the response of this url and its
++        // sha256; the stored app of another url, of another version or a changed one is never used
++        const isStoredAppUsable = async () => {
 +          if (!await fs.exists(localFile)) {
-+            throw Error(`[MCLOUD] Local application file has not appeared after .lock file removal`);
++            return false;
            }
 -          ({stream, headers, status} = await queryAppLink(newApp, {...DEFAULT_REQ_HEADERS}));
-+          logger.info(`[MCLOUD] Local version of app was found after .lock file removal. Will use it for new session`);
++          const {ok, reason} = await checkStoredApp(/** @type {any} */ (sharedApp), headers, appSizeCheckDisabled);
++          logger.info(`[MCLOUD] The stored application ${ok ? 'is used' : 'is not used'}: ${reason}`);
++          return ok;
++        };
++        // the stored app is used by the session
++        const useStoredApp = async () => {
++          // used now: the eviction of another Appium of the host keeps it
++          await touchSharedApp(localFile);
++          newApp = localFile;
++          downloadIsNeeded = false;
++        };
++        // the app of the parallel download is used when it is the app of this url, else it is downloaded for this
++        // session only: the .lock is the one of the other session
++        const useParallelDownload = async () => {
++          await waitForParallelDownload();
++          if (await isStoredAppUsable()) {
++            await useStoredApp();
++          } else {
++            logger.warn(`[MCLOUD] The application of the parallel download is not the one of this url, it is downloaded for this session only`);
++            localAppsFolder = undefined;
++            localFile = undefined;
++          }
 +        };
 +
-+
 +        if (localAppsFolder !== undefined) {
-+          localFile = /** @type {string} */ (sharedFile);
++          localFile = /** @type {any} */ (sharedApp).file;
 +          lockFile = localFile + '.lock';
-+          if (await fs.exists(localFile)) {
-+            // used now: the eviction of another Appium of the host keeps it
-+            await touchSharedApp(localFile);
-+            if (appSizeCheckDisabled === false) {
-+              // Checking of local application actuality
-+              logger.info(`[MCLOUD] Local version of app was found. Will check actuality of the file`);
-+              // At this point local file might be deleted by parallel session which updates outdated app
-+              let attemptsCount = 0;
-+              while (!await fs.exists(localFile) && (attemptsCount++ < maxAttemptsCount)) {
-+                await new Promise((resolve) => {
-+                  logger.info(`[MCLOUD] Attempt #${attemptsCount} for local app file to appear again`);
-+                  setTimeout(resolve, waitingTime);
-+                });
-+              }
-+              if (!await fs.exists(localFile)) {
-+                throw Error(`[MCLOUD] Local application file has not appeared after updating by parallel Appium session`);
-+              }
-+              const stats = await fs.stat(localFile);
-+              const localFileLength = stats.size;
-+              const remoteFileLength = await getFileContentLength(app);
-+              logger.info(`[MCLOUD] Remote file size is ${remoteFileLength} and local file size is ${localFileLength}`);
-+              if (remoteFileLength !== localFileLength) {
-+                logger.info(`[MCLOUD] Sizes differ. Hence that's needed to download fresh version of the app`);
-+                if (await fs.exists(localFile)) {
-+                  await fs.unlink(localFile);
-+                } else {
-+                  logger.warn(`[MCLOUD] Old local application file ${localFile} was not found. Probably it was removed by another thread which was downloading app in parallel`);
-+                }
-+                downloadIsNeeded = true;
-+              } else {
-+                logger.info(`[MCLOUD] Sizes are the same. Hence will use already stored application for the session`);
-+                newApp = localFile;
-+                downloadIsNeeded = false;
-+              }
-+            } else {
-+              logger.info(`[MCLOUD] APPIUM_APP_SIZE_DISABLE=true hence skipping file size checking and going to use found file as application source`);
-+              newApp = localFile;
-+              downloadIsNeeded = false;
-+            }
++          if (await isStoredAppUsable()) {
++            await useStoredApp();
 +          } else if (await lockRefreshedTime()) {
-+            await waitForParallelDownload();
-+            await touchSharedApp(localFile);
-+            newApp = localFile;
-+            downloadIsNeeded = false;
++            await useParallelDownload();
 +          } else {
-+            logger.info(`[MCLOUD] Neither local version of app nor .lock file was found. Will download app from remote URL.`);
-+            downloadIsNeeded = true;
++            logger.info(`[MCLOUD] No usable stored application and no download of it: it is downloaded`);
 +          }
 +        } else {
 +          logger.info(`[MCLOUD] Local apps folder is not defined via environment properties, hence skipping this logic. Use variable APPIUM_APPS_DIR for path setting`);
@@ -648,8 +633,7 @@ index b3bdf5a..e2af2e9 100644
 -            suffix: '',
 -          }));
 +        if (downloadIsNeeded && localAppsFolder !== undefined) {
-+          logger.info(`[MCLOUD] Local version of app was not found. Hence using default Appium logic for downloading`);
-+          const sharedFolderPath = await getSharedFolderForAppUrl(app);
++          const sharedFolderPath = await getSharedFolder(/** @type {any} */ (sharedApp));
 +          logger.info(`[MCLOUD] Folder for local shared apps: ${sharedFolderPath}`);
 +          let sessionId = process.env.sessionId ?? 'could not define session ID';
 +          let deviceId = process.env.DEVICE_UDID ?? 'could not define device UUID';
@@ -667,10 +651,7 @@ index b3bdf5a..e2af2e9 100644
 +              throw err;
 +            }
 +            logger.info(`[MCLOUD] Another session has just started the download of the app`);
-+            await waitForParallelDownload();
-+            await touchSharedApp(/** @type {string} */ (localFile));
-+            newApp = /** @type {string} */ (localFile);
-+            downloadIsNeeded = false;
++            await useParallelDownload();
 +          }
 +        }
 +
@@ -721,6 +702,7 @@ index b3bdf5a..e2af2e9 100644
 +                    suffix: '',
 +                  }));
 +                }
++                downloadHeaders = attemptHeaders;
 +                // Success, stop retrying
 +                break;
 +              } catch (err) {
@@ -739,10 +721,17 @@ index b3bdf5a..e2af2e9 100644
 +            // ***** Custom logic for copying of downloaded app to static location *****
 +            if (localAppsFolder !== undefined) {
 +              logger.info(`[MCLOUD] New app path: ${newApp}`);
-+              // other sessions never see a partial app: the complete copy is renamed into place
++              // other sessions never see a partial app: the complete copy and its metadata are renamed into place while
++              // the .lock is held (a session that finds the app changed meanwhile waits for the .lock)
 +              try {
 +                // @ts-ignore
 +                await fs.copyFile(newApp, localTmpFile);
++                await writeStoredAppMeta(localFile, localTmpFile, /** @type {any} */ (sharedApp).key, downloadHeaders);
++                // a folder (the .app of a simulator) is not renamed over the old app, it is removed first
++                if (await fs.exists(localFile)
++                  && ((await fs.stat(localFile)).isDirectory() || (await fs.stat(localTmpFile)).isDirectory())) {
++                  await fs.rimraf(localFile);
++                }
 +                // @ts-ignore
 +                await fs.rename(localTmpFile, localFile);
 +              } catch (err) {
@@ -767,19 +756,19 @@ index b3bdf5a..e2af2e9 100644
            stream.destroy();
          }
        }
-@@ -218,7 +435,10 @@ export async function configureApp(
+@@ -218,7 +424,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
 -      if (cachedFullPath && cachedFullPath !== appPathToCache) {
 +      // [MCLOUD] We control actuality of the file in custom logic.
 +      // so no need to remove file physically from shared location when updating Appium cache.
-+      if (cachedFullPath && cachedFullPath !== appPathToCache && localAppsFolder === undefined) {
++      if (cachedFullPath && cachedFullPath !== appPathToCache && localAppsFolder === undefined && !isInSharedStorage(cachedFullPath)) {
 +        logger.info(`[MCLOUD] storeAppInCache(). Deleting files by path: ${cachedFullPath}`);
          await fs.rimraf(cachedFullPath);
        }
        const integrity = {};
-@@ -540,6 +760,33 @@ function isEnvOptionEnabled(optionName, defaultValue = null) {
+@@ -540,6 +749,33 @@ function isEnvOptionEnabled(optionName, defaultValue = null) {
    return !_.isEmpty(value) && !['0', 'false', 'no'].includes(_.toLower(value));
  }
  
@@ -815,20 +804,18 @@ index b3bdf5a..e2af2e9 100644
   * @param {string} [envVarName]
 diff --git a/packages/base-driver/lib/basedriver/mcloud-utils.ts b/packages/base-driver/lib/basedriver/mcloud-utils.ts
 new file mode 100644
-index 0000000..d1a7ec3
+index 0000000..ccd538e
 --- /dev/null
 +++ b/packages/base-driver/lib/basedriver/mcloud-utils.ts
-@@ -0,0 +1,325 @@
+@@ -0,0 +1,506 @@
 +import {fs} from '@appium/support';
 +import * as path from 'path';
 +import axios from 'axios';
 +import logger from './logger';
 +import util from 'util';
 +import { exec } from 'child_process';
-+import { promises as nodeFs } from 'fs';
-+import {
-+  type ResponseType
-+  } from 'axios';
++import { promises as nodeFs, createReadStream } from 'fs';
++import crypto from 'crypto';
 +
 +async function getLocalAppsFolder() {
 +  if (process.env.APPIUM_APPS_DIR === undefined || process.env.APPIUM_APPS_DIR === '') {
@@ -887,8 +874,23 @@ index 0000000..d1a7ec3
 +  }
 +}
 +
-+// the apps of the shared storage (not the .lock files) whose download is not running, and the temporary copies
-+async function listStoredFiles(dir: string): Promise<{apps: StoredFile[], temporary: StoredFile[]}> {
++// the bytes of a stored app, of every file of a folder (the .app of a simulator)
++async function storedSize(file: string): Promise<number> {
++  const stats = await nodeFs.lstat(file);
++  if (!stats.isDirectory()) {
++    return stats.size;
++  }
++  let size = 0;
++  for (const entry of await nodeFs.readdir(file)) {
++    size += await storedSize(path.join(file, entry));
++  }
++  return size;
++}
++
++// the apps of the shared storage whose download is not running (an app is its file or folder with its metadata), and
++// the temporary copies and the metadata of no app; the Playwright versions of PLAYWRIGHT_CACHE_DIR in the storage are
++// not apps
++async function listStoredFiles(dir: string, skip: string[] = []): Promise<{apps: StoredFile[], temporary: StoredFile[]}> {
 +  const apps: StoredFile[] = [];
 +  const temporary: StoredFile[] = [];
 +  let entries;
@@ -903,30 +905,40 @@ index 0000000..d1a7ec3
 +  const names = new Set(entries.map((entry) => entry.name));
 +  for (const entry of entries) {
 +    const file = path.join(dir, entry.name);
-+    if (entry.isDirectory()) {
-+      const nested = await listStoredFiles(file);
++    const appName = entry.name.endsWith(STORED_APP_META) ? entry.name.slice(0, -STORED_APP_META.length) : entry.name;
++    if (skip.includes(path.resolve(file)) || entry.name.endsWith('.lock') || names.has(`${appName}.lock`)
++      || (!entry.isFile() && !entry.isDirectory())) {
++      continue;
++    }
++    const isTemporary = TEMPORARY_COPY.test(entry.name);
++    if (!isTemporary && entry.name.endsWith(STORED_APP_META) && names.has(appName)) {
++      // removed with its app
++      continue;
++    }
++    if (!isTemporary && entry.isDirectory() && !names.has(`${entry.name}${STORED_APP_META}`)) {
++      const nested = await listStoredFiles(file, skip);
 +      apps.push(...nested.apps);
 +      temporary.push(...nested.temporary);
 +      continue;
 +    }
-+    if (!entry.isFile() || entry.name.endsWith('.lock') || names.has(`${entry.name}.lock`)) {
-+      continue;
-+    }
-+    let stats;
++    let stored;
 +    try {
-+      stats = await nodeFs.stat(file);
++      stored = {file, size: await storedSize(file), mtimeMs: (await nodeFs.stat(file)).mtimeMs};
 +    } catch {
 +      // removed by another Appium meanwhile
 +      continue;
 +    }
-+    (TEMPORARY_COPY.test(entry.name) ? temporary : apps).push({file, size: stats.size, mtimeMs: stats.mtimeMs});
++    (isTemporary || entry.name.endsWith(STORED_APP_META) ? temporary : apps).push(stored);
 +  }
 +  return {apps, temporary};
 +}
 +
 +async function removeStoredFile(stored: StoredFile, reason: string): Promise<boolean> {
 +  try {
-+    await nodeFs.rm(stored.file, {force: true});
++    await nodeFs.rm(stored.file, {recursive: true, force: true});
++    if (!stored.file.endsWith(STORED_APP_META)) {
++      await nodeFs.rm(`${stored.file}${STORED_APP_META}`, {force: true});
++    }
 +    logger.info(`[MCLOUD] Removed ${stored.file} (${stored.size} bytes) from the shared storage: ${reason}`);
 +    return true;
 +  } catch (err) {
@@ -940,8 +952,9 @@ index 0000000..d1a7ec3
 +  try {
 +    const maxAgeDays = nonNegativeEnv('APPIUM_APPS_MAX_AGE', 7);
 +    const minFreePercent = nonNegativeEnv('APPIUM_APPS_MIN_FREE', 10);
-+    const {apps, temporary} = await listStoredFiles(appsDir);
-+    // the copies of the downloads interrupted by the end of their Appium
++    const skip = process.env.PLAYWRIGHT_CACHE_DIR ? [path.resolve(process.env.PLAYWRIGHT_CACHE_DIR)] : [];
++    const {apps, temporary} = await listStoredFiles(appsDir, skip);
++    // the copies of the downloads interrupted by the end of their Appium, the metadata of the removed apps
 +    for (const stored of temporary) {
 +      if (now - stored.mtimeMs > RECENTLY_USED_MS) {
 +        await removeStoredFile(stored, 'an interrupted download');
@@ -993,90 +1006,245 @@ index 0000000..d1a7ec3
 +  return new Error(typeof err === 'string' ? err : `${err}`);
 +}
 +
-+// the folder of the shared storage for the app of a url (getLocalFileForAppUrl), created when missing
-+async function getSharedFolderForAppUrl(url) {
-+  const localFile = await getLocalFileForAppUrl(url);
-+  if (!localFile) {
-+    throw new Error(`[MCLOUD] The application url has no file in the shared storage: ${url}`);
-+  }
-+  const targetPath = path.dirname(localFile);
++// [MCLOUD] The shared storage keeps an app per url: <APPIUM_APPS_DIR>/<host>/<key>/<last segment of the url path>, its
++// metadata (the validators of the response it was downloaded with and its sha256) in <file>.meta.json. The key is
++// the sha256 of the full url, its query included: urls that differ only by the query (e.g. ...?id=<build>) are
++// different apps, and a file downloaded for one url is never used for another one. The signed urls of S3, CloudFront,
++// Google Cloud Storage and Azure (App Center) change their signature on every request: their key is the url without
++// the signature parameters, but only when the server sends a strong ETag, and a stored app of such a key is used
++// only when the ETag of the response of the session url (the server accepted its signature) is the one the app was
++// downloaded with.
++const STORED_APP_META = '.meta.json';
++// the names the storage uses itself: the .lock of a download, the metadata, the temporary copies
++const RESERVED_NAME = /(\.lock|\.meta\.json|\.\d+\.tmp)$/;
++// the file name, its .meta.json and the suffix of a temporary copy stay below NAME_MAX (255)
++const MAX_NAME_LENGTH = 200;
++// the query parameters of the signed urls: they authorize the request, they do not select the object
++const SIGNATURE_PARAMS = new Set([
++  // S3 SigV4 and SigV2, CloudFront
++  'x-amz-algorithm', 'x-amz-credential', 'x-amz-date', 'x-amz-expires', 'x-amz-signedheaders', 'x-amz-signature',
++  'x-amz-security-token', 'awsaccesskeyid', 'signature', 'expires', 'key-pair-id', 'policy',
++  // Google Cloud Storage V4 and V2
++  'x-goog-algorithm', 'x-goog-credential', 'x-goog-date', 'x-goog-expires', 'x-goog-signedheaders',
++  'x-goog-signature', 'googleaccessid',
++  // Azure SAS (App Center)
++  'sv', 'ss', 'srt', 'sp', 'se', 'st', 'spr', 'sig', 'sr', 'si', 'sdd', 'ses', 'skoid', 'sktid', 'skt', 'ske', 'sks',
++  'skv', 'saoid', 'suoid', 'scid',
++]);
 +
-+  logger.info(`[MCLOUD] Target path [getSharedFolderForAppUrl]: ${targetPath}`);
-+  const folderExists = await fs.exists(targetPath);
-+  if (!folderExists) {
-+    await fs.mkdir(targetPath, {recursive: true});
-+  }
-+  return targetPath;
++type StoredAppKey = 'url' | 'signed';
++
++interface SharedApp {
++  file: string;
++  key: StoredAppKey;
 +}
 +
-+exports.getSharedFolderForAppUrl = getSharedFolderForAppUrl;
++interface StoredAppMeta {
++  key: StoredAppKey;
++  etag: string | null;
++  lastModified: string | null;
++  contentLength: number | null;
++  sha256: string;
++}
 +
-+// the file of the shared storage (APPIUM_APPS_DIR) for the app of a url: <host>/<path> of the url without its query
-+// (the signed urls of S3 and App Center change on every request). The host keeps apart the apps of different servers,
-+// the storage is shared by every device of the host; null for a url that is not http(s), has no path or leaves the
-+// storage: such an app is downloaded for the session only, as Appium does
-+async function getLocalFileForAppUrl(url): Promise<string | null> {
++// a header of an axios response (AxiosHeaders or a plain object), null when missing
++function headerValue(headers: any, name: string): string | null {
++  const value = typeof headers?.get === 'function' ? headers.get(name) : headers?.[name];
++  if (value === undefined || value === null) {
++    return null;
++  }
++  const text = `${Array.isArray(value) ? value[0] : value}`.trim();
++  return text === '' ? null : text;
++}
++
++function contentLength(headers: any): number | null {
++  const value = headerValue(headers, 'content-length');
++  return value !== null && /^\d+$/.test(value) ? parseInt(value, 10) : null;
++}
++
++// a strong ETag ("..."), not a weak one (W/"..."): only a strong one identifies the bytes of the object
++function isStrongEtag(etag: string | null): boolean {
++  return etag !== null && /^"[^"]*"$/.test(etag) && etag !== '""';
++}
++
++function isSignedUrl(parsed: URL): boolean {
++  const names = new Set([...parsed.searchParams.keys()].map((name) => name.toLowerCase()));
++  return names.has('x-amz-signature') || names.has('x-goog-signature')
++    || (names.has('signature') && ['awsaccesskeyid', 'googleaccessid', 'key-pair-id'].some((name) => names.has(name)))
++    || (names.has('sig') && (names.has('se') || names.has('si')));
++}
++
++function sha256(text: string): string {
++  return crypto.createHash('sha256').update(text).digest('hex');
++}
++
++// the shared file of the app of a url (see above) for the response of the url (its headers); null for a url that is
++// not http(s) or whose file name the storage cannot keep: such an app is downloaded for the session only, as Appium does
++async function getSharedApp(url: string, headers?: any): Promise<SharedApp | null> {
 +  let parsed: URL;
 +  try {
 +    parsed = new URL(url);
 +  } catch {
 +    return null;
 +  }
-+  // the path segments as the url has them: the dot segments are resolved by URL, a %2F stays in its file name
-+  const segments = parsed.pathname.split('/').filter((segment) => segment !== '');
-+  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host || !segments.length
-+    || segments.some((segment) => segment === '.' || segment === '..')) {
++  // the last path segment as the url has it: the dot segments are resolved by URL, a %2F stays in the name
++  const name = parsed.pathname.split('/').filter((segment) => segment !== '').pop();
++  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host || !name || name === '.' || name === '..'
++    || RESERVED_NAME.test(name) || Buffer.byteLength(name) > MAX_NAME_LENGTH) {
 +    return null;
 +  }
++  let key: StoredAppKey = 'url';
++  let source = `url\n${parsed.href}`;
++  if (isSignedUrl(parsed) && isStrongEtag(headerValue(headers, 'etag'))) {
++    const params = [...parsed.searchParams.entries()]
++      .filter(([name]) => !SIGNATURE_PARAMS.has(name.toLowerCase()))
++      .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
++      .sort();
++    key = 'signed';
++    source = `signed\n${parsed.protocol}//${parsed.host}${parsed.pathname}?${params.join('&')}`;
++  }
 +  const appsDir = path.resolve(await getLocalAppsFolder() as string);
-+  const targetPath = path.resolve(appsDir, parsed.host, ...segments);
-+  const relative = path.relative(appsDir, targetPath);
++  const file = path.resolve(appsDir, parsed.host, sha256(source), name);
++  const relative = path.relative(appsDir, file);
 +  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
 +    return null;
 +  }
-+  logger.info(`[MCLOUD] Target path [getLocalFileForAppUrl]: ${targetPath}`);
-+  return targetPath;
++  logger.info(`[MCLOUD] The file of the application in the shared storage (${key === 'signed' ? 'a signed url, keyed by its object' : 'keyed by its url'}): ${file}`);
++  return {file, key};
 +}
 +
-+// [MCLOUD] the size of the remote app, compared with the stored one (APPIUM_APP_SIZE_DISABLE); null when the server
-+// sends no Content-Length (e.g. a chunked response): the size is unknown, the caller downloads the app again. Only the
-+// headers are read, the body is not: its connection is closed at once. A GET, not a HEAD: the signed urls of S3 are
-+// valid for GET only.
-+async function getFileContentLength(remoteUrl): Promise<number | null> {
-+  const timeout = 10000;
-+  const retries = 5;
-+  const pollingInterval = 3000;
-+
-+  const requestOpts = {
-+    url: remoteUrl,
-+    responseType: 'stream' as ResponseType,
-+    timeout,
-+  };
-+
-+  // getting content-length with retry
-+  let lastError;
-+  for (let i = 0; i < retries; i++) {
-+    try {
-+      logger.debug(`[MCLOUD] Making GET http call for retrieving of remote app size`);
-+      const {headers: responseHeaders, data: stream} = await axios(requestOpts);
-+      stream?.destroy?.();
-+      const header = `${responseHeaders['content-length'] ?? ''}`.trim();
-+      if (!/^\d+$/.test(header)) {
-+        logger.warn(`[MCLOUD] The server of the app sends no Content-Length ('${header}'): the size of the remote app is unknown`);
-+        return null;
-+      }
-+      const responseLength = parseInt(header, 10);
-+      logger.debug(`[MCLOUD] CONTENT-LENGTH for the file: ${responseLength}`);
-+      return responseLength;
-+    } catch (error) {
-+      lastError = error;
-+      if (i < retries - 1) {
-+        logger.warn(`[MCLOUD] Cannot fetch info about app size. Will retry attempt in ${pollingInterval}ms`);
-+        await new Promise((resolve) => setTimeout(resolve, pollingInterval));
++// the sha256 of a stored app: of the bytes of a file, of the names, the links and the bytes of the files of a folder
++// (the .app of a simulator)
++async function hashStoredApp(appPath: string): Promise<string> {
++  const hash = crypto.createHash('sha256');
++  const addFile = (file: string) => new Promise<void>((resolve, reject) => {
++    createReadStream(file).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve()).on('error', reject);
++  });
++  const stats = await nodeFs.lstat(appPath);
++  if (!stats.isDirectory()) {
++    await addFile(appPath);
++    return hash.digest('hex');
++  }
++  const walk = async (dir: string, prefix: string) => {
++    const entries = (await nodeFs.readdir(dir, {withFileTypes: true})).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
++    for (const entry of entries) {
++      const full = path.join(dir, entry.name);
++      const relative = `${prefix}${entry.name}`;
++      if (entry.isDirectory()) {
++        hash.update(`D\0${relative}\0`);
++        await walk(full, `${relative}/`);
++      } else if (entry.isSymbolicLink()) {
++        hash.update(`L\0${relative}\0${await nodeFs.readlink(full)}\0`);
++      } else if (entry.isFile()) {
++        hash.update(`F\0${relative}\0${(await nodeFs.stat(full)).size}\0`);
++        await addFile(full);
 +      }
 +    }
++  };
++  await walk(appPath, '');
++  return hash.digest('hex');
++}
++
++// the metadata of a stored app, null when missing or invalid
++async function readStoredAppMeta(file: string): Promise<StoredAppMeta | null> {
++  try {
++    const meta = JSON.parse(await nodeFs.readFile(`${file}${STORED_APP_META}`, 'utf8'));
++    if (meta && ['url', 'signed'].includes(meta.key) && typeof meta.sha256 === 'string' && /^[0-9a-f]{64}$/.test(meta.sha256)) {
++      return {
++        key: meta.key,
++        etag: typeof meta.etag === 'string' ? meta.etag : null,
++        lastModified: typeof meta.lastModified === 'string' ? meta.lastModified : null,
++        contentLength: Number.isSafeInteger(meta.contentLength) ? meta.contentLength : null,
++        sha256: meta.sha256,
++      };
++    }
++  } catch {
++    // no metadata (e.g. an app of an older image) or a broken one
 +  }
-+  throw new Error(`[MCLOUD] Cannot get file content-length from ${remoteUrl} after ${retries} retry(s): ${lastError}`);
++  return null;
++}
++
++// writes the metadata of the app copied to tmpPath (the response headers of its download) next to its file: the
++// metadata is written beside it and renamed, the caller renames the app into place (it holds the .lock of the download)
++async function writeStoredAppMeta(file: string, tmpPath: string, key: StoredAppKey, headers: any) {
++  const meta: StoredAppMeta = {
++    key,
++    etag: headerValue(headers, 'etag'),
++    lastModified: headerValue(headers, 'last-modified'),
++    contentLength: contentLength(headers),
++    sha256: await hashStoredApp(tmpPath),
++  };
++  const metaFile = `${file}${STORED_APP_META}`;
++  const metaTmp = `${metaFile}.${process.pid}.tmp`;
++  try {
++    await nodeFs.writeFile(metaTmp, JSON.stringify(meta));
++    await nodeFs.rename(metaTmp, metaFile);
++  } finally {
++    await nodeFs.rm(metaTmp, {force: true});
++  }
++}
++
++// whether the stored app can be used for the url of the session whose response has the headers: the metadata of the
++// app is the one of its key, the response is the same app (the same strong ETag, or else the same Last-Modified and
++// Content-Length, or else the same Content-Length for the key of the url; for a signed url only the ETag), and the
++// bytes of the stored app are the ones it was downloaded with. trustStored (APPIUM_APP_SIZE_DISABLE=true) skips the
++// comparison with the response for the key of the url (the app was downloaded from the same url), not the sha256.
++async function checkStoredApp(app: SharedApp, headers: any, trustStored = false): Promise<{ok: boolean, reason: string}> {
++  const meta = await readStoredAppMeta(app.file);
++  if (!meta) {
++    return {ok: false, reason: 'it has no metadata'};
++  }
++  if (meta.key !== app.key) {
++    return {ok: false, reason: `its metadata is of another key (${meta.key})`};
++  }
++  const etag = headerValue(headers, 'etag');
++  const lastModified = headerValue(headers, 'last-modified');
++  const length = contentLength(headers);
++  let validated: string;
++  if (app.key === 'signed') {
++    if (!isStrongEtag(etag) || etag !== meta.etag) {
++      return {ok: false, reason: `the ETag of the response (${etag}) is not the one of the stored app (${meta.etag})`};
++    }
++    validated = `the same ETag ${etag}`;
++  } else if (trustStored) {
++    validated = 'APPIUM_APP_SIZE_DISABLE=true: the response is not compared';
++  } else if (etag !== null && meta.etag !== null) {
++    if (etag !== meta.etag) {
++      return {ok: false, reason: `the ETag of the response (${etag}) is not the one of the stored app (${meta.etag})`};
++    }
++    validated = `the same ETag ${etag}`;
++  } else if (lastModified !== null && meta.lastModified !== null) {
++    if (lastModified !== meta.lastModified || (length !== null && length !== meta.contentLength)) {
++      return {ok: false, reason: `the Last-Modified and Content-Length of the response (${lastModified}, ${length}) are not the ones of the stored app (${meta.lastModified}, ${meta.contentLength})`};
++    }
++    validated = `the same Last-Modified ${lastModified}`;
++  } else if (length !== null && meta.contentLength !== null) {
++    if (length !== meta.contentLength) {
++      return {ok: false, reason: `the Content-Length of the response (${length}) is not the one of the stored app (${meta.contentLength})`};
++    }
++    validated = `the same Content-Length ${length}`;
++  } else {
++    return {ok: false, reason: 'the response has no ETag, Last-Modified or Content-Length to compare with the stored app'};
++  }
++  let actual: string;
++  try {
++    actual = await hashStoredApp(app.file);
++  } catch (err) {
++    return {ok: false, reason: `it cannot be read: ${toError(err).message}`};
++  }
++  if (actual !== meta.sha256) {
++    return {ok: false, reason: 'its sha256 is not the one it was downloaded with'};
++  }
++  return {ok: true, reason: `${validated}, the same sha256`};
++}
++
++// the folder of the shared file of an app, created when missing
++async function getSharedFolder(app: SharedApp) {
++  const targetPath = path.dirname(app.file);
++  if (!await fs.exists(targetPath)) {
++    await fs.mkdir(targetPath, {recursive: true});
++  }
++  return targetPath;
 +}
 +
 +async function executeShell(shellCommand, description) {
@@ -1136,9 +1304,11 @@ index 0000000..d1a7ec3
 +  touchSharedApp,
 +  evictSharedApps,
 +  getLocalAppsFolder,
-+  getSharedFolderForAppUrl,
-+  getLocalFileForAppUrl,
-+  getFileContentLength,
++  getSharedApp,
++  getSharedFolder,
++  checkStoredApp,
++  writeStoredAppMeta,
++  hashStoredApp,
 +  executeShell,
 +  executeShellWPromise,
 +  parseWDAUrl,
