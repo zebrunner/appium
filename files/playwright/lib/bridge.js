@@ -11,6 +11,42 @@ const {clientVersion} = require('./versions');
 const MAX_PAYLOAD = 1024 * 1024 * 1024;
 // the headers of the client the Playwright server checks (its version) or uses (its options)
 const FORWARDED_HEADERS = /^(user-agent|x-playwright-.*)$/i;
+// the methods of the AndroidDevice of Playwright that run a command of the client on the device: the adb shell
+// (shell()), any adb service (open()); the package of launchBrowser() and the options of installApk() go into a shell
+// command line on the device, so they are names and options only
+const SHELL_METHODS = new Set(['shell', 'open']);
+const PACKAGE_NAME = /^[A-Za-z0-9_.]+$/;
+const INSTALL_OPTION = /^[A-Za-z0-9_.,:=@%+/-]+$/;
+
+/**
+ * @param {Buffer|string} data a message of a client
+ * @returns {{id: any, use: string}|null} the use of the adb shell of the device by the message, null without one
+ */
+function shellUse(data) {
+  let message;
+  try {
+    // the parse of the Playwright server: a text or a binary message of JSON
+    message = JSON.parse(Buffer.from(data).toString());
+  } catch {
+    return null;
+  }
+  if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
+    return null;
+  }
+  const params = message.params && typeof message.params === 'object' ? message.params : {};
+  if (SHELL_METHODS.has(message.method)) {
+    return {id: message.id, use: `${message.method}()`};
+  }
+  if (message.method === 'launchBrowser' && params.pkg !== undefined &&
+    !(typeof params.pkg === 'string' && PACKAGE_NAME.test(params.pkg))) {
+    return {id: message.id, use: 'launchBrowser() of a package that is not a package name'};
+  }
+  if (message.method === 'installApk' && params.args !== undefined &&
+    !(Array.isArray(params.args) && params.args.every((arg) => typeof arg === 'string' && INSTALL_OPTION.test(arg)))) {
+    return {id: message.id, use: 'installApk() with options that are not options of pm install'};
+  }
+  return null;
+}
 
 /** @returns {number} a close code that may be sent in a close frame */
 function sendableCode(code) {
@@ -34,11 +70,14 @@ class PlaywrightBridge {
    * @param {number} opts.adbPort
    * @param {import('./versions').PlaywrightVersions} opts.versions
    * @param {{info: Function, warn: Function, debug: Function}} opts.log
+   * @param {boolean} [opts.allowShell] the client may use the adb shell of the device (the adb_shell feature of
+   * Appium, ADB_SHELL); without it shell(), open() and the shell arguments of the other methods are refused
    * @param {() => void} [opts.onChange] called when a connection opens or closes
    * @param {(playwright: object, opts: object) => Promise<object>} [opts.launch] launches the server (tests)
    */
-  constructor({serial, adbHost, adbPort, versions, log, onChange = () => {}, launch}) {
+  constructor({serial, adbHost, adbPort, versions, log, allowShell = false, onChange = () => {}, launch}) {
     this.serial = serial;
+    this.allowShell = allowShell;
     this.adbHost = adbHost;
     this.adbPort = adbPort;
     this.versions = versions;
@@ -79,6 +118,17 @@ class PlaywrightBridge {
       }
     };
     client.on('message', (data, isBinary) => {
+      const refused = this.allowShell ? null : shellUse(data);
+      if (refused) {
+        this.log.warn(`[MCLOUD] Playwright ${refused.use} of the client is refused on the device ${this.serial}: ` +
+          'the adb shell is not enabled (ADB_SHELL)');
+        if (refused.id !== undefined && client.readyState === WebSocket.OPEN) {
+          // the error answer of the Playwright server to the call
+          client.send(JSON.stringify({id: refused.id, error: {error: {name: 'Error', stack: '',
+            message: `${refused.use} is not allowed on this device: the adb shell is not enabled on the farm (ADB_SHELL)`}}}));
+        }
+        return;
+      }
       if (upstream?.readyState === WebSocket.OPEN) {
         upstream.send(data, {binary: isBinary});
       } else {
@@ -152,4 +202,4 @@ class PlaywrightBridge {
   }
 }
 
-module.exports = {PlaywrightBridge, sendableCode, closeReason};
+module.exports = {PlaywrightBridge, sendableCode, closeReason, shellUse};

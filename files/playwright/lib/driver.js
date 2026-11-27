@@ -30,6 +30,26 @@ function adbServer(env = process.env) {
   return match ? {host: match[1], port: Number(match[2])} : {host: '127.0.0.1', port: 5037};
 }
 
+/**
+ * @returns {string|undefined} PLAYWRIGHT_CACHE_DIR, undefined when it is empty or in the storage of the apps shared by
+ * the containers of the host (APPIUM_APPS_DIR): the code of the cache is loaded, another container must not write it
+ */
+function playwrightCacheDir(log, env = process.env) {
+  const cacheDir = env.PLAYWRIGHT_CACHE_DIR;
+  if (!cacheDir) {
+    return undefined;
+  }
+  if (env.APPIUM_APPS_DIR) {
+    const relative = path.relative(path.resolve(env.APPIUM_APPS_DIR), path.resolve(cacheDir));
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+      log.warn(`[MCLOUD] PLAYWRIGHT_CACHE_DIR ${cacheDir} is in the shared storage of the apps (APPIUM_APPS_DIR): it is ` +
+        'not used, only the bundled Playwright is served');
+      return undefined;
+    }
+  }
+  return cacheDir;
+}
+
 const ADB_SHELL_TIMEOUT_MS = 15000;
 
 /**
@@ -122,14 +142,14 @@ class PlaywrightDriver extends BaseDriver {
         await this.wakeDevice(serial);
       }
       const adb = adbServer();
-      const cacheDir = process.env.PLAYWRIGHT_CACHE_DIR ||
-        (process.env.APPIUM_APPS_DIR ? path.join(process.env.APPIUM_APPS_DIR, 'playwright') : undefined);
       this.bridge = new PlaywrightBridge({
         serial,
         adbHost: adb.host,
         adbPort: adb.port,
-        versions: new PlaywrightVersions({cacheDir, log: this.log}),
+        versions: new PlaywrightVersions({cacheDir: playwrightCacheDir(this.log), log: this.log}),
         log: this.log,
+        // shell() and open() of Playwright are the adb shell of the device: the adb_shell feature, as `mobile: shell`
+        allowShell: this.isFeatureEnabled('adb_shell'),
         // the client sends no WebDriver commands while it uses Playwright
         onChange: () => this.startNewCommandTimeout().catch(() => {}),
       });
@@ -171,4 +191,4 @@ class PlaywrightDriver extends BaseDriver {
   }
 }
 
-module.exports = {PlaywrightDriver, adbServer, adbShell, NODE_PATH};
+module.exports = {PlaywrightDriver, adbServer, adbShell, playwrightCacheDir, NODE_PATH};

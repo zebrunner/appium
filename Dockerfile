@@ -185,9 +185,11 @@ USER androidusr
 
 # The 'Playwright' automation of the Android devices (README.md#playwright): the driver with its modules (not the peer
 # Appium: it uses the one of APPIUM_HOME), linked into APPIUM_HOME, and the APKs of the Playwright driver of the device
-# in PLAYWRIGHT_BROWSERS_PATH; the other Playwright versions are installed on demand into PLAYWRIGHT_CACHE_DIR
+# in PLAYWRIGHT_BROWSERS_PATH; the other Playwright versions of PLAYWRIGHT_VERSIONS (the stable releases up to the
+# bundled one) are installed on demand into PLAYWRIGHT_CACHE_DIR of the container, not into the shared storage
 ENV PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_DIR}/browsers \
-    PLAYWRIGHT_CACHE_DIR=${APPIUM_APPS_DIR}/playwright
+    PLAYWRIGHT_CACHE_DIR=${PLAYWRIGHT_DIR}/cache \
+    PLAYWRIGHT_VERSIONS=">=1.40.0 <1.66.0"
 COPY --chown=androidusr:androidusr files/playwright/package.json ${PLAYWRIGHT_DIR}/driver/
 # the versions are pinned in its package.json, hadolint takes the --prefix value for an unpinned package
 # hadolint ignore=DL3016

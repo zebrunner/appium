@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "playwright-core": "1.65.0",
+    "semver": "7.7.3",
     "ws": "8.18.3"
   }
 }
