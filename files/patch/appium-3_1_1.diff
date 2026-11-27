@@ -438,7 +438,7 @@ index 07258f3..911d181 100644
    }
  
 diff --git a/packages/base-driver/lib/basedriver/helpers.js b/packages/base-driver/lib/basedriver/helpers.js
-index b3bdf5a..8ed2350 100644
+index b3bdf5a..f1ab3c7 100644
 --- a/packages/base-driver/lib/basedriver/helpers.js
 +++ b/packages/base-driver/lib/basedriver/helpers.js
 @@ -1,12 +1,14 @@
@@ -493,7 +493,7 @@ index b3bdf5a..8ed2350 100644
    /** @type {import('axios').AxiosResponse['headers']|undefined} */
    let headers;
    /** @type {RemoteAppProps} */
-@@ -161,38 +169,236 @@ export async function configureApp(
+@@ -161,38 +169,243 @@ export async function configureApp(
              }
            }
          }
@@ -644,14 +644,21 @@ index b3bdf5a..8ed2350 100644
 +            await fs.writeFile(lockFile, msg, {flag: 'wx'});
 +            lockOwned = true;
 +            logger.info(`[MCLOUD] lock file was written successfully`);
-+            // room for the new app: the old and the least recently used apps of the storage are removed
-+            await evictSharedApps(localAppsFolder);
 +          } catch (err) {
 +            if (err.code !== 'EEXIST') {
 +              throw err;
 +            }
 +            logger.info(`[MCLOUD] Another session has just started the download of the app`);
 +            await useParallelDownload();
++          }
++          // the download of another session may have stored the app between the check above and the .lock
++          if (lockOwned && await isStoredAppUsable()) {
++            await fs.rimraf(lockFile);
++            lockOwned = false;
++            await useStoredApp();
++          } else if (lockOwned) {
++            // room for the new app: the old and the least recently used apps of the storage are removed
++            await evictSharedApps(localAppsFolder);
 +          }
 +        }
 +
@@ -756,7 +763,7 @@ index b3bdf5a..8ed2350 100644
            stream.destroy();
          }
        }
-@@ -218,7 +424,10 @@ export async function configureApp(
+@@ -218,7 +431,10 @@ export async function configureApp(
      /** @type {(appPathToCache: string) => Promise<string>} */
      const storeAppInCache = async (appPathToCache) => {
        const cachedFullPath = cachedAppInfo?.fullPath;
@@ -768,7 +775,7 @@ index b3bdf5a..8ed2350 100644
          await fs.rimraf(cachedFullPath);
        }
        const integrity = {};
-@@ -540,6 +749,33 @@ function isEnvOptionEnabled(optionName, defaultValue = null) {
+@@ -540,6 +756,33 @@ function isEnvOptionEnabled(optionName, defaultValue = null) {
    return !_.isEmpty(value) && !['0', 'false', 'no'].includes(_.toLower(value));
  }
  
